@@ -18,8 +18,8 @@
             ₹{{ user.wallet.balance|default:"0.00" }}
         </div>
         <div class="flex space-x-4 mt-4">
-            <a href="/wallet/" class="text-[#0066CC] hover:underline">View Wallet</a>
-            <a href="/wallet/transactions/" class="text-[#0066CC] hover:underline">Transaction History</a>
+            <a href="{% url 'wallet' %}" class="text-[#0066CC] hover:underline">View Wallet</a>
+            <a href="{% url 'wallet_transactions' %}" class="text-[#0066CC] hover:underline">Transaction History</a>
         </div>
     </div>
     
@@ -27,7 +27,7 @@
     <div class="card">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Bill Payments</h3>
         <p class="text-gray-600 mb-4">Pay your bills quickly and securely</p>
-        <a href="/bills/" class="btn btn-primary text-white">Pay Bills Now</a>
+        <a href="#" class="btn btn-primary text-white">Pay Bills Now</a>
     </div>
     
     <!-- Quick Actions -->
@@ -35,7 +35,7 @@
         <div class="card">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Profile</h3>
             <p class="text-gray-600 mb-4">Update your profile information</p>
-            <a href="/profile/" class="text-[#0066CC] hover:underline">View Profile →</a>
+            <a href="{% url 'profile' %}" class="text-[#0066CC] hover:underline">View Profile →</a>
         </div>
         
         <div class="card">
@@ -44,7 +44,7 @@
                 Status: <span class="font-semibold">{{ user.kyc_status|title }}</span>
             </p>
             {% if not user.kyc_completed %}
-            <a href="/kyc/submit/" class="text-[#0066CC] hover:underline">Complete KYC →</a>
+            <a href="{% url 'kyc_submit' %}" class="text-[#0066CC] hover:underline">Complete KYC →</a>
             {% endif %}
         </div>
     </div>

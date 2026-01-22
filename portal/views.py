@@ -1,21 +1,28 @@
 """
 Portal Views - All views for user management, authentication, dashboards
 """
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.tokens import default_token_generator
 from django.views.decorators.http import require_http_methods
 from django.views import View
-from django.views.generic import TemplateView, ListView, DetailView, CreateView
+from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.utils.decorators import method_decorator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 from django.db import transaction
+from django.utils import timezone
+from django.core.mail import send_mail
+from core.config import payswap_config
 from portal.models import User, Profile, KYC, Wallet, WalletTransaction, Role
 from portal.forms import (
     SignUpForm, SignInForm, MFASetupForm, MFAVerifyForm,
     ProfileCreateForm, UserCreateForm, KYCSubmitForm,
-    PermissionAssignForm, RoleChangeForm
+    PermissionAssignForm, RoleChangeForm,
+    ForgotPasswordForm, PasswordResetForm, PasswordChangeForm, ProfileUpdateForm
 )
 from portal.utils.mfa_utils import (
     generate_totp_secret, generate_totp_uri, generate_qr_code,
@@ -227,10 +234,10 @@ class MFASetupView(View):
                 user.mfa_enabled = True
                 user.save()
                 
-                # Send OTP via Kaleyra service
+                # Send OTP via unified notification service
                 from portal.services.otp_service import OTPService
                 otp_service = OTPService()
-                success, message = otp_service.send_otp(phone)
+                success, message = otp_service.send_otp(phone, user_id=user.id, async_send=True)
                 if success:
                     messages.success(request, 'MFA configured successfully. OTP sent to your phone.')
                     del request.session['mfa_setup_user_id']
@@ -350,9 +357,9 @@ def resend_otp_view(request):
     if not user.phone:
         return JsonResponse({'success': False, 'message': 'Phone number not found.'}, status=400)
     
-    # Send OTP
+    # Send OTP via unified notification service
     otp_service = OTPService()
-    success, message = otp_service.send_otp(user.phone)
+    success, message = otp_service.send_otp(user.phone, user_id=user.id, async_send=True)
     
     if success:
         log_user_action_task.delay(
@@ -892,3 +899,234 @@ def change_role_view(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'errors': form.errors})
+
+
+class ForgotPasswordView(View):
+    """Forgot password view - request password reset"""
+    template_name = 'portal/auth/forgot_password.html'
+    
+    def get(self, request):
+        if request.user.is_authenticated:
+            return redirect('/dashboard/')
+        form = ForgotPasswordForm()
+        return render(request, self.template_name, {'form': form})
+    
+    def post(self, request):
+        form = ForgotPasswordForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            try:
+                profile = Profile.objects.get(email=email)
+                user = profile.user
+                
+                if not user.is_active:
+                    messages.error(request, 'This account is inactive. Please contact support.')
+                    return render(request, self.template_name, {'form': form})
+                
+                # Generate password reset token
+                token = default_token_generator.make_token(user)
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                
+                # Create reset URL
+                reset_url = request.build_absolute_uri(f'/password/reset/{uid}/{token}/')
+                
+                # Send password reset email via unified notification service
+                try:
+                    from portal.services.notification_service_v2 import NotificationServiceV2
+                    notification_service = NotificationServiceV2()
+                    result = notification_service.send_email(
+                        to_email=email,
+                        subject='Password Reset Request - Payswap',
+                        template_name='portal/emails/password_reset.html',
+                        context={
+                            'user': user,
+                            'reset_url': reset_url,
+                            'expiry_hours': 1
+                        },
+                        user_id=user.id,
+                        async_send=True
+                    )
+                except Exception as e:
+                    logger.error(f'Failed to send password reset email: {str(e)}')
+                    # Continue anyway - don't reveal if email exists
+                
+                log_security_event_task.delay(
+                    event_type='password_reset_requested',
+                    message='Password reset requested',
+                    user_id=user.id,
+                    severity='low',
+                    extra_data={'email': email}
+                )
+                
+                # Always show success message (security: don't reveal if email exists)
+                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
+                return redirect('/signin/')
+            except Profile.DoesNotExist:
+                # Don't reveal if email exists
+                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
+                return redirect('/signin/')
+        
+        return render(request, self.template_name, {'form': form})
+
+
+class PasswordResetView(View):
+    """Password reset view with token"""
+    template_name = 'portal/auth/password_reset.html'
+    
+    def get(self, request, uidb64, token):
+        if request.user.is_authenticated:
+            return redirect('/dashboard/')
+        
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+        
+        if user is None or not default_token_generator.check_token(user, token):
+            messages.error(request, 'Invalid or expired password reset link.')
+            return redirect('/forgot-password/')
+        
+        form = PasswordResetForm()
+        return render(request, self.template_name, {
+            'form': form,
+            'uidb64': uidb64,
+            'token': token,
+            'validlink': True
+        })
+    
+    def post(self, request, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+        
+        if user is None or not default_token_generator.check_token(user, token):
+            messages.error(request, 'Invalid or expired password reset link.')
+            return redirect('/forgot-password/')
+        
+        form = PasswordResetForm(request.POST)
+        if form.is_valid():
+            # Set new password
+            user.set_password(form.cleaned_data['password1'])
+            user.save()
+            
+            # Update profile last_password_change
+            if hasattr(user, 'profile') and user.profile:
+                user.profile.last_password_change = timezone.now()
+                user.profile.save()
+            
+            log_security_event_task.delay(
+                event_type='password_reset_completed',
+                message='Password reset completed',
+                user_id=user.id,
+                severity='medium'
+            )
+            
+            messages.success(request, 'Your password has been reset successfully. Please sign in with your new password.')
+            return redirect('/signin/')
+        
+        return render(request, self.template_name, {
+            'form': form,
+            'uidb64': uidb64,
+            'token': token,
+            'validlink': True
+        })
+
+
+class PasswordChangeView(View):
+    """Password change view for logged-in users"""
+    template_name = 'portal/auth/password_change.html'
+    
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get(self, request):
+        form = PasswordChangeForm(user=request.user)
+        return render(request, self.template_name, {'form': form})
+    
+    def post(self, request):
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            # Change password
+            request.user.set_password(form.cleaned_data['new_password1'])
+            request.user.save()
+            
+            # Update profile last_password_change
+            if hasattr(request.user, 'profile') and request.user.profile:
+                request.user.profile.last_password_change = timezone.now()
+                request.user.profile.save()
+            
+            log_user_action_task.delay(
+                action='password_change',
+                user_id=request.user.id,
+                resource='user',
+                resource_id=str(request.user.id),
+                status='success'
+            )
+            
+            messages.success(request, 'Your password has been changed successfully.')
+            return redirect('/profile/')
+        
+        return render(request, self.template_name, {'form': form})
+
+
+class ProfileView(DetailView):
+    """Profile view for logged-in users"""
+    model = Profile
+    template_name = 'portal/profile/view.html'
+    context_object_name = 'profile'
+    
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_object(self):
+        """Get current user's profile"""
+        if not hasattr(self.request.user, 'profile'):
+            messages.error(self.request, 'Profile not found. Please create your profile.')
+            return redirect('/profile/create/')
+        return self.request.user.profile
+
+
+class ProfileUpdateView(UpdateView):
+    """Profile update view"""
+    model = Profile
+    form_class = ProfileUpdateForm
+    template_name = 'portal/profile/update.html'
+    
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_object(self):
+        """Get current user's profile"""
+        if not hasattr(self.request.user, 'profile'):
+            messages.error(self.request, 'Profile not found. Please create your profile.')
+            return redirect('/profile/create/')
+        return self.request.user.profile
+    
+    def form_valid(self, form):
+        form.instance.last_updated_by = self.request.user
+        messages.success(self.request, 'Profile updated successfully!')
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return '/profile/'
+
+
+class SettingsView(TemplateView):
+    """Settings view for logged-in users"""
+    template_name = 'portal/settings.html'
+    
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['profile'] = self.request.user.profile if hasattr(self.request.user, 'profile') else None
+        context['user'] = self.request.user
+        return context

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Settings - Payswap{% endblock %}
+
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Account Settings</h1>
+        <p class="text-gray-600">Manage your account preferences and security settings</p>
+    </div>
+    
+    <div class="space-y-6">
+        <!-- Account Security Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Account Security</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div>
+                        <h4 class="font-semibold text-gray-900">Password</h4>
+                        <p class="text-sm text-gray-600">Change your account password</p>
+                        {% if profile.last_password_change %}
+                        <p class="text-xs text-gray-500 mt-1">Last changed: {{ profile.last_password_change|date:"F d, Y" }}</p>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'password_change' %}" class="text-[#0066CC] hover:underline font-semibold">
+                        Change Password
+                    </a>
+                </div>
+                
+                <div class="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div>
+                        <h4 class="font-semibold text-gray-900">Two-Factor Authentication</h4>
+                        <p class="text-sm text-gray-600">
+                            {% if user.mfa_configured %}
+                            MFA is {% if user.mfa_enabled %}enabled{% else %}configured but disabled{% endif %}
+                            {% else %}
+                            Add an extra layer of security
+                            {% endif %}
+                        </p>
+                    </div>
+                    <a href="{% url 'mfa_setup' %}" class="text-[#0066CC] hover:underline font-semibold">
+                        {% if user.mfa_configured %}Manage{% else %}Setup{% endif %} MFA
+                    </a>
+                </div>
+                
+                <div class="flex items-center justify-between py-3">
+                    <div>
+                        <h4 class="font-semibold text-gray-900">Email Verification</h4>
+                        <p class="text-sm text-gray-600">
+                            {% if profile.email_verified %}
+                            Your email is verified
+                            {% else %}
+                            Verify your email address
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if not profile.email_verified %}
+                    <a href="#" class="text-[#0066CC] hover:underline font-semibold">
+                        Verify Email
+                    </a>
+                    {% else %}
+                    <span class="text-green-600 font-semibold">✓ Verified</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Preferences Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Preferences</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Language</label>
+                    <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20">
+                        <option value="en" {% if profile.language_preference == 'en' %}selected{% endif %}>English</option>
+                        <option value="hi" {% if profile.language_preference == 'hi' %}selected{% endif %}>Hindi</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Timezone</label>
+                    <input type="text" value="{{ profile.timezone }}" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Currency</label>
+                    <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20">
+                        <option value="INR" {% if profile.currency_preference == 'INR' %}selected{% endif %}>INR (₹)</option>
+                        <option value="USD" {% if profile.currency_preference == 'USD' %}selected{% endif %}>USD ($)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Account Information Card -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Account Information</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">Username</span>
+                    <span class="font-semibold text-gray-900">{{ user.username }}</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">Role</span>
+                    <span class="font-semibold text-gray-900">{{ user.get_role_code_display }}</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">Account Created</span>
+                    <span class="font-semibold text-gray-900">{{ user.date_joined|date:"F d, Y" }}</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">Last Login</span>
+                    <span class="font-semibold text-gray-900">
+                        {% if user.last_login %}{{ user.last_login|date:"F d, Y g:i A" }}{% else %}Never{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Quick Actions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <a href="{% url 'profile' %}" class="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <h4 class="font-semibold text-gray-900 mb-1">View Profile</h4>
+                    <p class="text-sm text-gray-600">View your complete profile information</p>
+                </a>
+                <a href="{% url 'profile_update' %}" class="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <h4 class="font-semibold text-gray-900 mb-1">Edit Profile</h4>
+                    <p class="text-sm text-gray-600">Update your personal information</p>
+                </a>
+                <a href="{% url 'wallet' %}" class="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <h4 class="font-semibold text-gray-900 mb-1">My Wallet</h4>
+                    <p class="text-sm text-gray-600">View wallet balance and transactions</p>
+                </a>
+                <a href="{% url 'kyc_submit' %}" class="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <h4 class="font-semibold text-gray-900 mb-1">KYC Status</h4>
+                    <p class="text-sm text-gray-600">Check or submit KYC documents</p>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

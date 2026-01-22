@@ -58,7 +58,7 @@
         {% if user.is_authenticated %}
         <aside class="w-64 bg-white border-r border-gray-200 shadow-sm" x-data="{ open: true }">
             <div class="p-6">
-                <a href="/" class="flex items-center">
+                <a href="{% url 'dashboard' %}" class="flex items-center">
                     <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-8 w-auto">
                 </a>
             </div>
@@ -76,8 +76,9 @@
                 <div class="px-6 py-4 flex justify-between items-center">
                     <h2 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h2>
                     <div class="flex items-center space-x-4">
-                        <span class="text-sm text-gray-600">{{ user.username }}</span>
-                        <a href="/logout/" class="text-sm text-[#0066CC] hover:underline">Logout</a>
+                        <a href="{% url 'profile' %}" class="text-sm text-gray-600 hover:text-[#0066CC]">{{ user.username }}</a>
+                        <a href="{% url 'settings' %}" class="text-sm text-gray-600 hover:text-[#0066CC]">Settings</a>
+                        <a href="{% url 'logout' %}" class="text-sm text-[#0066CC] hover:underline">Logout</a>
                     </div>
                 </div>
             </header>

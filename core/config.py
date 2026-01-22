@@ -57,11 +57,13 @@ class PayswapConfig(BaseSettings):
     JWT_REFRESH_TOKEN_LIFETIME: int = Field(default=86400)
 
     # ============================================================================
-    # SMS - KALEYRA
+    # SMS - KALEYRA (India Region)
     # ============================================================================
     KALEYRA_API_KEY: SecretStr = Field(...)
     KALEYRA_SID: str = Field(...)
-    KALEYRA_BASE_URL: str = Field(default="https://api.kaleyra.io/v1")
+    # Note: Base URL is constructed in KaleyraClient using India-specific endpoint
+    # India endpoint: https://api.in.kaleyra.io/v1/<<SID>>
+    KALEYRA_BASE_URL: str = Field(default="https://api.in.kaleyra.io/v1")
     
     # ============================================================================
     # DOCUMENT VERIFICATION

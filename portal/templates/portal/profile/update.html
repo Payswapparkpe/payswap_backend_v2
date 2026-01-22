@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Update Profile - Payswap{% endblock %}
+
+{% block page_title %}Update Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Update Profile</h1>
+        <p class="text-gray-600">Update your personal and account information</p>
+    </div>
+    
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Personal Information Card -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Personal Information</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            First Name *
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.middle_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Middle Name
+                        </label>
+                        {{ form.middle_name }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Last Name
+                        </label>
+                        {{ form.last_name }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.date_of_birth.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Date of Birth
+                        </label>
+                        {{ form.date_of_birth }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.gender.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Gender
+                        </label>
+                        {{ form.gender }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.marital_status.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Marital Status
+                        </label>
+                        {{ form.marital_status }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.profile_photo.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Profile Photo
+                        </label>
+                        {{ form.profile_photo }}
+                        {% if profile.profile_photo %}
+                        <p class="mt-2 text-sm text-gray-600">Current: <a href="{{ profile.profile_photo.url }}" target="_blank" class="text-[#0066CC] hover:underline">View</a></p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contact Information Card -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Contact Information</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Email
+                        </label>
+                        <input type="email" value="{{ profile.email }}" disabled class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                        <p class="mt-1 text-xs text-gray-500">Email cannot be changed. Contact support if needed.</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Phone
+                        </label>
+                        <input type="tel" value="{{ profile.phone }}" disabled class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                        <p class="mt-1 text-xs text-gray-500">Phone cannot be changed. Contact support if needed.</p>
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.alternate_phone.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Alternate Phone
+                        </label>
+                        {{ form.alternate_phone }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.address_line_1.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Address Line 1
+                        </label>
+                        {{ form.address_line_1 }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.address_line_2.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Address Line 2
+                        </label>
+                        {{ form.address_line_2 }}
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="{{ form.city.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                City
+                            </label>
+                            {{ form.city }}
+                        </div>
+                        <div>
+                            <label for="{{ form.state.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                State
+                            </label>
+                            {{ form.state }}
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.pincode.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Pincode
+                        </label>
+                        {{ form.pincode }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Banking Information Card -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Banking Information</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="{{ form.bank_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Bank Name
+                        </label>
+                        {{ form.bank_name }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.account_holder_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Account Holder Name
+                        </label>
+                        {{ form.account_holder_name }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.account_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Account Number
+                        </label>
+                        {{ form.account_number }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.ifsc_code.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            IFSC Code
+                        </label>
+                        {{ form.ifsc_code }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.branch_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Branch Name
+                        </label>
+                        {{ form.branch_name }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.account_type.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Account Type
+                        </label>
+                        {{ form.account_type }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Taxation Information Card -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Taxation Information</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="{{ form.pan_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            PAN Number
+                        </label>
+                        {{ form.pan_number }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.aadhaar_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Aadhaar Number
+                        </label>
+                        {{ form.aadhaar_number }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.gst_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            GST Number
+                        </label>
+                        {{ form.gst_number }}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.tax_id.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Other Tax ID
+                        </label>
+                        {{ form.tax_id }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submit Buttons -->
+        <div class="flex gap-4 justify-end">
+            <a href="{% url 'profile' %}" class="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                Cancel
+            </a>
+            <button type="submit" class="bg-[#0066CC] hover:bg-[#0052A3] text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2">
+                Save Changes
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

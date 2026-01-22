@@ -12,6 +12,11 @@ urlpatterns = [
     path('signup/', views.SignUpView.as_view(), name='signup'),
     path('logout/', views.sign_out_view, name='logout'),
     
+    # Password Management
+    path('forgot-password/', views.ForgotPasswordView.as_view(), name='forgot_password'),
+    path('password/reset/<uidb64>/<token>/', views.PasswordResetView.as_view(), name='password_reset'),
+    path('password/change/', views.PasswordChangeView.as_view(), name='password_change'),
+    
     # MFA
     path('mfa/setup/', views.MFASetupView.as_view(), name='mfa_setup'),
     path('mfa/verify/', views.MFAVerifyView.as_view(), name='mfa_verify'),
@@ -28,7 +33,12 @@ urlpatterns = [
     path('dashboard/vendor/', views.VendorDashboardView.as_view(), name='dashboard_vendor'),
     
     # Profile
+    path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile_create'),
+    path('profile/update/', views.ProfileUpdateView.as_view(), name='profile_update'),
+    
+    # Settings
+    path('settings/', views.SettingsView.as_view(), name='settings'),
     
     # Users
     path('users/', views.UserListView.as_view(), name='user_list'),

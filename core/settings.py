@@ -205,6 +205,7 @@ EMAIL_PORT = payswap_config.SMTP_PORT
 EMAIL_USE_TLS = payswap_config.SMTP_USE_TLS
 EMAIL_HOST_USER = payswap_config.SMTP_USER
 EMAIL_HOST_PASSWORD = payswap_config.get_smtp_password()
+DEFAULT_FROM_EMAIL = payswap_config.SMTP_DEFAULT_FROM
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = payswap_config.cors_allowed_origins_list

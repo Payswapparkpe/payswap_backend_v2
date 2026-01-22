@@ -68,15 +68,15 @@
     <div class="card">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a href="/users/create/" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
+            <a href="{% url 'user_create' %}" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
                 <div class="font-semibold text-gray-900">Create User</div>
                 <div class="text-sm text-gray-600">Add a new user to the system</div>
             </a>
-            <a href="/kyc/verify/" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
+            <a href="{% url 'kyc_submit' %}" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
                 <div class="font-semibold text-gray-900">Verify KYC</div>
                 <div class="text-sm text-gray-600">Review pending KYC submissions</div>
             </a>
-            <a href="/permissions/" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
+            <a href="{% url 'permissions' %}" class="p-4 border border-gray-200 rounded-lg hover:border-[#0066CC] hover:bg-blue-50 transition">
                 <div class="font-semibold text-gray-900">Manage Permissions</div>
                 <div class="text-sm text-gray-600">Assign and revoke permissions</div>
             </a>

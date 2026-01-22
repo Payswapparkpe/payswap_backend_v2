@@ -391,6 +391,20 @@ class SecureLogger:
 secure_logger = SecureLogger('portal')
 
 
+def sanitize_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sanitize sensitive data in dictionary for logging
+    
+    Args:
+        data: Dictionary to sanitize
+    
+    Returns:
+        Sanitized dictionary
+    """
+    logger = SecureLogger()
+    return logger._sanitize_dict(data)
+
+
 def get_logger(name: str = 'portal') -> SecureLogger:
     """
     Get a secure logger instance
