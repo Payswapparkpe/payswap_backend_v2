@@ -1,0 +1,130 @@
+PROPRIETARY SOFTWARE LICENSE AGREEMENT
+
+Copyright © 2025 Payswap. All rights reserved.
+
+NOTICE: This software and associated documentation files (the "Software") are proprietary and confidential to Payswap ("Company"). Unauthorized copying, distribution, modification, public display, or public performance of this Software, via any medium, is strictly prohibited.
+
+TERMS AND CONDITIONS
+
+1. GRANT OF LICENSE
+   Subject to the terms of this Agreement, Company grants you a limited, non-exclusive, non-transferable, revocable license to use the Software solely for internal business purposes in connection with authorized Company services.
+
+2. RESTRICTIONS
+   You may NOT:
+   a) Copy, modify, or create derivative works of the Software
+   b) Reverse engineer, decompile, or disassemble the Software
+   c) Rent, lease, lend, sell, redistribute, or sublicense the Software
+   d) Remove or alter any proprietary notices or labels on the Software
+   e) Use the Software for any purpose not expressly authorized by Company
+   f) Transfer any of the rights granted to you under this License
+
+3. OWNERSHIP
+   The Software is licensed, not sold. Company retains all right, title, and interest in and to the Software, including all intellectual property rights therein. This License does not grant you any rights to trademarks, service marks, or trade names of Company.
+
+4. CONFIDENTIALITY
+   You acknowledge that the Software contains valuable trade secrets and confidential information of Company. You agree to maintain the confidentiality of the Software and not disclose it to any third party without prior written consent from Company.
+
+5. FINANCIAL SERVICES COMPLIANCE
+   This Software is designed for financial services operations and must be used in compliance with:
+   a) Reserve Bank of India (RBI) regulations
+   b) Payment and Settlement Systems Act, 2007
+   c) Prevention of Money Laundering Act (PMLA), 2002
+   d) Information Technology Act, 2000
+   e) All applicable financial services regulations in India
+   
+   User is solely responsible for ensuring compliance with all applicable laws and regulations.
+
+6. DATA PROTECTION
+   User must comply with:
+   a) Information Technology Act, 2000 and Rules thereunder
+   b) Digital Personal Data Protection Act, 2023 (when enacted)
+   c) Any other applicable data protection regulations
+   
+   Company is not liable for User's failure to comply with data protection requirements.
+
+7. SECURITY REQUIREMENTS
+   User must:
+   a) Implement industry-standard security measures
+   b) Protect all encryption keys and credentials
+   c) Report security incidents to Company within 24 hours
+   d) Conduct regular security audits
+   e) Maintain appropriate cybersecurity insurance
+
+8. TERM AND TERMINATION
+   a) This License is effective until terminated
+   b) Company may terminate this License immediately if you breach any terms
+   c) Upon termination, you must immediately cease all use of the Software and destroy all copies
+   d) Sections 3, 4, 9, 10, and 11 survive termination
+
+9. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. COMPANY DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE OR UNINTERRUPTED.
+
+10. LIMITATION OF LIABILITY
+    IN NO EVENT SHALL COMPANY BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, USE, OR OTHER INTANGIBLE LOSSES, EVEN IF COMPANY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+    
+    COMPANY'S TOTAL LIABILITY SHALL NOT EXCEED THE AMOUNT PAID BY YOU FOR THE SOFTWARE IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM.
+
+11. INDEMNIFICATION
+    You agree to indemnify, defend, and hold harmless Company and its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including reasonable attorneys' fees) arising from:
+    a) Your use of the Software
+    b) Your violation of this License
+    c) Your violation of any applicable laws or regulations
+    d) Any financial transactions processed using the Software
+
+12. GOVERNING LAW AND JURISDICTION
+    a) This License shall be governed by the laws of India
+    b) Any disputes shall be subject to the exclusive jurisdiction of courts in New Delhi, India
+    c) User consents to personal jurisdiction in New Delhi, India
+
+13. EXPORT CONTROL
+    You agree to comply with all applicable export and import control laws and regulations. You shall not export, re-export, or transfer the Software to any prohibited country, entity, or person.
+
+14. AUDIT RIGHTS
+    Company reserves the right to audit your use of the Software to ensure compliance with this License. You agree to cooperate with such audits and provide necessary documentation.
+
+15. UPDATES AND SUPPORT
+    a) Company may provide updates, but is not obligated to do so
+    b) Support services, if any, are subject to separate agreement
+    c) Updates may be subject to additional terms
+
+16. ENTIRE AGREEMENT
+    This License constitutes the entire agreement between you and Company regarding the Software and supersedes all prior agreements and understandings.
+
+17. SEVERABILITY
+    If any provision of this License is held to be unenforceable, such provision shall be reformed only to the extent necessary to make it enforceable, and the remaining provisions shall remain in full force and effect.
+
+18. NO WAIVER
+    No waiver of any term of this License shall be deemed a further or continuing waiver of such term or any other term.
+
+19. CONTACT INFORMATION
+    For questions regarding this License, please contact:
+    
+    Payswap
+    Email: legal@payswap.in
+    Support: support@payswap.in
+
+BY USING THE SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS LICENSE, UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS AND CONDITIONS.
+
+---
+
+SPECIAL PROVISIONS FOR FINANCIAL SERVICES
+
+This Software processes sensitive financial data and payment transactions. Users must:
+
+1. Maintain PCI-DSS compliance if handling card data
+2. Implement RBI-mandated security controls
+3. Maintain transaction logs for statutory period (minimum 10 years)
+4. Report suspicious transactions as per PMLA requirements
+5. Comply with KYC/AML regulations
+6. Maintain business continuity and disaster recovery plans
+7. Obtain necessary licenses/approvals from regulatory authorities
+
+COMPANY DISCLAIMS ALL LIABILITY FOR:
+- Regulatory non-compliance by User
+- Financial losses due to User's operational failures
+- Unauthorized access due to User's security lapses
+- Fraudulent transactions processed by User
+
+---
+
+Last Updated: January 2025
