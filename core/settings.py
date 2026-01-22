@@ -37,9 +37,9 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_beat",
     "django_celery_results",
-    # Local apps
+    # Local apps (portal must come after django.contrib.auth to override createsuperuser)
     "api",
-    "portal",
+    "portal.apps.PortalConfig",  # Use explicit app config to ensure command override
 ]
 
 MIDDLEWARE = [

@@ -398,6 +398,10 @@ class User(AbstractUser):
     
     objects = UserManager()
     
+    # Exclude email from REQUIRED_FIELDS since it's a property, not a field
+    # Email is stored in Profile model
+    REQUIRED_FIELDS = []  # Username and password are handled by AbstractUser
+    
     ROLE_CHOICES = [
         ('admin', 'Admin'),
         ('employee', 'Employee'),
@@ -433,7 +437,8 @@ class User(AbstractUser):
     # Override AbstractUser fields to be nullable (data is in Profile)
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)  # Email is in Profile, kept for backward compatibility
+    # Email field: Keep as nullable field for Django compatibility, but use property to read from Profile
+    email = models.EmailField(blank=True, null=True, help_text="Email is stored in Profile model")
     
     # Password is inherited from AbstractUser
     

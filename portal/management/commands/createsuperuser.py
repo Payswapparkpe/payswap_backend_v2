@@ -1,8 +1,8 @@
 """
 Custom createsuperuser command with required fields: first_name, phone, email, username, role
+This command overrides Django's default createsuperuser to work with Profile-based email/phone
 """
-from django.core.management.base import CommandError
-from django.contrib.auth.management.commands.createsuperuser import Command as BaseCommand
+from django.core.management.base import CommandError, BaseCommand
 from django.db import transaction
 from portal.models import User, Role, Profile
 from portal.utils.user_utils import generate_username, get_role_prefix
@@ -10,9 +10,29 @@ from portal.utils.user_utils import generate_username, get_role_prefix
 
 class Command(BaseCommand):
     help = 'Create a superuser with first_name, mobile, email, username, and role'
+    
+    # Override Django's default command name
+    requires_system_checks = []
 
     def add_arguments(self, parser):
-        super().add_arguments(parser)
+        # Don't inherit from Django's createsuperuser to avoid email field issues
+        # Add all arguments manually
+        parser.add_argument(
+            '--username',
+            dest='username',
+            help='Username (auto-generated if not provided)',
+        )
+        parser.add_argument(
+            '--password',
+            dest='password',
+            help='Password for the superuser',
+        )
+        parser.add_argument(
+            '--noinput',
+            action='store_true',
+            dest='noinput',
+            help='Do not prompt for input (requires all fields via arguments)',
+        )
         parser.add_argument(
             '--first_name',
             dest='first_name',
@@ -29,22 +49,11 @@ class Command(BaseCommand):
             help='User\'s email address (required)',
         )
         parser.add_argument(
-            '--username',
-            dest='username',
-            help='Username (auto-generated if not provided)',
-        )
-        parser.add_argument(
             '--role',
             dest='role_code',
             choices=['admin', 'super', 'employee', 'distributor', 'retailer', 'customer', 'vendor'],
             default='admin',
             help='User role (default: admin)',
-        )
-        parser.add_argument(
-            '--noinput',
-            action='store_true',
-            dest='noinput',
-            help='Do not prompt for input (requires all fields via arguments)',
         )
 
     def handle(self, *args, **options):
