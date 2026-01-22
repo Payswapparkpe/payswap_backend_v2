@@ -16,3 +16,7 @@ Pillow
 PyYAML
 pytz
 cryptography
+sentry-sdk[django]
+django-celery-beat 
+django-celery-results 
+django-redis
