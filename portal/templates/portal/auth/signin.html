@@ -1,0 +1,502 @@
+{% extends "auth_base.html" %}
+{% load static %}
+
+{% block title %}Sign In - Payswap{% endblock %}
+
+{% block auth_subtitle %}Log In to your Account{% endblock %}
+
+{% block auth_content %}
+<div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <!-- Main Card Container -->
+    <div class="card w-full max-w-7xl overflow-hidden p-0">
+        <div class="flex flex-col lg:flex-row min-h-[600px] lg:min-h-[700px]">
+            <!-- Left Panel - Welcome Section -->
+            <div class="hidden lg:flex lg:w-3/5 bg-gradient-to-br from-[#0066CC] via-[#0052A3] to-[#003d7a] relative overflow-hidden items-center">
+                <!-- Background Pattern -->
+                <div class="absolute inset-0 opacity-10">
+                    <div class="absolute inset-0" style="background-image: radial-gradient(circle, white 1px, transparent 1px); background-size: 50px 50px;"></div>
+                </div>
+                
+                <!-- Subtle Logo Watermark -->
+                <div class="absolute inset-0 flex items-center justify-center opacity-5">
+                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="w-64 h-64 filter brightness-0 invert">
+                </div>
+                
+                <div class="relative z-10 flex flex-col justify-center p-6 lg:p-10 text-white h-full">
+                    <div>
+                        <h1 class="text-3xl lg:text-4xl font-bold mb-3 leading-tight">Welcome to Payswap! 👋</h1>
+                        <p class="text-lg lg:text-xl font-semibold italic mb-4 leading-relaxed">"Financing Dreams, Simplifying Lives"</p>
+                        
+                        <!-- Image Slider -->
+                        <div 
+                            class="mb-4 rounded-lg overflow-hidden w-full flex justify-center"
+                            x-data="{ currentSlide: 0, images: [
+                                { url: 'https://images.unsplash.com/photo-1556740758-90de374c12ad?w=800&h=600&fit=crop', title: 'Secure Payments', desc: 'Fast and secure transaction processing' },
+                                { url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop', title: 'Digital Wallet', desc: 'Manage your finances effortlessly' },
+                                { url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop', title: 'Bill Payments', desc: 'Pay bills with ease and convenience' },
+                                { url: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&h=600&fit=crop', title: 'Business Solutions', desc: 'Complete payment infrastructure' }
+                            ] }" 
+                            x-init="setInterval(() => { currentSlide = (currentSlide + 1) % images.length }, 5000)"
+                        >
+                            <div class="relative w-full overflow-hidden rounded-lg" style="aspect-ratio: 4 / 3;">
+                                <template x-for="(image, index) in images" :key="index">
+                                    <div 
+                                        x-show="currentSlide === index"
+                                        x-transition:enter="transition ease-out duration-500"
+                                        x-transition:enter-start="opacity-0 transform scale-110"
+                                        x-transition:enter-end="opacity-100 transform scale-100"
+                                        x-transition:leave="transition ease-in duration-300"
+                                        x-transition:leave-start="opacity-100 transform scale-100"
+                                        x-transition:leave-end="opacity-0 transform scale-110"
+                                        class="absolute inset-0"
+                                    >
+                                        <img :src="image.url" :alt="image.title" class="w-full h-full object-cover">
+                                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                                        <div class="absolute bottom-0 left-0 right-0 p-4 text-white">
+                                            <h3 class="text-lg lg:text-xl font-bold mb-1" x-text="image.title"></h3>
+                                            <p class="text-xs lg:text-sm opacity-90" x-text="image.desc"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                
+                                <!-- Slider Indicators -->
+                                <div class="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                                    <template x-for="(image, index) in images" :key="index">
+                                        <button 
+                                            @click="currentSlide = index"
+                                            class="w-2 h-2 rounded-full transition-all duration-300"
+                                            :class="currentSlide === index ? 'bg-white w-8' : 'bg-white/50'"
+                                            :aria-label="'Go to slide ' + (index + 1)"
+                                        ></button>
+                                    </template>
+                                </div>
+                                
+                                <!-- Navigation Arrows -->
+                                <button 
+                                    @click="currentSlide = (currentSlide - 1 + images.length) % images.length"
+                                    class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-2 transition-all z-10"
+                                    aria-label="Previous slide"
+                                >
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                    </svg>
+                                </button>
+                                <button 
+                                    @click="currentSlide = (currentSlide + 1) % images.length"
+                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-2 transition-all z-10"
+                                    aria-label="Next slide"
+                                >
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <p class="text-sm lg:text-base leading-relaxed opacity-90 mt-4">
+                            Our digital payment platform simplifies transactions with fast processing, secure wallets, and transparent terms. Whether you're managing your business, paying bills, or handling daily expenses, Payswap makes it easy.
+                        </p>
+                    </div>
+                    <div class="text-xs opacity-75 mt-6">
+                        <p>&copy; Copyright {% now "Y" %}. All rights Reserved</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Panel - Login Form -->
+            <div class="w-full lg:w-2/5 flex items-center justify-center bg-white p-4 sm:p-6 lg:p-8">
+                <div class="w-full max-w-sm space-y-5 mx-auto">
+                    <!-- Help Link -->
+                    <div class="text-right mb-4">
+                        <a href="#" class="text-sm text-gray-600 hover:text-[#0066CC] transition-colors duration-200 flex items-center justify-end gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 rounded">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>Need help?</span>
+                        </a>
+                    </div>
+                    
+                    <!-- Logo -->
+                    <div class="text-center mb-6">
+                        <a href="/" class="inline-block focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 rounded">
+                            <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap Logo" class="h-10 w-auto mx-auto">
+                        </a>
+                    </div>
+                    
+                    <!-- Login Title -->
+                    <h2 class="text-2xl font-bold text-gray-900 text-center mb-6 leading-tight">Log In to your Account</h2>
+                    
+                    <!-- Login Form -->
+                    <form method="post" action="{% url 'signin' %}" class="space-y-4" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Username/Email Field -->
+                        <div>
+                            <label for="{{ form.username.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                {{ form.username.label|default:"Username or Email" }}
+                            </label>
+                            <div class="relative">
+                                <input 
+                                    type="text" 
+                                    name="{{ form.username.name }}" 
+                                    id="{{ form.username.id_for_label }}"
+                                    class="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                                    placeholder="Enter your username or email"
+                                    required
+                                    autocomplete="username"
+                                    aria-required="true"
+                                    aria-describedby="{% if form.username.errors %}username-error{% endif %}"
+                                    {% if form.username.value %}value="{{ form.username.value }}"{% endif %}
+                                >
+                            </div>
+                            {% if form.username.errors %}
+                            <p id="username-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.username.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Password Field with Show/Hide -->
+                        <div x-data="{ showPassword: false }">
+                            <label for="{{ form.password.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                {{ form.password.label|default:"Password" }}
+                            </label>
+                            <div class="relative">
+                                <input 
+                                    :type="showPassword ? 'text' : 'password'"
+                                    name="{{ form.password.name }}" 
+                                    id="{{ form.password.id_for_label }}"
+                                    class="w-full px-4 py-3 pr-12 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                                    placeholder="Enter your password"
+                                    required
+                                    autocomplete="current-password"
+                                    aria-required="true"
+                                    aria-describedby="{% if form.password.errors %}password-error{% endif %}"
+                                >
+                                <button 
+                                    type="button"
+                                    @click="showPassword = !showPassword"
+                                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0066CC] transition-colors duration-200 p-1.5 rounded focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                    :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                                >
+                                    <svg x-show="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    <svg x-show="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0A9.97 9.97 0 015.12 5.12m3.17 3.17L12 12m-3.71-3.71L3 3m9 9l3.29 3.29M12 12l3.29 3.29m0 0A9.97 9.97 0 0118.88 18.88M15.71 15.71L21 21M12 12l-3.29-3.29"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            {% if form.password.errors %}
+                            <p id="password-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.password.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Remember Me & Forgot Password -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <input 
+                                    id="remember-me" 
+                                    name="remember-me" 
+                                    type="checkbox" 
+                                    class="h-4 w-4 text-[#0066CC] focus:ring-[#0066CC] border-gray-300 rounded transition-colors duration-200"
+                                >
+                                <label for="remember-me" class="ml-2.5 block text-sm text-gray-700 cursor-pointer">
+                                    Remember me
+                                </label>
+                            </div>
+                            <a href="#" class="text-sm text-[#0066CC] hover:underline focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 rounded transition-colors duration-200">
+                                Forgot password?
+                            </a>
+                        </div>
+                        
+                        <!-- Continue Button -->
+                        <button 
+                            type="submit" 
+                            class="w-full bg-[#0066CC] text-white py-3 px-4 rounded-lg font-semibold text-base hover:bg-[#0052A3] transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Continue
+                        </button>
+                        
+                        <!-- Terms and Privacy -->
+                        <p class="text-xs text-center text-gray-600 leading-relaxed">
+                            By continuing, you agree to Payswap's 
+                            <button type="button" @click="$dispatch('open-modal', { type: 'terms' })" class="text-[#0066CC] hover:underline focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-1 rounded">Terms of Use</button>
+                            and 
+                            <button type="button" @click="$dispatch('open-modal', { type: 'privacy' })" class="text-[#0066CC] hover:underline focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-1 rounded">Privacy Policy</button>.
+                        </p>
+                        
+                        <!-- Social Login Separator -->
+                        <div class="relative my-5">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div class="relative flex justify-center text-sm">
+                                <span class="px-3 bg-white text-gray-500 font-medium">Or continue with</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Social Login Buttons -->
+                        <div class="flex justify-center gap-3 flex-wrap">
+                            <!-- Google -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Login with Google"
+                                aria-label="Login with Google"
+                            >
+                                <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Facebook -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Login with Facebook"
+                                aria-label="Login with Facebook"
+                            >
+                                <svg class="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- LinkedIn -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Login with LinkedIn"
+                                aria-label="Login with LinkedIn"
+                            >
+                                <svg class="w-5 h-5" fill="#0077B5" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Apple -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Login with Apple"
+                                aria-label="Login with Apple"
+                            >
+                                <svg class="w-5 h-5" fill="#000000" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.08-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Signup Prompt -->
+                        <p class="text-center text-sm text-gray-600 mt-5 leading-relaxed">
+                            Don't have an account? 
+                            <a href="{% url 'signup' %}" class="text-[#0066CC] font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-1 rounded transition-colors duration-200">
+                                Create new account now.
+                            </a>
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terms of Use Modal -->
+<div 
+    x-data="{ open: false }"
+    @open-modal.window="if ($event.detail.type === 'terms') open = true"
+    @keydown.escape.window="open = false"
+    x-show="open"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    style="display: none;"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="terms-modal-title"
+>
+    <div 
+        x-show="open"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        @click="open = false"
+    ></div>
+    
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div 
+            x-show="open"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+        >
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 id="terms-modal-title" class="text-2xl font-bold text-gray-900">Terms of Use</h3>
+                <button 
+                    @click="open = false"
+                    class="text-gray-400 hover:text-gray-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 rounded"
+                    aria-label="Close modal"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div class="prose max-w-none">
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">1. Acceptance of Terms</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        By accessing and using Payswap, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">2. Use License</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        Permission is granted to temporarily use Payswap for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 mb-4 space-y-2 ml-4">
+                        <li>Modify or copy the materials</li>
+                        <li>Use the materials for any commercial purpose</li>
+                        <li>Attempt to decompile or reverse engineer any software</li>
+                        <li>Remove any copyright or other proprietary notations</li>
+                    </ul>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">3. User Account</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">4. Payment Terms</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        All payments made through Payswap are subject to verification. We reserve the right to refuse or cancel any transaction at our sole discretion.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">5. Limitation of Liability</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        Payswap shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.
+                    </p>
+                </div>
+            </div>
+            <div class="flex justify-end p-6 border-t border-gray-200">
+                <button 
+                    @click="open = false"
+                    class="px-6 py-2.5 bg-[#0066CC] text-white rounded-lg hover:bg-[#0052A3] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 font-medium"
+                >
+                    I Agree
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Privacy Policy Modal -->
+<div 
+    x-data="{ open: false }"
+    @open-modal.window="if ($event.detail.type === 'privacy') open = true"
+    @keydown.escape.window="open = false"
+    x-show="open"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    style="display: none;"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="privacy-modal-title"
+>
+    <div 
+        x-show="open"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        @click="open = false"
+    ></div>
+    
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div 
+            x-show="open"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+        >
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 id="privacy-modal-title" class="text-2xl font-bold text-gray-900">Privacy Policy</h3>
+                <button 
+                    @click="open = false"
+                    class="text-gray-400 hover:text-gray-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 rounded"
+                    aria-label="Close modal"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div class="prose max-w-none">
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">1. Information We Collect</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        We collect information that you provide directly to us, including your name, email address, phone number, payment information, and any other information you choose to provide.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">2. How We Use Your Information</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        We use the information we collect to:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 mb-4 space-y-2 ml-4">
+                        <li>Process transactions and send related information</li>
+                        <li>Send technical notices and support messages</li>
+                        <li>Respond to your comments and questions</li>
+                        <li>Improve our services and user experience</li>
+                    </ul>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">3. Information Sharing</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        We do not sell, trade, or rent your personal information to third parties. We may share your information only with trusted service providers who assist us in operating our platform.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">4. Data Security</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        We implement appropriate technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">5. Your Rights</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        You have the right to access, update, or delete your personal information at any time. You can also opt-out of certain communications from us.
+                    </p>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-900">6. Cookies</h4>
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        We use cookies to enhance your experience, analyze site usage, and assist in our marketing efforts. You can control cookies through your browser settings.
+                    </p>
+                </div>
+            </div>
+            <div class="flex justify-end p-6 border-t border-gray-200">
+                <button 
+                    @click="open = false"
+                    class="px-6 py-2.5 bg-[#0066CC] text-white rounded-lg hover:bg-[#0052A3] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 font-medium"
+                >
+                    I Understand
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<style>
+[x-cloak] { display: none !important; }
+</style>

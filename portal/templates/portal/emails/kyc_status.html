@@ -1,0 +1,15 @@
+{% extends "email_base.html" %}
+
+{% block email_content %}
+<h2 style="color: #0066CC; margin-bottom: 1rem;">KYC Status Update</h2>
+<p>Hello {{ user.username }},</p>
+<p>Your KYC verification status has been updated.</p>
+<p><strong>Status:</strong> {{ kyc_status|title }}</p>
+{% if kyc_status == 'approved' %}
+<p style="color: #10B981;">Congratulations! Your KYC has been approved. You can now access all features.</p>
+{% elif kyc_status == 'rejected' %}
+<p style="color: #EF4444;">Your KYC has been rejected. Reason: {{ rejection_reason }}</p>
+<p>Please submit your KYC documents again.</p>
+{% endif %}
+<p>Thank you for your patience.</p>
+{% endblock %}

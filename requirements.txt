@@ -20,3 +20,7 @@ sentry-sdk[django]
 django-celery-beat 
 django-celery-results 
 django-redis
+pyotp
+qrcode[pil]
+boto3
+python-json-logger

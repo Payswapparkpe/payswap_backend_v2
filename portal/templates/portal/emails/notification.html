@@ -1,0 +1,8 @@
+{% extends "email_base.html" %}
+
+{% block email_content %}
+<h2 style="color: #0066CC; margin-bottom: 1rem;">Notification</h2>
+<p>Hello {{ user.username }},</p>
+<p>{{ message }}</p>
+<p>Thank you for using Payswap!</p>
+{% endblock %}

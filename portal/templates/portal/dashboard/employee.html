@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Employee Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="card">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Employee Dashboard</h2>
+        <p class="text-gray-600">Welcome, {{ user.username }}!</p>
+    </div>
+    
+    <!-- Employee-specific content -->
+    <div class="card">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Your Tasks</h3>
+        <p class="text-gray-600">No pending tasks</p>
+    </div>
+</div>
+{% endblock %}

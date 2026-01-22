@@ -1,0 +1,13 @@
+{% extends "email_base.html" %}
+
+{% block email_content %}
+<h2 style="color: #0066CC; margin-bottom: 1rem;">Welcome to Payswap!</h2>
+<p>Hello {{ user.username }},</p>
+<p>Welcome to Payswap! Your account has been successfully created.</p>
+<p>Your username: <strong>{{ user.username }}</strong></p>
+<p>You can now sign in and start using our services.</p>
+<p style="text-align: center; margin: 2rem 0;">
+    <a href="{{ signin_url }}" class="btn">Sign In</a>
+</p>
+<p>Thank you for choosing Payswap!</p>
+{% endblock %}

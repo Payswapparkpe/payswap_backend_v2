@@ -62,6 +62,14 @@ class PayswapConfig(BaseSettings):
     KALEYRA_API_KEY: SecretStr = Field(...)
     KALEYRA_SID: str = Field(...)
     KALEYRA_BASE_URL: str = Field(default="https://api.kaleyra.io/v1")
+    
+    # ============================================================================
+    # DOCUMENT VERIFICATION
+    # ============================================================================
+    CASHFREE_API_KEY: Optional[SecretStr] = Field(default=None)
+    CASHFREE_API_SECRET: Optional[SecretStr] = Field(default=None)
+    INVINCIBLE_OCEAN_API_KEY: Optional[SecretStr] = Field(default=None)
+    INVINCIBLE_OCEAN_API_SECRET: Optional[SecretStr] = Field(default=None)
 
     # ============================================================================
     # EMAIL
@@ -162,6 +170,18 @@ class PayswapConfig(BaseSettings):
 
     def get_kaleyra_api_key(self) -> str:
         return self.KALEYRA_API_KEY.get_secret_value()
+    
+    def get_cashfree_api_key(self) -> str:
+        return self.CASHFREE_API_KEY.get_secret_value() if self.CASHFREE_API_KEY else ""
+    
+    def get_cashfree_api_secret(self) -> str:
+        return self.CASHFREE_API_SECRET.get_secret_value() if self.CASHFREE_API_SECRET else ""
+    
+    def get_invincible_ocean_api_key(self) -> str:
+        return self.INVINCIBLE_OCEAN_API_KEY.get_secret_value() if self.INVINCIBLE_OCEAN_API_KEY else ""
+    
+    def get_invincible_ocean_api_secret(self) -> str:
+        return self.INVINCIBLE_OCEAN_API_SECRET.get_secret_value() if self.INVINCIBLE_OCEAN_API_SECRET else ""
 
     def get_s3_access_key(self) -> str:
         return self.S3_ACCESS_KEY.get_secret_value()

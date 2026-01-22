@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}User Details{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="card">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">User Details</h2>
+            <a href="/users/" class="text-[#0066CC] hover:underline">← Back to Users</a>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <p class="text-gray-900 font-semibold">{{ user_detail.username }}</p>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <p class="text-gray-900">{{ user_detail.email|default:"-" }}</p>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <p class="text-gray-900">{{ user_detail.get_role_code_display }}</p>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <span class="px-2 py-1 rounded text-xs font-semibold {% if user_detail.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {% if user_detail.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email Verified</label>
+                <span class="px-2 py-1 rounded text-xs font-semibold {% if user_detail.email_verified %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                    {% if user_detail.email_verified %}Verified{% else %}Not Verified{% endif %}
+                </span>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">MFA Configured</label>
+                <span class="px-2 py-1 rounded text-xs font-semibold {% if user_detail.mfa_configured %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {% if user_detail.mfa_configured %}Yes{% else %}No{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

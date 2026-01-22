@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Submit KYC{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="card">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Submit KYC Documents</h2>
+        
+        <form method="post" action="/kyc/submit/" enctype="multipart/form-data" hx-post="/kyc/submit/" hx-target="#kyc-form" hx-swap="innerHTML">
+            {% csrf_token %}
+            <div id="kyc-form">
+                <div class="space-y-4">
+                    <div>
+                        <label for="document_type" class="block text-sm font-medium text-gray-700 mb-2">Document Type *</label>
+                        <select 
+                            id="document_type" 
+                            name="document_type" 
+                            required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
+                        >
+                            <option value="">Select document type</option>
+                            <option value="aadhaar">Aadhaar</option>
+                            <option value="pan">PAN</option>
+                            <option value="passport">Passport</option>
+                            <option value="driving_license">Driving License</option>
+                            <option value="voter_id">Voter ID</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="document_number" class="block text-sm font-medium text-gray-700 mb-2">Document Number *</label>
+                        <input 
+                            type="text" 
+                            id="document_number" 
+                            name="document_number" 
+                            required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label for="document_files" class="block text-sm font-medium text-gray-700 mb-2">Upload Documents *</label>
+                        <input 
+                            type="file" 
+                            id="document_files" 
+                            name="document_files" 
+                            multiple
+                            required
+                            accept="image/*,.pdf"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
+                        >
+                        <p class="text-sm text-gray-600 mt-1">Upload images or PDF files (Max 5MB per file). You can select multiple files.</p>
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full bg-[#0066CC] text-white py-3 rounded-lg font-semibold hover:bg-[#0052A3] transition"
+                    >
+                        Submit KYC
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

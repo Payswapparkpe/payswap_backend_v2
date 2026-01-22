@@ -1,0 +1,14 @@
+{% extends "email_base.html" %}
+
+{% block email_content %}
+<h2 style="color: #0066CC; margin-bottom: 1rem;">Email Verification</h2>
+<p>Hello {{ user.username }},</p>
+<p>Please verify your email address by clicking the button below:</p>
+<p style="text-align: center; margin: 2rem 0;">
+    <a href="{{ verification_url }}" class="btn">Verify Email</a>
+</p>
+<p>If the button doesn't work, copy and paste this link into your browser:</p>
+<p style="word-break: break-all; color: #0066CC;">{{ verification_url }}</p>
+<p>This link will expire in 24 hours.</p>
+<p>If you didn't create an account, please ignore this email.</p>
+{% endblock %}

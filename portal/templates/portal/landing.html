@@ -1,0 +1,443 @@
+{% extends "landing_base.html" %}
+{% load static %}
+
+{% block title %}Payswap - Digital Payment Infrastructure & Bill Payment Solutions{% endblock %}
+
+{% block content %}
+<!-- Navigation -->
+<nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50" x-data="{ mobileMenuOpen: false }">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center">
+                <a href="/" class="flex items-center">
+                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-10 w-auto">
+                </a>
+            </div>
+            
+            <!-- Desktop Menu -->
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#features" class="text-gray-700 hover:text-[#0066CC] transition">Features</a>
+                <a href="#bill-payment" class="text-gray-700 hover:text-[#0066CC] transition">Bill Payment</a>
+                <a href="#solutions" class="text-gray-700 hover:text-[#0066CC] transition">Solutions</a>
+                <a href="#about" class="text-gray-700 hover:text-[#0066CC] transition">About</a>
+                <a href="/signin/" class="text-gray-700 hover:text-[#0066CC] transition">Sign In</a>
+                <a href="/signup/" class="bg-[#0066CC] text-white px-6 py-2 rounded-lg hover:bg-[#0052A3] transition shadow-md">Sign Up</a>
+            </div>
+            
+            <!-- Mobile Menu Button -->
+            <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Mobile Menu -->
+        <div x-show="mobileMenuOpen" x-transition class="md:hidden mt-4 space-y-2">
+            <a href="#features" class="block py-2 text-gray-700 hover:text-[#0066CC]">Features</a>
+            <a href="#bill-payment" class="block py-2 text-gray-700 hover:text-[#0066CC]">Bill Payment</a>
+            <a href="#solutions" class="block py-2 text-gray-700 hover:text-[#0066CC]">Solutions</a>
+            <a href="#about" class="block py-2 text-gray-700 hover:text-[#0066CC]">About</a>
+            <a href="/signin/" class="block py-2 text-gray-700 hover:text-[#0066CC]">Sign In</a>
+            <a href="/signup/" class="block py-2 bg-[#0066CC] text-white rounded-lg px-4 text-center">Sign Up</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero Section -->
+<section class="bg-gradient-to-br from-blue-50 via-white to-blue-50 py-20 md:py-32 relative overflow-hidden">
+    <!-- Background Pattern -->
+    <div class="absolute inset-0 opacity-5">
+        <div class="absolute inset-0" style="background-image: radial-gradient(circle, #0066CC 1px, transparent 1px); background-size: 50px 50px;"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-6 relative z-10">
+        <div class="text-center max-w-4xl mx-auto">
+            <div class="mb-6 animate-fade-in">
+                <span class="inline-block px-4 py-2 bg-[#0066CC] bg-opacity-10 text-[#0066CC] rounded-full text-sm font-semibold mb-4">
+                    🚀 Digital Payment Infrastructure
+                </span>
+            </div>
+            
+            <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight animate-fade-in" style="animation-delay: 0.1s">
+                Secure Payment Solutions
+                <span class="text-[#0066CC] block mt-2">Made Simple</span>
+            </h1>
+            
+            <p class="text-xl md:text-2xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed animate-fade-in" style="animation-delay: 0.2s">
+                Empowering businesses, government bodies, and service providers with secure, scalable, and compliant payment infrastructure.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-12 animate-fade-in" style="animation-delay: 0.3s">
+                <a href="/signup/" class="bg-[#0066CC] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#0052A3] transition transform hover:scale-105 shadow-lg hover:shadow-xl">
+                    Get Started Free
+                </a>
+                <a href="#bill-payment" class="bg-white text-[#0066CC] border-2 border-[#0066CC] px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-50 transition">
+                    Explore Bill Payments
+                </a>
+            </div>
+            
+            <!-- Trust Indicators -->
+            <div class="flex flex-wrap justify-center items-center gap-8 text-gray-600 text-sm animate-fade-in" style="animation-delay: 0.4s">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>Bank-Grade Security</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>RBI Compliant</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>24/7 Support</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Bill Payment Section - Prominently Featured -->
+<section class="py-20 bg-white" id="bill-payment">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                <span class="text-[#0066CC]">Bill Payment</span> Solutions
+            </h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Pay all your bills from one secure platform. Fast, reliable, and hassle-free.
+            </p>
+        </div>
+        
+        <div class="grid md:grid-cols-3 gap-8 mb-12">
+            <!-- Bill Payment Card 1 -->
+            <div class="card group hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-[#0066CC] bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-20 transition">
+                        <svg class="w-10 h-10 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-gray-900 mb-3">Multiple Billers</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        Pay electricity, water, gas, telecom, insurance, and more from a single dashboard. No need to visit multiple websites.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Bill Payment Card 2 -->
+            <div class="card group hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-[#0066CC] bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-20 transition">
+                        <svg class="w-10 h-10 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-gray-900 mb-3">Instant Payments</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        Real-time payment processing with instant confirmation and digital receipts. Your bills are paid in seconds, not minutes.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Bill Payment Card 3 -->
+            <div class="card group hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-[#0066CC] bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-20 transition">
+                        <svg class="w-10 h-10 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-gray-900 mb-3">Secure & Compliant</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        Bank-grade security with full compliance to Indian fintech regulations. Your data and payments are always protected.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bill Payment Features Grid -->
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div class="text-center p-6 bg-gray-50 rounded-lg">
+                <div class="text-3xl font-bold text-[#0066CC] mb-2">100+</div>
+                <div class="text-gray-600">Billers Supported</div>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-lg">
+                <div class="text-3xl font-bold text-[#0066CC] mb-2">24/7</div>
+                <div class="text-gray-600">Available</div>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-lg">
+                <div class="text-3xl font-bold text-[#0066CC] mb-2">&lt;30s</div>
+                <div class="text-gray-600">Payment Time</div>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-lg">
+                <div class="text-3xl font-bold text-[#0066CC] mb-2">99.9%</div>
+                <div class="text-gray-600">Uptime</div>
+            </div>
+        </div>
+        
+        <!-- Bill Payment CTA -->
+        <div class="text-center">
+            <a href="/signup/" class="inline-block bg-[#0066CC] text-white px-10 py-4 rounded-lg text-lg font-semibold hover:bg-[#0052A3] transition transform hover:scale-105 shadow-lg">
+                Start Paying Bills Now
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-20 bg-gray-50" id="features">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Why Choose Payswap?</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Comprehensive fintech solutions designed for modern businesses
+            </p>
+        </div>
+        
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Feature 1 -->
+            <div class="card hover:shadow-xl transition-shadow">
+                <div class="w-14 h-14 bg-[#0066CC] bg-opacity-10 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-7 h-7 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Digital Wallets</h3>
+                <p class="text-gray-600">Secure wallet management with encrypted storage and multi-layer security</p>
+            </div>
+            
+            <!-- Feature 2 -->
+            <div class="card hover:shadow-xl transition-shadow">
+                <div class="w-14 h-14 bg-[#0066CC] bg-opacity-10 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-7 h-7 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">KYC Verification</h3>
+                <p class="text-gray-600">Automated KYC with multiple verification vendors for quick onboarding</p>
+            </div>
+            
+            <!-- Feature 3 -->
+            <div class="card hover:shadow-xl transition-shadow">
+                <div class="w-14 h-14 bg-[#0066CC] bg-opacity-10 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-7 h-7 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Role-Based Access</h3>
+                <p class="text-gray-600">Granular permissions and access control for teams of any size</p>
+            </div>
+            
+            <!-- Feature 4 -->
+            <div class="card hover:shadow-xl transition-shadow">
+                <div class="w-14 h-14 bg-[#0066CC] bg-opacity-10 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-7 h-7 text-[#0066CC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Multi-Factor Auth</h3>
+                <p class="text-gray-600">Enhanced security with MFA enforcement for sensitive operations</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Solutions Section -->
+<section class="py-20 bg-white" id="solutions">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Solutions for Every Business</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                Tailored payment infrastructure for different industries and use cases
+            </p>
+        </div>
+        
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- Solution 1 -->
+            <div class="card">
+                <h3 class="text-2xl font-semibold text-gray-900 mb-3">For Businesses</h3>
+                <p class="text-gray-600 mb-4">Streamline payments, manage invoices, and automate collections</p>
+                <ul class="space-y-2 text-gray-600">
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Automated payment processing</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Invoice management</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Real-time reporting</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Solution 2 -->
+            <div class="card">
+                <h3 class="text-2xl font-semibold text-gray-900 mb-3">For Government</h3>
+                <p class="text-gray-600 mb-4">Secure payment collection for government services and utilities</p>
+                <ul class="space-y-2 text-gray-600">
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Citizen payment gateway</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Compliance & audit trails</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Multi-department support</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Solution 3 -->
+            <div class="card">
+                <h3 class="text-2xl font-semibold text-gray-900 mb-3">For Service Providers</h3>
+                <p class="text-gray-600 mb-4">Accept payments and manage subscriptions efficiently</p>
+                <ul class="space-y-2 text-gray-600">
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Recurring billing</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Payment gateway integration</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg class="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Customer portal</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-20 bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white relative overflow-hidden">
+    <div class="absolute inset-0 opacity-10">
+        <div class="absolute inset-0" style="background-image: radial-gradient(circle, white 1px, transparent 1px); background-size: 50px 50px;"></div>
+    </div>
+    
+    <div class="max-w-4xl mx-auto px-6 text-center relative z-10">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4">Ready to Get Started?</h2>
+        <p class="text-xl mb-8 opacity-90">
+            Join thousands of businesses using Payswap for their payment needs. Start your free account today.
+        </p>
+        <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+            <a href="/signup/" class="bg-white text-[#0066CC] px-10 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition transform hover:scale-105 shadow-lg">
+                Sign Up Free
+            </a>
+            <a href="/signin/" class="border-2 border-white text-white px-10 py-4 rounded-lg text-lg font-semibold hover:bg-white hover:text-[#0066CC] transition">
+                Sign In
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-gray-900 text-gray-300 py-12">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+                <a href="/" class="inline-block mb-4">
+                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-8 w-auto filter brightness-0 invert">
+                </a>
+                <p class="text-sm mb-4">Digital payment infrastructure for modern businesses</p>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-white font-semibold mb-4">Product</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#bill-payment" class="hover:text-white transition">Bill Payments</a></li>
+                    <li><a href="#features" class="hover:text-white transition">Features</a></li>
+                    <li><a href="#solutions" class="hover:text-white transition">Solutions</a></li>
+                    <li><a href="#" class="hover:text-white transition">Pricing</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-semibold mb-4">Company</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#about" class="hover:text-white transition">About</a></li>
+                    <li><a href="#" class="hover:text-white transition">Blog</a></li>
+                    <li><a href="#" class="hover:text-white transition">Careers</a></li>
+                    <li><a href="#" class="hover:text-white transition">Contact</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-semibold mb-4">Account</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="/signin/" class="hover:text-white transition">Sign In</a></li>
+                    <li><a href="/signup/" class="hover:text-white transition">Sign Up</a></li>
+                    <li><a href="#" class="hover:text-white transition">Support</a></li>
+                    <li><a href="#" class="hover:text-white transition">Documentation</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-gray-800 pt-8 text-center text-sm">
+            <p>&copy; {% now "Y" %} Payswap. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+<style>
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+    opacity: 0;
+}
+</style>
+{% endblock %}

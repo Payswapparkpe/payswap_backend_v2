@@ -1,0 +1,15 @@
+{% extends "email_base.html" %}
+
+{% block email_content %}
+<h2 style="color: #0066CC; margin-bottom: 1rem;">Transaction Notification</h2>
+<p>Hello {{ user.username }},</p>
+<p>Your wallet transaction has been {{ transaction.status }}.</p>
+<p><strong>Transaction Details:</strong></p>
+<ul>
+    <li>Type: {{ transaction.transaction_type|title }}</li>
+    <li>Amount: ₹{{ transaction.amount }}</li>
+    <li>Balance After: ₹{{ transaction.balance_after }}</li>
+    <li>Reference: {{ transaction.reference|default:"N/A" }}</li>
+</ul>
+<p>Thank you for using Payswap!</p>
+{% endblock %}
