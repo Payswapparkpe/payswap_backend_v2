@@ -1,98 +1,335 @@
 {% extends "auth_base.html" %}
 {% load static %}
 
-{% block auth_subtitle %}Create Your Account{% endblock %}
+{% block title %}Sign Up - Payswap{% endblock %}
 
 {% block auth_content %}
-<h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">Sign Up</h2>
-
-<form method="post" action="/signup/" hx-post="/signup/" hx-target="#auth-form" hx-swap="innerHTML">
-    {% csrf_token %}
-    <div id="auth-form">
-        <div class="space-y-4">
-            <div>
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    name="email" 
-                    required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                    placeholder="Enter your email"
-                >
+<div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <!-- Main Card Container -->
+    <div class="card w-full max-w-7xl overflow-hidden p-0">
+        <div class="flex flex-col lg:flex-row min-h-[600px] lg:min-h-[700px]">
+            <!-- Left Panel - Welcome Section -->
+            <div class="hidden lg:flex lg:w-3/5 bg-gradient-to-br from-[#0066CC] via-[#0052A3] to-[#003d7a] relative overflow-hidden items-center">
+                <!-- Background Pattern -->
+                <div class="absolute inset-0 opacity-10">
+                    <div class="absolute inset-0" style="background-image: radial-gradient(circle, white 1px, transparent 1px); background-size: 50px 50px;"></div>
+                </div>
+                
+                <div class="relative z-10 flex flex-col justify-center p-6 lg:p-10 text-white h-full">
+                    <div>
+                        <h1 class="text-3xl lg:text-4xl font-bold mb-3 leading-tight">Welcome to Payswap! 👋</h1>
+                        <p class="text-lg lg:text-xl font-semibold italic mb-4 leading-relaxed">"Financing Dreams, Simplifying Lives"</p>
+                        <p class="text-sm lg:text-base leading-relaxed opacity-90 mt-4">
+                            Our digital payment platform simplifies transactions with fast processing, secure wallets, and transparent terms. Whether you're managing your business, paying bills, or handling daily expenses, Payswap makes it easy.
+                        </p>
+                    </div>
+                    <div class="text-xs opacity-75 mt-6">
+                        <p>&copy; Copyright {% now "Y" %}. All rights Reserved</p>
+                    </div>
+                </div>
             </div>
             
-            <div>
-                <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                <input 
-                    type="tel" 
-                    id="phone" 
-                    name="phone" 
-                    required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                    placeholder="Enter your phone number"
-                >
+            <!-- Right Panel - Sign Up Form -->
+            <div class="w-full lg:w-2/5 flex items-center justify-center bg-white p-4 sm:p-6 lg:p-8">
+                <div class="w-full max-w-sm space-y-5 mx-auto">
+                    <!-- Help Link -->
+                    <div class="text-right mb-4">
+                        <a href="#" class="text-sm text-gray-600 hover:text-[#0066CC] transition-colors duration-200 flex items-center justify-end gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>Need help?</span>
+                        </a>
+                    </div>
+                    
+                    <!-- Logo -->
+                    <div class="text-center mb-6">
+                        <a href="/" class="inline-block">
+                            <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap Logo" class="h-10 w-auto mx-auto">
+                        </a>
+                    </div>
+                    
+                    <!-- Sign Up Title -->
+                    <h2 class="text-2xl font-bold text-gray-900 text-center mb-6 leading-tight">Create Your Account</h2>
+                    
+                    <!-- Sign Up Form -->
+                    <form method="post" action="{% url 'signup' %}" class="space-y-4" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- First Name Field -->
+                        <div>
+                            <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                First Name
+                            </label>
+                            <input 
+                                type="text" 
+                                name="{{ form.first_name.name }}" 
+                                id="{{ form.first_name.id_for_label }}"
+                                class="w-full px-4 py-3 text-base border {% if form.first_name.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.first_name.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
+                                placeholder="Enter your first name"
+                                required
+                                autocomplete="given-name"
+                                aria-invalid="{% if form.first_name.errors %}true{% else %}false{% endif %}"
+                                {% if form.first_name.value %}value="{{ form.first_name.value }}"{% endif %}
+                            >
+                            {% if form.first_name.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.first_name.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Email Field -->
+                        <div>
+                            <label for="{{ form.email.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Email Address
+                            </label>
+                            <input 
+                                type="email" 
+                                name="{{ form.email.name }}" 
+                                id="{{ form.email.id_for_label }}"
+                                class="w-full px-4 py-3 text-base border {% if form.email.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.email.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
+                                placeholder="Enter your email"
+                                required
+                                autocomplete="email"
+                                aria-invalid="{% if form.email.errors %}true{% else %}false{% endif %}"
+                                {% if form.email.value %}value="{{ form.email.value }}"{% endif %}
+                            >
+                            {% if form.email.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.email.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Phone Field -->
+                        <div>
+                            <label for="{{ form.phone.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Mobile Number
+                            </label>
+                            <input 
+                                type="tel" 
+                                name="{{ form.phone.name }}" 
+                                id="{{ form.phone.id_for_label }}"
+                                class="w-full px-4 py-3 text-base border {% if form.phone.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.phone.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
+                                placeholder="Enter your mobile number"
+                                required
+                                autocomplete="tel"
+                                aria-invalid="{% if form.phone.errors %}true{% else %}false{% endif %}"
+                                {% if form.phone.value %}value="{{ form.phone.value }}"{% endif %}
+                            >
+                            {% if form.phone.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.phone.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Password Field with Show/Hide -->
+                        <div x-data="{ showPassword: false }">
+                            <label for="{{ form.password1.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Password
+                            </label>
+                            <div class="relative">
+                                <input 
+                                    :type="showPassword ? 'text' : 'password'"
+                                    name="{{ form.password1.name }}" 
+                                    id="{{ form.password1.id_for_label }}"
+                                    class="w-full px-4 py-3 pr-12 text-base border {% if form.password1.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.password1.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
+                                    placeholder="Create a password"
+                                    required
+                                    autocomplete="new-password"
+                                    aria-invalid="{% if form.password1.errors %}true{% else %}false{% endif %}"
+                                >
+                                <button 
+                                    type="button"
+                                    @click="showPassword = !showPassword"
+                                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0066CC] transition-colors duration-200 p-1.5 rounded focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                    :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                                >
+                                    <svg x-show="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    <svg x-show="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0A9.97 9.97 0 015.12 5.12m3.17 3.17L12 12m-3.71-3.71L3 3m9 9l3.29 3.29M12 12l3.29 3.29m0 0A9.97 9.97 0 0118.88 18.88M15.71 15.71L21 21M12 12l-3.29-3.29"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            {% if form.password1.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.password1.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Confirm Password Field with Show/Hide -->
+                        <div x-data="{ showPassword: false }">
+                            <label for="{{ form.password2.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Confirm Password
+                            </label>
+                            <div class="relative">
+                                <input 
+                                    :type="showPassword ? 'text' : 'password'"
+                                    name="{{ form.password2.name }}" 
+                                    id="{{ form.password2.id_for_label }}"
+                                    class="w-full px-4 py-3 pr-12 text-base border {% if form.password2.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.password2.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
+                                    placeholder="Confirm your password"
+                                    required
+                                    autocomplete="new-password"
+                                    aria-invalid="{% if form.password2.errors %}true{% else %}false{% endif %}"
+                                >
+                                <button 
+                                    type="button"
+                                    @click="showPassword = !showPassword"
+                                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#0066CC] transition-colors duration-200 p-1.5 rounded focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                    :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                                >
+                                    <svg x-show="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    <svg x-show="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0A9.97 9.97 0 015.12 5.12m3.17 3.17L12 12m-3.71-3.71L3 3m9 9l3.29 3.29M12 12l3.29 3.29m0 0A9.97 9.97 0 0118.88 18.88M15.71 15.71L21 21M12 12l-3.29-3.29"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            {% if form.password2.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.password2.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Role Selection -->
+                        <div>
+                            <label for="{{ form.role_code.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Account Type
+                            </label>
+                            <select 
+                                name="{{ form.role_code.name }}" 
+                                id="{{ form.role_code.id_for_label }}"
+                                required
+                                class="w-full px-4 py-3 text-base border {% if form.role_code.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.role_code.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200"
+                                aria-invalid="{% if form.role_code.errors %}true{% else %}false{% endif %}"
+                            >
+                                <option value="">Select account type</option>
+                                {% for value, label in form.role_code.field.choices %}
+                                <option value="{{ value }}" {% if form.role_code.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if form.role_code.errors %}
+                            <p class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.role_code.errors.0 }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Terms and Conditions -->
+                        <div class="flex items-start">
+                            <input 
+                                type="checkbox" 
+                                id="terms" 
+                                name="terms" 
+                                required 
+                                class="mt-1 h-4 w-4 text-[#0066CC] focus:ring-[#0066CC] border-gray-300 rounded transition-colors duration-200"
+                            >
+                            <label for="terms" class="ml-2.5 block text-xs text-gray-600 leading-relaxed">
+                                By clicking on proceed, you have read and agree to the Payswap 
+                                <a href="#" class="text-[#0066CC] hover:underline">Terms of Use</a>, 
+                                <a href="#" class="text-[#0066CC] hover:underline">Terms of Use</a> & 
+                                <a href="#" class="text-[#0066CC] hover:underline">Privacy Policy</a>.
+                            </label>
+                        </div>
+                        
+                        <!-- Error Messages -->
+                        {% if form.non_field_errors %}
+                        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            {% for error in form.non_field_errors %}
+                            <p class="text-sm text-red-600">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Create Account Button -->
+                        <button 
+                            type="submit" 
+                            class="w-full bg-[#0066CC] text-white py-3 px-4 rounded-lg font-semibold text-base hover:bg-[#0052A3] transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Create Account
+                        </button>
+                        
+                        <!-- Social Login Separator -->
+                        <div class="relative my-5">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div class="relative flex justify-center text-sm">
+                                <span class="px-3 bg-white text-gray-500 font-medium">Or continue with</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Social Login Buttons -->
+                        <div class="flex justify-center gap-3 flex-wrap">
+                            <!-- Google -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Sign up with Google"
+                            >
+                                <span class="text-lg font-bold text-[#4285F4]">G</span>
+                            </button>
+                            
+                            <!-- Facebook -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Sign up with Facebook"
+                            >
+                                <span class="text-lg font-bold text-[#1877F2]">f</span>
+                            </button>
+                            
+                            <!-- Apple -->
+                            <button 
+                                type="button" 
+                                class="w-11 h-11 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#0066CC] hover:bg-[#0066CC]/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                                title="Sign up with Apple"
+                            >
+                                <svg class="w-5 h-5" fill="#000000" viewBox="0 0 24 24">
+                                    <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.08-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Sign In Prompt -->
+                        <p class="text-center text-sm text-gray-600 mt-5">
+                            Already have an account? 
+                            <a href="{% url 'signin' %}" class="text-[#0066CC] font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-1 rounded transition-colors duration-200">
+                                Sign In
+                            </a>
+                        </p>
+                    </form>
+                </div>
             </div>
-            
-            <div>
-                <label for="password1" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input 
-                    type="password" 
-                    id="password1" 
-                    name="password1" 
-                    required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                    placeholder="Create a password"
-                >
-            </div>
-            
-            <div>
-                <label for="password2" class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-                <input 
-                    type="password" 
-                    id="password2" 
-                    name="password2" 
-                    required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                    placeholder="Confirm your password"
-                >
-            </div>
-            
-            <div>
-                <label for="role" class="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
-                <select 
-                    id="role" 
-                    name="role_code" 
-                    required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                >
-                    <option value="">Select account type</option>
-                    <option value="customer">Customer</option>
-                    <option value="retailer">Retailer</option>
-                </select>
-            </div>
-            
-            <div class="flex items-center">
-                <input type="checkbox" id="terms" name="terms" required class="mr-2">
-                <label for="terms" class="text-sm text-gray-600">
-                    I agree to the <a href="#" class="text-[#0066CC] hover:underline">Terms & Conditions</a>
-                </label>
-            </div>
-            
-            <button 
-                type="submit" 
-                class="w-full bg-[#0066CC] text-white py-3 rounded-lg font-semibold hover:bg-[#0052A3] transition"
-            >
-                Create Account
-            </button>
         </div>
     </div>
-</form>
-{% endblock %}
-
-{% block auth_footer %}
-<p class="text-gray-600">
-    Already have an account? 
-    <a href="/signin/" class="text-[#0066CC] hover:underline font-semibold">Sign In</a>
-</p>
+</div>
 {% endblock %}

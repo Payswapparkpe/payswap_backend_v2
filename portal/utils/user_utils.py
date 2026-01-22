@@ -1,7 +1,7 @@
 """
 User utility functions
 """
-import random
+import secrets
 import string
 from typing import Optional
 from django.contrib.auth import get_user_model
@@ -9,7 +9,9 @@ from django.contrib.auth import get_user_model
 
 def generate_username(role_prefix: str) -> str:
     """
-    Generate unique username in format: [Role Prefix]00[6 random digits]
+    Generate cryptographically secure unique username in format: [Role Prefix]00[8 random alphanumeric]
+    
+    Uses secrets module for cryptographically secure random generation.
     
     Args:
         role_prefix: Single character role prefix (A, E, S, D, R, C, V)
@@ -21,9 +23,10 @@ def generate_username(role_prefix: str) -> str:
     max_attempts = 100
     
     for _ in range(max_attempts):
-        # Generate 6 random digits
-        random_digits = ''.join(random.choices(string.digits, k=6))
-        username = f"{role_prefix}00{random_digits}"
+        # Generate 8 cryptographically secure random alphanumeric characters
+        # Using secrets.choice for cryptographically secure randomness
+        random_chars = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        username = f"{role_prefix}00{random_chars}"
         
         # Check uniqueness
         if not User.objects.filter(username=username).exists():

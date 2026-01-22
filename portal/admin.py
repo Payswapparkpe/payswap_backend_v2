@@ -8,10 +8,43 @@ from portal.models import User, Profile, Role, KYC, Wallet, WalletTransaction, U
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ['name', 'type', 'status', 'created_at']
-    list_filter = ['type', 'status', 'created_at']
-    search_fields = ['name', 'email', 'phone']
-    readonly_fields = ['created_at', 'updated_at']
+    list_display = ['user', 'first_name', 'last_name', 'email', 'phone', 'type', 'status', 'created_at']
+    list_filter = ['type', 'status', 'email_verified', 'phone_verified', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'phone', 'user__username']
+    readonly_fields = ['user', 'created_at', 'updated_at', 'last_updated_by']
+    
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Personal Information', {
+            'fields': ('first_name', 'middle_name', 'last_name', 'date_of_birth', 'gender', 'marital_status', 'profile_photo')
+        }),
+        ('Contact Details', {
+            'fields': ('email', 'phone', 'alternate_phone', 'email_verified', 'phone_verified')
+        }),
+        ('Demographic Details', {
+            'fields': ('nationality', 'country_of_residence', 'state', 'city', 'pincode', 'address_line_1', 'address_line_2')
+        }),
+        ('Banking Details', {
+            'fields': ('bank_name', 'account_holder_name', 'account_number', 'ifsc_code', 'branch_name', 'account_type')
+        }),
+        ('Taxation Details', {
+            'fields': ('pan_number', 'aadhaar_number', 'gst_number', 'tax_id')
+        }),
+        ('Business Details', {
+            'fields': ('type', 'business_name', 'business_registration_number', 'business_type')
+        }),
+        ('Settings & Preferences', {
+            'fields': ('language_preference', 'timezone', 'currency_preference', 'notification_preferences', 'settings')
+        }),
+        ('Account Security', {
+            'fields': ('security_question_1', 'security_answer_1', 'security_question_2', 'security_answer_2', 'backup_codes', 'recovery_email', 'last_password_change')
+        }),
+        ('Status & Metadata', {
+            'fields': ('status', 'created_by', 'last_updated_by', 'created_at', 'updated_at')
+        }),
+    )
 
 
 @admin.register(Role)
@@ -24,32 +57,53 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['username', 'first_name', 'email', 'phone', 'role_code', 'is_active', 'email_verified', 'mfa_configured', 'kyc_completed']
+    list_display = ['username', 'get_email', 'get_phone', 'role_code', 'is_active', 'email_verified', 'mfa_configured', 'kyc_completed']
     list_filter = ['role_code', 'is_active', 'email_verified', 'mfa_configured', 'kyc_completed', 'created_at']
-    search_fields = ['username', 'email', 'first_name', 'phone']
-    readonly_fields = ['username', 'created_at', 'updated_at', 'last_login_ip']
+    search_fields = ['username']
+    readonly_fields = ['username', 'created_at', 'updated_at', 'last_login_ip', 'login_count']
     
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ('Required Information', {
-            'fields': ('first_name', 'email', 'phone', 'username', 'role_code')
+    def get_email(self, obj):
+        return obj.profile.email if hasattr(obj, 'profile') and obj.profile else '-'
+    get_email.short_description = 'Email'
+    
+    def get_phone(self, obj):
+        return obj.profile.phone if hasattr(obj, 'profile') and obj.profile else '-'
+    get_phone.short_description = 'Phone'
+    
+    fieldsets = (
+        ('Credentials', {
+            'fields': ('username', 'password')
         }),
-        ('Portal Information', {
-            'fields': ('profile', 'role', 'email_verified', 'email_verified_at')
+        ('Role & Authorization', {
+            'fields': ('role_code', 'role')
         }),
-        ('KYC Information', {
+        ('Login & Session', {
+            'fields': ('last_login', 'last_login_ip', 'last_login_user_agent', 'login_count')
+        }),
+        ('Email Verification', {
+            'fields': ('email_verified', 'email_verified_at')
+        }),
+        ('KYC Status', {
             'fields': ('kyc_completed', 'kyc_status')
         }),
         ('MFA Information', {
             'fields': ('mfa_enabled', 'mfa_configured', 'mfa_method', 'totp_secret')
         }),
-        ('Security', {
-            'fields': ('last_login_ip', 'created_by')
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
+        }),
+        ('Important dates', {
+            'fields': ('date_joined',)
+        }),
+        ('Security & Audit', {
+            'fields': ('created_by', 'created_at', 'updated_at')
         }),
     )
     
     add_fieldsets = (
         (None, {
-            'fields': ('first_name', 'email', 'phone', 'username', 'role_code', 'password1', 'password2', 'profile')
+            'fields': ('username', 'role_code', 'password1', 'password2'),
+            'description': 'Username will be auto-generated if not provided. Profile will be created separately.'
         }),
     )
 

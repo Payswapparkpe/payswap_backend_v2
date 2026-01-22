@@ -2,7 +2,7 @@
 Portal Models - User Management, KYC, Wallet
 """
 from django.db import models
-from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.contrib.auth.models import AbstractUser, Group, Permission, UserManager as BaseUserManager
 from django.core.validators import RegexValidator
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -11,8 +11,57 @@ from portal.utils.encryption import encrypt_data, decrypt_data
 from portal.utils.validators import validate_phone_number, validate_pan_number, validate_aadhaar_number
 
 
+class UserManager(BaseUserManager):
+    """Custom UserManager that handles auto-generated usernames"""
+    
+    def _create_user_object(self, username, email, password, **extra_fields):
+        """Override to not set email (email is a property that reads from Profile)"""
+        # Remove email from kwargs since it's a property
+        extra_fields.pop('email', None)
+        # Create user without email
+        user = self.model(username=username, **extra_fields)
+        user.set_password(password)
+        return user
+    
+    def create_user(self, username=None, email=None, password=None, **extra_fields):
+        """Create user with auto-generated username if not provided"""
+        role_code = extra_fields.get('role_code')
+        if not role_code:
+            raise ValidationError({'role_code': 'Role is required. All users must have a role.'})
+        
+        # Generate username if not provided
+        if not username:
+            role_prefix = get_role_prefix(role_code)
+            username = generate_username(role_prefix)
+        
+        # Ensure Role object is set
+        from portal.models import Role
+        try:
+            role_obj = Role.objects.get(code=role_code)
+            extra_fields['role'] = role_obj
+        except Role.DoesNotExist:
+            raise ValidationError({
+                'role_code': f'Role with code "{role_code}" does not exist. Please run "python manage.py setup_roles" first.'
+            })
+        
+        # Call parent create_user (email will be ignored)
+        return super().create_user(username, password=password, **extra_fields)
+    
+    def create_superuser(self, username=None, password=None, **extra_fields):
+        """Create superuser with auto-generated username if not provided"""
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+        
+        return self.create_user(username, password, **extra_fields)
+
+
 class Profile(models.Model):
-    """Profile model - One profile can have multiple users"""
+    """Profile model - Mandatory OneToOne with User, contains all user details"""
     
     PROFILE_TYPE_CHOICES = [
         ('individual', 'Individual'),
@@ -25,19 +74,246 @@ class Profile(models.Model):
         ('suspended', 'Suspended'),
     ]
     
-    name = models.CharField(max_length=255)
-    type = models.CharField(max_length=20, choices=PROFILE_TYPE_CHOICES, default='individual')
-    business_name = models.CharField(max_length=255, blank=True, null=True)
-    tax_id = models.CharField(max_length=50, blank=True, null=True)  # GST, PAN, etc.
-    address = models.TextField(blank=True, null=True)
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+        ('prefer_not_to_say', 'Prefer not to say'),
+    ]
+    
+    MARITAL_STATUS_CHOICES = [
+        ('single', 'Single'),
+        ('married', 'Married'),
+        ('divorced', 'Divorced'),
+        ('widowed', 'Widowed'),
+    ]
+    
+    # ============================================================================
+    # RELATIONSHIP
+    # ============================================================================
+    user = models.OneToOneField(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='profile',
+        null=False,
+        blank=False,
+        help_text="Mandatory profile for every user"
+    )
+    
+    # ============================================================================
+    # PERSONAL DETAILS
+    # ============================================================================
+    first_name = models.CharField(
+        max_length=150,
+        blank=False,
+        help_text="Required. User's first name."
+    )
+    middle_name = models.CharField(max_length=150, blank=True, null=True)
+    last_name = models.CharField(max_length=150, blank=True, null=True)
+    
+    @property
+    def full_name(self):
+        """Get full name"""
+        parts = [self.first_name]
+        if self.middle_name:
+            parts.append(self.middle_name)
+        if self.last_name:
+            parts.append(self.last_name)
+        return ' '.join(parts)
+    
+    # Profile Photo
+    profile_photo = models.ImageField(
+        upload_to='profiles/photos/',
+        blank=True,
+        null=True,
+        help_text="User profile photo"
+    )
+    
+    date_of_birth = models.DateField(blank=True, null=True)
+    gender = models.CharField(
+        max_length=20,
+        choices=GENDER_CHOICES,
+        blank=True,
+        null=True
+    )
+    marital_status = models.CharField(
+        max_length=20,
+        choices=MARITAL_STATUS_CHOICES,
+        blank=True,
+        null=True
+    )
+    
+    # ============================================================================
+    # DEMOGRAPHIC DETAILS
+    # ============================================================================
+    nationality = models.CharField(max_length=100, blank=True, null=True, default='Indian')
+    country_of_residence = models.CharField(max_length=100, blank=True, null=True, default='India')
+    state = models.CharField(max_length=100, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=10, blank=True, null=True)
+    address_line_1 = models.TextField(blank=True, null=True)
+    address_line_2 = models.TextField(blank=True, null=True)
+    
+    @property
+    def full_address(self):
+        """Get full address"""
+        parts = []
+        if self.address_line_1:
+            parts.append(self.address_line_1)
+        if self.address_line_2:
+            parts.append(self.address_line_2)
+        if self.city:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        if self.pincode:
+            parts.append(self.pincode)
+        if self.country_of_residence:
+            parts.append(self.country_of_residence)
+        return ', '.join(parts)
+    
+    # ============================================================================
+    # CONTACT DETAILS (Unique and Required)
+    # ============================================================================
+    email = models.EmailField(
+        unique=True,
+        blank=False,
+        help_text="Required. User's email address. Must be unique."
+    )
     phone = models.CharField(
+        max_length=15,
+        validators=[validate_phone_number],
+        unique=True,
+        blank=False,
+        help_text="Required. User's mobile number. Must be unique."
+    )
+    alternate_phone = models.CharField(
         max_length=15,
         validators=[validate_phone_number],
         blank=True,
         null=True
     )
-    email = models.EmailField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    
+    # ============================================================================
+    # BANKING DETAILS
+    # ============================================================================
+    bank_name = models.CharField(max_length=255, blank=True, null=True)
+    account_holder_name = models.CharField(max_length=255, blank=True, null=True)
+    account_number = models.CharField(max_length=50, blank=True, null=True)
+    ifsc_code = models.CharField(max_length=11, blank=True, null=True)
+    branch_name = models.CharField(max_length=255, blank=True, null=True)
+    account_type = models.CharField(
+        max_length=20,
+        choices=[('savings', 'Savings'), ('current', 'Current')],
+        blank=True,
+        null=True
+    )
+    # Encrypted banking details
+    encrypted_banking_details = models.TextField(blank=True, null=True)
+    
+    def set_encrypted_banking_details(self, details: dict) -> None:
+        """Set encrypted banking details"""
+        import json
+        if details:
+            self.encrypted_banking_details = encrypt_data(json.dumps(details))
+        else:
+            self.encrypted_banking_details = None
+    
+    def get_decrypted_banking_details(self) -> dict:
+        """Get decrypted banking details"""
+        import json
+        if self.encrypted_banking_details:
+            try:
+                return json.loads(decrypt_data(self.encrypted_banking_details))
+            except Exception:
+                return {}
+        return {}
+    
+    # ============================================================================
+    # TAXATION DETAILS
+    # ============================================================================
+    pan_number = models.CharField(
+        max_length=10,
+        validators=[validate_pan_number],
+        blank=True,
+        null=True,
+        help_text="PAN number (10 characters)"
+    )
+    aadhaar_number = models.CharField(
+        max_length=12,
+        validators=[validate_aadhaar_number],
+        blank=True,
+        null=True,
+        help_text="Aadhaar number (12 digits)"
+    )
+    gst_number = models.CharField(max_length=15, blank=True, null=True)
+    tax_id = models.CharField(max_length=50, blank=True, null=True)  # Other tax IDs
+    
+    # ============================================================================
+    # BUSINESS DETAILS (for business profiles)
+    # ============================================================================
+    type = models.CharField(
+        max_length=20,
+        choices=PROFILE_TYPE_CHOICES,
+        default='individual'
+    )
+    business_name = models.CharField(max_length=255, blank=True, null=True)
+    business_registration_number = models.CharField(max_length=100, blank=True, null=True)
+    business_type = models.CharField(max_length=100, blank=True, null=True)  # Pvt Ltd, LLP, etc.
+    
+    # ============================================================================
+    # SETTINGS & PREFERENCES
+    # ============================================================================
+    language_preference = models.CharField(max_length=10, default='en', blank=True)
+    timezone = models.CharField(max_length=50, default='Asia/Kolkata', blank=True)
+    currency_preference = models.CharField(max_length=3, default='INR', blank=True)
+    
+    # Notification preferences (stored as JSON)
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Notification preferences (email, SMS, push, etc.)"
+    )
+    
+    # General settings (stored as JSON)
+    settings = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="General user settings and preferences"
+    )
+    
+    # ============================================================================
+    # ACCOUNT SECURITY
+    # ============================================================================
+    # Security questions (encrypted)
+    security_question_1 = models.TextField(blank=True, null=True)  # Encrypted
+    security_answer_1 = models.TextField(blank=True, null=True)  # Encrypted
+    security_question_2 = models.TextField(blank=True, null=True)  # Encrypted
+    security_answer_2 = models.TextField(blank=True, null=True)  # Encrypted
+    
+    # Two-factor authentication backup codes (encrypted)
+    backup_codes = models.TextField(blank=True, null=True)  # Encrypted JSON array
+    
+    # Account recovery email
+    recovery_email = models.EmailField(blank=True, null=True)
+    
+    # Last password change date
+    last_password_change = models.DateTimeField(null=True, blank=True)
+    
+    # ============================================================================
+    # METADATA & STATUS
+    # ============================================================================
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+    email_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    phone_verified = models.BooleanField(default=False)
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
+    
+    # Audit fields
     created_by = models.ForeignKey(
         'User',
         on_delete=models.SET_NULL,
@@ -47,15 +323,37 @@ class Profile(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_updated_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_profiles'
+    )
     
     class Meta:
         db_table = 'portal_profile'
         verbose_name = 'Profile'
         verbose_name_plural = 'Profiles'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['phone']),
+            models.Index(fields=['status']),
+        ]
     
     def __str__(self):
-        return f"{self.name} ({self.type})"
+        return f"{self.full_name} ({self.email})"
+    
+    def clean(self):
+        """Validate profile data"""
+        # Email and phone are required and unique (enforced at DB level)
+        if not self.email or not self.email.strip():
+            raise ValidationError({'email': 'Email is required.'})
+        if not self.phone or not self.phone.strip():
+            raise ValidationError({'phone': 'Mobile number is required.'})
+        if not self.first_name or not self.first_name.strip():
+            raise ValidationError({'first_name': 'First name is required.'})
 
 
 class Role(models.Model):
@@ -96,7 +394,9 @@ class Role(models.Model):
 
 
 class User(AbstractUser):
-    """Custom User model with role-based username generation"""
+    """Custom User model - Only credentials and login details"""
+    
+    objects = UserManager()
     
     ROLE_CHOICES = [
         ('admin', 'Admin'),
@@ -121,28 +421,25 @@ class User(AbstractUser):
         ('authenticator', 'Authenticator App'),
     ]
     
-    # Override username to be auto-generated (but can be provided)
+    # ============================================================================
+    # CREDENTIALS (Auto-generated username, unique)
+    # ============================================================================
     username = models.CharField(
-        max_length=20,
+        max_length=15,  # Format: A00XXXXXXXX (1 char + 2 zeros + 8 alphanumeric = 11 chars)
         unique=True,
-        help_text="Auto-generated username in format [Role]00[6 digits] if not provided"
+        help_text="Auto-generated cryptographically secure username"
     )
     
-    # Override first_name to make it required
-    first_name = models.CharField(
-        max_length=150,
-        blank=False,
-        help_text="Required. User's first name."
-    )
+    # Override AbstractUser fields to be nullable (data is in Profile)
+    first_name = models.CharField(max_length=150, blank=True, null=True)
+    last_name = models.CharField(max_length=150, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)  # Email is in Profile, kept for backward compatibility
     
-    profile = models.ForeignKey(
-        Profile,
-        on_delete=models.CASCADE,
-        related_name='users',
-        null=True,
-        blank=True
-    )
+    # Password is inherited from AbstractUser
     
+    # ============================================================================
+    # ROLE & AUTHORIZATION
+    # ============================================================================
     role = models.ForeignKey(
         Role,
         on_delete=models.SET_NULL,
@@ -155,26 +452,27 @@ class User(AbstractUser):
         max_length=20,
         choices=ROLE_CHOICES,
         blank=False,
+        null=False,
         help_text="User role code (required)"
     )
     
-    phone = models.CharField(
-        max_length=15,
-        validators=[validate_phone_number],
-        blank=False,
-        help_text="Required. User's mobile number."
-    )
+    # ============================================================================
+    # LOGIN & SESSION DETAILS
+    # ============================================================================
+    # last_login is inherited from AbstractUser
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
+    last_login_user_agent = models.TextField(blank=True, null=True)
+    login_count = models.IntegerField(default=0)
     
-    # Override email to make it required
-    email = models.EmailField(
-        blank=False,
-        help_text="Required. User's email address."
-    )
-    
+    # ============================================================================
+    # EMAIL VERIFICATION (moved from profile for login checks)
+    # ============================================================================
     email_verified = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     
-    # KYC fields
+    # ============================================================================
+    # KYC STATUS (for login checks)
+    # ============================================================================
     kyc_completed = models.BooleanField(default=False)
     kyc_status = models.CharField(
         max_length=20,
@@ -182,7 +480,9 @@ class User(AbstractUser):
         default='not_required'
     )
     
-    # MFA fields
+    # ============================================================================
+    # MFA (Multi-Factor Authentication)
+    # ============================================================================
     mfa_enabled = models.BooleanField(default=False)
     mfa_configured = models.BooleanField(default=False)
     mfa_method = models.CharField(
@@ -193,8 +493,14 @@ class User(AbstractUser):
     )
     totp_secret = models.CharField(max_length=32, blank=True, null=True)  # Encrypted
     
-    # Security fields
-    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
+    # ============================================================================
+    # ACCOUNT STATUS
+    # ============================================================================
+    # is_active, is_staff, is_superuser are inherited from AbstractUser
+    
+    # ============================================================================
+    # AUDIT & TRACKING
+    # ============================================================================
     created_by = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -202,7 +508,6 @@ class User(AbstractUser):
         blank=True,
         related_name='created_users'
     )
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -217,20 +522,25 @@ class User(AbstractUser):
     
     def clean(self):
         """Validate required fields"""
-        from django.core.exceptions import ValidationError
-        
-        # Validate required fields
-        if not self.first_name or not self.first_name.strip():
-            raise ValidationError({'first_name': 'First name is required.'})
-        
-        if not self.email or not self.email.strip():
-            raise ValidationError({'email': 'Email is required.'})
-        
-        if not self.phone or not self.phone.strip():
-            raise ValidationError({'phone': 'Mobile number is required.'})
-        
+        # Role is mandatory
         if not self.role_code:
-            raise ValidationError({'role_code': 'Role is required.'})
+            raise ValidationError({'role_code': 'Role is required. Please select a role for the user.'})
+        
+        # Validate role_code is a valid choice
+        valid_role_codes = [choice[0] for choice in self.ROLE_CHOICES]
+        if self.role_code not in valid_role_codes:
+            raise ValidationError({'role_code': f'Invalid role code. Must be one of: {", ".join(valid_role_codes)}'})
+        
+        # Ensure Role object exists for this role_code
+        if self.role_code:
+            try:
+                role_obj = Role.objects.get(code=self.role_code)
+                if not self.role:
+                    self.role = role_obj
+            except Role.DoesNotExist:
+                raise ValidationError({
+                    'role_code': f'Role with code "{self.role_code}" does not exist. Please run "python manage.py setup_roles" first.'
+                })
         
         # Auto-generate username if not set
         if not self.username and self.role_code:
@@ -238,39 +548,33 @@ class User(AbstractUser):
             self.username = generate_username(role_prefix)
     
     def save(self, *args, **kwargs):
+        # Validate role_code is set (mandatory)
+        if not self.role_code:
+            raise ValidationError({'role_code': 'Role is required. All users must have a role.'})
+        
         # Auto-generate username if not set
         if not self.username and self.role_code:
             role_prefix = get_role_prefix(self.role_code)
             self.username = generate_username(role_prefix)
         
-        # Set role from role_code if role is not set
-        if not self.role and self.role_code:
+        # Ensure Role object exists and is set
+        if self.role_code:
             try:
-                self.role = Role.objects.get(code=self.role_code)
+                role_obj = Role.objects.get(code=self.role_code)
+                self.role = role_obj
             except Role.DoesNotExist:
-                pass
+                raise ValidationError({
+                    'role_code': f'Role with code "{self.role_code}" does not exist. Please run "python manage.py setup_roles" first.'
+                })
         
         # Save first to ensure user exists
         super().save(*args, **kwargs)
         
-        # Sync to Django Groups after save
+        # Sync to Django Groups after save (role is guaranteed to exist)
         if self.role:
             from portal.utils.role_utils import sync_user_to_groups
             sync_user_to_groups(self, self.role)
     
-    @classmethod
-    def create_user(cls, username=None, email=None, password=None, **extra_fields):
-        """Override create_user to handle auto-generated username"""
-        # Generate username if not provided and role_code is available
-        if not username:
-            role_code = extra_fields.get('role_code')
-            if role_code:
-                role_prefix = get_role_prefix(role_code)
-                username = generate_username(role_prefix)
-            else:
-                # Fallback to 'U' prefix if no role_code
-                username = generate_username('U')
-        return super().create_user(username, email, password, **extra_fields)
     
     def requires_mfa(self) -> bool:
         """Check if user's role requires MFA"""
@@ -307,6 +611,27 @@ class User(AbstractUser):
             self.totp_secret = encrypt_data(secret)
         else:
             self.totp_secret = None
+    
+    # Convenience methods to access profile data
+    @property
+    def email(self):
+        """Get email from profile"""
+        return self.profile.email if hasattr(self, 'profile') and self.profile else None
+    
+    @property
+    def phone(self):
+        """Get phone from profile"""
+        return self.profile.phone if hasattr(self, 'profile') and self.profile else None
+    
+    @property
+    def first_name(self):
+        """Get first_name from profile"""
+        return self.profile.first_name if hasattr(self, 'profile') and self.profile else None
+    
+    @property
+    def full_name(self):
+        """Get full_name from profile"""
+        return self.profile.full_name if hasattr(self, 'profile') and self.profile else None
 
 
 class KYC(models.Model):

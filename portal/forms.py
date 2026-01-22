@@ -28,20 +28,54 @@ class MultipleFileInput(forms.Widget):
         return []
 
 
-class SignUpForm(forms.ModelForm):
-    """Sign up form for self-onboarding (Customer/Retailer)"""
+class SignUpForm(forms.Form):
+    """Sign up form for self-onboarding (Customer/Retailer) - Creates User and Profile"""
     
     first_name = forms.CharField(
         label='First Name',
         required=True,
+        error_messages={
+            'required': 'Please enter your first name.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter your first name'
         })
     )
     
+    email = forms.EmailField(
+        label='Email',
+        required=True,
+        error_messages={
+            'required': 'Please enter your email address.',
+            'invalid': 'Please enter a valid email address.'
+        },
+        widget=forms.EmailInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your email'
+        })
+    )
+    
+    phone = forms.CharField(
+        label='Mobile Number',
+        required=True,
+        error_messages={
+            'required': 'Please enter your mobile number.',
+            'invalid': 'Please enter a valid mobile number.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your mobile number'
+        }),
+        validators=[validate_phone_number]
+    )
+    
     password1 = forms.CharField(
         label='Password',
+        error_messages={
+            'required': 'Please enter a password.',
+            'min_length': 'Password must be at least 8 characters long.'
+        },
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Create a password'
@@ -50,6 +84,9 @@ class SignUpForm(forms.ModelForm):
     )
     password2 = forms.CharField(
         label='Confirm Password',
+        error_messages={
+            'required': 'Please confirm your password.'
+        },
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Confirm your password'
@@ -57,24 +94,13 @@ class SignUpForm(forms.ModelForm):
     )
     role_code = forms.ChoiceField(
         choices=[('customer', 'Customer'), ('retailer', 'Retailer')],
+        error_messages={
+            'required': 'Please select an account type.'
+        },
         widget=forms.Select(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
         })
     )
-    
-    class Meta:
-        model = User
-        fields = ['first_name', 'email', 'phone']
-        widgets = {
-            'email': forms.EmailInput(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-                'placeholder': 'Enter your email'
-            }),
-            'phone': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-                'placeholder': 'Enter your mobile number'
-            }),
-        }
     
     def clean_password2(self):
         password1 = self.cleaned_data.get('password1')
@@ -83,10 +109,18 @@ class SignUpForm(forms.ModelForm):
             raise forms.ValidationError("Passwords don't match")
         return password2
     
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and Profile.objects.filter(email=email).exists():
+            raise forms.ValidationError("A user with this email already exists.")
+        return email
+    
     def clean_phone(self):
         phone = self.cleaned_data.get('phone')
         if phone:
             validate_phone_number(phone)
+            if Profile.objects.filter(phone=phone).exists():
+                raise forms.ValidationError("A user with this mobile number already exists.")
         return phone
 
 
@@ -94,6 +128,9 @@ class SignInForm(forms.Form):
     """Sign in form"""
     
     username = forms.CharField(
+        error_messages={
+            'required': 'Please enter your username or email address.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter your username',
@@ -101,6 +138,9 @@ class SignInForm(forms.Form):
         })
     )
     password = forms.CharField(
+        error_messages={
+            'required': 'Please enter your password.'
+        },
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter your password'
@@ -114,12 +154,18 @@ class MFASetupForm(forms.Form):
     
     mfa_method = forms.ChoiceField(
         choices=[('otp', 'OTP (SMS)'), ('authenticator', 'Authenticator App')],
+        error_messages={
+            'required': 'Please select an MFA method.'
+        },
         widget=forms.RadioSelect(attrs={
             'class': 'mr-3'
         })
     )
     phone = forms.CharField(
         required=False,
+        error_messages={
+            'required': 'Please enter your phone number for OTP verification.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter your phone number'
@@ -128,6 +174,10 @@ class MFASetupForm(forms.Form):
     totp_code = forms.CharField(
         required=False,
         max_length=6,
+        error_messages={
+            'required': 'Please enter the verification code from your authenticator app.',
+            'max_length': 'Verification code must be 6 digits.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': '000000'
@@ -154,6 +204,10 @@ class MFAVerifyForm(forms.Form):
     
     mfa_code = forms.CharField(
         max_length=6,
+        error_messages={
+            'required': 'Please enter the verification code.',
+            'max_length': 'Verification code must be 6 digits.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20 text-center text-2xl tracking-widest',
             'placeholder': '000000',
@@ -163,13 +217,51 @@ class MFAVerifyForm(forms.Form):
 
 
 class ProfileCreateForm(forms.ModelForm):
-    """Profile creation form"""
+    """Profile creation/update form"""
     
     class Meta:
         model = Profile
-        fields = ['name', 'type', 'business_name', 'tax_id', 'phone', 'email', 'address']
+        fields = ['first_name', 'last_name', 'middle_name', 'email', 'phone', 'date_of_birth', 
+                  'gender', 'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 
+                  'type', 'business_name', 'pan_number', 'aadhaar_number', 'gst_number']
         widgets = {
-            'name': forms.TextInput(attrs={
+            'first_name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'last_name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'middle_name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'date_of_birth': forms.DateInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+                'type': 'date'
+            }),
+            'gender': forms.Select(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'address_line_1': forms.Textarea(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+                'rows': 2
+            }),
+            'address_line_2': forms.Textarea(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+                'rows': 2
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'state': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'pincode': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
             'type': forms.Select(attrs={
@@ -178,18 +270,14 @@ class ProfileCreateForm(forms.ModelForm):
             'business_name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
-            'tax_id': forms.TextInput(attrs={
+            'pan_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
-            'phone': forms.TextInput(attrs={
+            'aadhaar_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
-            'email': forms.EmailInput(attrs={
+            'gst_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
-            }),
-            'address': forms.Textarea(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-                'rows': 3
             }),
         }
     
@@ -200,21 +288,41 @@ class ProfileCreateForm(forms.ModelForm):
         return phone
 
 
-class UserCreateForm(forms.ModelForm):
-    """User creation form (for Admin)"""
+class UserCreateForm(forms.Form):
+    """User creation form (for Admin) - Creates User and Profile"""
     
     first_name = forms.CharField(
         label='First Name',
         required=True,
+        error_messages={
+            'required': 'Please enter the user\'s first name.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter first name'
         })
     )
     
+    email = forms.EmailField(
+        label='Email',
+        required=True,
+        error_messages={
+            'required': 'Please enter the user\'s email address.',
+            'invalid': 'Please enter a valid email address.'
+        },
+        widget=forms.EmailInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter email address'
+        })
+    )
+    
     phone = forms.CharField(
         label='Mobile Number',
         required=True,
+        error_messages={
+            'required': 'Please enter the user\'s mobile number.',
+            'invalid': 'Please enter a valid mobile number.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'placeholder': 'Enter mobile number'
@@ -232,8 +340,24 @@ class UserCreateForm(forms.ModelForm):
         })
     )
     
+    role_code = forms.ChoiceField(
+        label='Role',
+        choices=User.ROLE_CHOICES,
+        required=True,
+        error_messages={
+            'required': 'Please select a role for the user.'
+        },
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+        })
+    )
+    
     password1 = forms.CharField(
         label='Password',
+        error_messages={
+            'required': 'Please enter a password for the user.',
+            'min_length': 'Password must be at least 8 characters long.'
+        },
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
         }),
@@ -241,38 +365,33 @@ class UserCreateForm(forms.ModelForm):
     )
     password2 = forms.CharField(
         label='Confirm Password',
+        error_messages={
+            'required': 'Please confirm the password.'
+        },
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
         })
     )
     
-    class Meta:
-        model = User
-        fields = ['first_name', 'email', 'phone', 'username', 'role_code', 'profile']
-        widgets = {
-            'email': forms.EmailInput(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-                'placeholder': 'Enter email address'
-            }),
-            'role_code': forms.Select(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
-            }),
-            'profile': forms.Select(attrs={
-                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
-            }),
-        }
-    
     def clean_password2(self):
         password1 = self.cleaned_data.get('password1')
         password2 = self.cleaned_data.get('password2')
         if password1 and password2 and password1 != password2:
-            raise forms.ValidationError("Passwords don't match")
+            raise forms.ValidationError("Passwords do not match. Please try again.")
         return password2
+    
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and Profile.objects.filter(email=email).exists():
+            raise forms.ValidationError("A user with this email already exists.")
+        return email
     
     def clean_phone(self):
         phone = self.cleaned_data.get('phone')
         if phone:
             validate_phone_number(phone)
+            if Profile.objects.filter(phone=phone).exists():
+                raise forms.ValidationError("A user with this mobile number already exists.")
         return phone
 
 
@@ -287,16 +406,25 @@ class KYCSubmitForm(forms.Form):
             ('driving_license', 'Driving License'),
             ('voter_id', 'Voter ID'),
         ],
+        error_messages={
+            'required': 'Please select a document type.'
+        },
         widget=forms.Select(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
         })
     )
     document_number = forms.CharField(
+        error_messages={
+            'required': 'Please enter your document number.'
+        },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
         })
     )
     document_files = forms.FileField(
+        error_messages={
+            'required': 'Please upload your document file.'
+        },
         widget=forms.FileInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
             'accept': 'image/*,.pdf'

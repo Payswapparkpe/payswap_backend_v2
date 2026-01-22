@@ -140,17 +140,23 @@
                                     type="text" 
                                     name="{{ form.username.name }}" 
                                     id="{{ form.username.id_for_label }}"
-                                    class="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                                    class="w-full px-4 py-3 text-base border {% if form.username.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.username.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
                                     placeholder="Enter your username or email"
                                     required
                                     autocomplete="username"
                                     aria-required="true"
                                     aria-describedby="{% if form.username.errors %}username-error{% endif %}"
+                                    aria-invalid="{% if form.username.errors %}true{% else %}false{% endif %}"
                                     {% if form.username.value %}value="{{ form.username.value }}"{% endif %}
                                 >
                             </div>
                             {% if form.username.errors %}
-                            <p id="username-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.username.errors.0 }}</p>
+                            <p id="username-error" class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.username.errors.0 }}
+                            </p>
                             {% endif %}
                         </div>
                         
@@ -164,12 +170,13 @@
                                     :type="showPassword ? 'text' : 'password'"
                                     name="{{ form.password.name }}" 
                                     id="{{ form.password.id_for_label }}"
-                                    class="w-full px-4 py-3 pr-12 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                                    class="w-full px-4 py-3 pr-12 text-base border {% if form.password.errors %}border-red-500{% else %}border-gray-300{% endif %} rounded-lg focus:outline-none focus:ring-2 {% if form.password.errors %}focus:ring-red-500 focus:border-red-500{% else %}focus:ring-[#0066CC] focus:border-transparent{% endif %} transition-all duration-200 placeholder:text-gray-400"
                                     placeholder="Enter your password"
                                     required
                                     autocomplete="current-password"
                                     aria-required="true"
                                     aria-describedby="{% if form.password.errors %}password-error{% endif %}"
+                                    aria-invalid="{% if form.password.errors %}true{% else %}false{% endif %}"
                                 >
                                 <button 
                                     type="button"
@@ -187,7 +194,12 @@
                                 </button>
                             </div>
                             {% if form.password.errors %}
-                            <p id="password-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.password.errors.0 }}</p>
+                            <p id="password-error" class="mt-1.5 text-sm text-red-600 font-medium flex items-center gap-1" role="alert">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {{ form.password.errors.0 }}
+                            </p>
                             {% endif %}
                         </div>
                         

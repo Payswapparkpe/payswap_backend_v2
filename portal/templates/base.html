@@ -30,6 +30,9 @@
     <!-- Custom JS -->
     <script src="{% static 'portal/js/custom.js' %}"></script>
     
+    <!-- Toaster Notification System -->
+    <script src="{% static 'portal/js/toaster.js' %}"></script>
+    
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-white font-['Ubuntu']">
@@ -40,6 +43,15 @@
         </div>
         <div class="pace-activity"></div>
     </div>
+    
+    <!-- Django Messages - Will be converted to toaster notifications -->
+    {% if messages %}
+    <div data-django-messages style="display: none;">
+        {% for message in messages %}
+        <div data-message data-type="{{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
     
     <div class="min-h-screen flex">
         <!-- Sidebar -->
@@ -73,15 +85,6 @@
             
             <!-- Content Area -->
             <div class="p-6">
-                {% if messages %}
-                <div class="mb-4">
-                    {% for message in messages %}
-                    <div class="p-4 rounded-lg mb-2 {% if message.tags == 'error' %}bg-red-100 text-red-800{% elif message.tags == 'success' %}bg-green-100 text-green-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {{ message }}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
                 
                 {% block content %}{% endblock %}
             </div>

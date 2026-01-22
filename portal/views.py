@@ -127,24 +127,25 @@ class SignUpView(View):
         if form.is_valid():
             try:
                 with transaction.atomic():
-                    # Create profile first
-                    profile = Profile.objects.create(
-                        name=form.cleaned_data.get('email', '').split('@')[0],
-                        type='individual',
-                        phone=form.cleaned_data.get('phone'),
-                        email=form.cleaned_data.get('email'),
-                    )
-                    
-                    # Create user (username will be auto-generated)
+                    # Create user first (username will be auto-generated)
                     user = User.objects.create_user(
-                        first_name=form.cleaned_data.get('first_name'),
-                        email=form.cleaned_data.get('email'),
                         password=form.cleaned_data['password1'],
                         role_code=form.cleaned_data['role_code'],
-                        profile=profile,
+                    )
+                    
+                    # Create profile (mandatory, OneToOne with user)
+                    profile = Profile.objects.create(
+                        user=user,
+                        first_name=form.cleaned_data.get('first_name'),
+                        email=form.cleaned_data.get('email'),
                         phone=form.cleaned_data.get('phone'),
+                        type='individual',
                         email_verified=False,  # Will be verified via email
                     )
+                    
+                    # Update user email_verified status
+                    user.email_verified = False
+                    user.save()
                     
                     # Create wallet
                     Wallet.objects.create(user=user)
@@ -303,16 +304,21 @@ class MFAVerifyView(View):
             mfa_code = form.cleaned_data['mfa_code']
             verified = False
             
-            if user.mfa_method == 'otp':
+            # Get method from form or use user's configured method
+            method = request.POST.get('method', user.mfa_method)
+            
+            if method == 'otp' or user.mfa_method == 'otp':
                 # Verify OTP from cache using service
                 from portal.services.otp_service import OTPService
                 otp_service = OTPService()
                 verified = otp_service.verify_otp(user.phone, mfa_code)
-            elif user.mfa_method == 'authenticator':
+            elif method == 'authenticator' or user.mfa_method == 'authenticator':
                 # Verify TOTP
                 secret = user.get_encrypted_totp_secret()
                 if secret:
                     verified = verify_totp(secret, mfa_code)
+                else:
+                    verified = False
             
             if verified:
                 del request.session['mfa_verify_user_id']
@@ -324,6 +330,45 @@ class MFAVerifyView(View):
             messages.error(request, 'Please enter a valid code.')
         
         return render(request, self.template_name, {'form': form, 'user': user})
+
+
+@require_http_methods(["POST"])
+def resend_otp_view(request):
+    """Resend OTP view"""
+    from django.http import JsonResponse
+    from portal.services.otp_service import OTPService
+    
+    user_id = request.session.get('mfa_verify_user_id')
+    if not user_id:
+        return JsonResponse({'success': False, 'message': 'Invalid session. Please sign in again.'}, status=400)
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'User not found.'}, status=404)
+    
+    if not user.phone:
+        return JsonResponse({'success': False, 'message': 'Phone number not found.'}, status=400)
+    
+    # Send OTP
+    otp_service = OTPService()
+    success, message = otp_service.send_otp(user.phone)
+    
+    if success:
+        log_user_action_task.delay(
+            action='resend_otp',
+            user_id=user.id,
+            status='success'
+        )
+        return JsonResponse({'success': True, 'message': 'OTP has been resent to your mobile number.'})
+    else:
+        log_security_event_task.delay(
+            event_type='otp_resend_failed',
+            message=f'Failed to resend OTP: {message}',
+            user_id=user.id,
+            severity='low'
+        )
+        return JsonResponse({'success': False, 'message': message}, status=400)
 
 
 @login_required
@@ -477,21 +522,28 @@ class UserCreateView(CreateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['profiles'] = Profile.objects.filter(status='active')
+        # Profiles are now OneToOne with User, so no need to list them
         return context
     
     def form_valid(self, form):
         try:
             with transaction.atomic():
-                # Create user using create_user (username auto-generated)
+                # Create user first (username will be auto-generated)
+                username = form.cleaned_data.get('username') or None
                 user = User.objects.create_user(
-                    first_name=form.cleaned_data.get('first_name'),
-                    email=form.cleaned_data.get('email'),
+                    username=username,
                     password=form.cleaned_data['password1'],
                     role_code=form.cleaned_data['role_code'],
-                    profile=form.cleaned_data.get('profile'),
+                    created_by=self.request.user,
+                )
+                
+                # Create profile (mandatory, OneToOne with user)
+                profile = Profile.objects.create(
+                    user=user,
+                    first_name=form.cleaned_data.get('first_name'),
+                    email=form.cleaned_data.get('email'),
                     phone=form.cleaned_data.get('phone'),
-                    username=form.cleaned_data.get('username') or None,  # Auto-generated if not provided
+                    type='individual',
                     created_by=self.request.user,
                 )
                 

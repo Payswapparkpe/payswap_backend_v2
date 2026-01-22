@@ -15,6 +15,7 @@ urlpatterns = [
     # MFA
     path('mfa/setup/', views.MFASetupView.as_view(), name='mfa_setup'),
     path('mfa/verify/', views.MFAVerifyView.as_view(), name='mfa_verify'),
+    path('mfa/resend-otp/', views.resend_otp_view, name='resend_otp'),
     
     # Dashboard
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),

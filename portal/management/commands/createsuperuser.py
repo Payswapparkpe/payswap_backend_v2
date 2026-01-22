@@ -3,7 +3,8 @@ Custom createsuperuser command with required fields: first_name, phone, email, u
 """
 from django.core.management.base import CommandError
 from django.contrib.auth.management.commands.createsuperuser import Command as BaseCommand
-from portal.models import User, Role
+from django.db import transaction
+from portal.models import User, Role, Profile
 from portal.utils.user_utils import generate_username, get_role_prefix
 
 
@@ -106,9 +107,13 @@ class Command(BaseCommand):
         if User.objects.filter(username=username).exists():
             raise CommandError(f'Username "{username}" already exists.')
         
-        # Check if email already exists
-        if User.objects.filter(email=email).exists():
+        # Check if email already exists (in Profile)
+        if Profile.objects.filter(email=email).exists():
             raise CommandError(f'Email "{email}" already exists.')
+        
+        # Check if phone already exists (in Profile)
+        if Profile.objects.filter(phone=phone).exists():
+            raise CommandError(f'Phone "{phone}" already exists.')
         
         # Get password
         password = options.get('password')
@@ -117,29 +122,39 @@ class Command(BaseCommand):
         elif not password:
             raise CommandError('Password is required. Use --password or run in interactive mode.')
         
-        # Create superuser
+        # Create superuser with profile
         try:
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                first_name=first_name,
-                phone=phone,
-                role_code=role_code,
-                role=role,
-                is_staff=True,
-                is_superuser=True,
-                is_active=True,
-                email_verified=True,  # Auto-verify for superuser
-            )
+            with transaction.atomic():
+                # Create user first
+                user = User.objects.create_user(
+                    username=username,
+                    password=password,
+                    role_code=role_code,
+                    role=role,
+                    is_staff=True,
+                    is_superuser=True,
+                    is_active=True,
+                    email_verified=True,  # Auto-verify for superuser
+                )
+                
+                # Create profile (mandatory)
+                profile = Profile.objects.create(
+                    user=user,
+                    first_name=first_name,
+                    email=email,
+                    phone=phone,
+                    type='individual',
+                    email_verified=True,
+                    phone_verified=True,
+                )
             
             self.stdout.write(
                 self.style.SUCCESS(f'Superuser created successfully!\n'
                                  f'  Username: {user.username}\n'
-                                 f'  Email: {user.email}\n'
+                                 f'  Email: {profile.email}\n'
                                  f'  Role: {user.role_code}\n'
-                                 f'  First Name: {user.first_name}\n'
-                                 f'  Phone: {user.phone}')
+                                 f'  First Name: {profile.first_name}\n'
+                                 f'  Phone: {profile.phone}')
             )
         except Exception as e:
             raise CommandError(f'Error creating superuser: {str(e)}')
