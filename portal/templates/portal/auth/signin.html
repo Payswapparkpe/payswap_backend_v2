@@ -18,8 +18,14 @@
                 </div>
                 
                 <!-- Subtle Logo Watermark -->
-                <div class="absolute inset-0 flex items-center justify-center opacity-5">
-                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="w-64 h-64 filter brightness-0 invert">
+                <div class="absolute inset-0 flex items-center justify-center opacity-5" aria-hidden="true">
+                    <img src="{% static 'portal/images/small-logo.png' %}" 
+                         alt="" 
+                         class="w-64 h-64 filter brightness-0 invert"
+                         width="256"
+                         height="256"
+                         loading="lazy"
+                         aria-hidden="true">
                 </div>
                 
                 <div class="relative z-10 flex flex-col justify-center p-6 lg:p-10 text-white h-full">
@@ -50,7 +56,12 @@
                                         x-transition:leave-end="opacity-0 transform scale-110"
                                         class="absolute inset-0"
                                     >
-                                        <img :src="image.url" :alt="image.title" class="w-full h-full object-cover">
+                                        <img :src="image.url" 
+                                             :alt="image.title" 
+                                             class="w-full h-full object-cover"
+                                             loading="lazy"
+                                             :width="800"
+                                             :height="600">
                                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
                                         <div class="absolute bottom-0 left-0 right-0 p-4 text-white">
                                             <h3 class="text-lg lg:text-xl font-bold mb-1" x-text="image.title"></h3>

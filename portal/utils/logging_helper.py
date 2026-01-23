@@ -188,10 +188,14 @@ class SecureLogger:
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
-        traceback: Optional[str] = None
+        traceback: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """
-        Write log entry
+        Write log entry via write_logs_task (ONLY way to write logs)
         
         Args:
             level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -200,45 +204,76 @@ class SecureLogger:
             extra_data: Additional data (optional)
             request_id: Request ID for tracing (optional)
             traceback: Traceback string (optional)
+            client_ip: Client IP address (optional)
+            user_agent: User agent (optional)
+            session_id: Session ID (optional)
+            url: URL path (optional)
         """
-        log_data = self._format_log_data(level, message, user, extra_data, request_id, traceback)
+        from portal.tasks.write_logs_task import write_logs_task
+        from portal.utils.logging_utils import get_module_name
         
-        # Format as JSON for structured logging
-        log_message = json.dumps(log_data, default=str, ensure_ascii=False)
+        # Get module name from caller
+        module_name = get_module_name(skip_frames=3)
         
-        # Write to logger
-        log_method = getattr(self.logger, level.lower(), self.logger.info)
-        log_method(log_message)
+        # Extract user ID
+        user_id = user.id if user else None
+        
+        # Call write_logs_task (async)
+        write_logs_task.delay(
+            log_level=level,
+            message=message,
+            module_name=module_name,
+            url=url,
+            request_id=request_id,
+            response_id=None,  # Not available in non-API contexts
+            user_id=user_id,
+            extra_data=extra_data,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            session_id=session_id
+        )
     
     def debug(
         self,
         message: str,
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """Log debug message"""
-        self._write_log('DEBUG', message, user, extra_data, request_id)
+        self._write_log('DEBUG', message, user, extra_data, request_id, None, client_ip, user_agent, session_id, url)
     
     def info(
         self,
         message: str,
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """Log info message"""
-        self._write_log('INFO', message, user, extra_data, request_id)
+        self._write_log('INFO', message, user, extra_data, request_id, None, client_ip, user_agent, session_id, url)
     
     def warning(
         self,
         message: str,
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """Log warning message"""
-        self._write_log('WARNING', message, user, extra_data, request_id)
+        self._write_log('WARNING', message, user, extra_data, request_id, None, client_ip, user_agent, session_id, url)
     
     def error(
         self,
@@ -246,10 +281,14 @@ class SecureLogger:
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
-        traceback: Optional[str] = None
+        traceback: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """Log error message"""
-        self._write_log('ERROR', message, user, extra_data, request_id, traceback)
+        self._write_log('ERROR', message, user, extra_data, request_id, traceback, client_ip, user_agent, session_id, url)
     
     def critical(
         self,
@@ -257,10 +296,14 @@ class SecureLogger:
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
-        traceback: Optional[str] = None
+        traceback: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """Log critical message"""
-        self._write_log('CRITICAL', message, user, extra_data, request_id, traceback)
+        self._write_log('CRITICAL', message, user, extra_data, request_id, traceback, client_ip, user_agent, session_id, url)
     
     def log_user_action(
         self,
@@ -270,7 +313,11 @@ class SecureLogger:
         resource_id: Optional[str] = None,
         status: str = 'success',
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """
         Log user action with structured data
@@ -283,6 +330,10 @@ class SecureLogger:
             status: Action status ('success', 'failed', 'pending')
             extra_data: Additional data
             request_id: Request ID for tracing
+            client_ip: Client IP address
+            user_agent: User agent
+            session_id: Session ID
+            url: URL path
         """
         action_data = {
             'action': action,
@@ -302,7 +353,7 @@ class SecureLogger:
             message += f" (ID: {resource_id})"
         message += f" - {status}"
         
-        self._write_log(level, message, user, action_data, request_id)
+        self._write_log(level, message, user, action_data, request_id, None, client_ip, user_agent, session_id, url)
     
     def log_api_call(
         self,
@@ -313,7 +364,11 @@ class SecureLogger:
         response_time: Optional[float] = None,
         user: Optional[Any] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """
         Log API call with structured data
@@ -327,6 +382,10 @@ class SecureLogger:
             user: User making the call (optional)
             extra_data: Additional data
             request_id: Request ID for tracing
+            client_ip: Client IP address
+            user_agent: User agent
+            session_id: Session ID
+            url: URL path
         """
         api_data = {
             'service': service,
@@ -346,7 +405,7 @@ class SecureLogger:
         if response_time:
             message += f" ({response_time:.2f}s)"
         
-        self._write_log(level, message, user, api_data, request_id)
+        self._write_log(level, message, user, api_data, request_id, None, client_ip, user_agent, session_id, url)
     
     def log_security_event(
         self,
@@ -355,7 +414,11 @@ class SecureLogger:
         user: Optional[Any] = None,
         severity: str = 'medium',
         extra_data: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
     ):
         """
         Log security event
@@ -367,6 +430,10 @@ class SecureLogger:
             severity: Severity level ('low', 'medium', 'high', 'critical')
             extra_data: Additional data
             request_id: Request ID for tracing
+            client_ip: Client IP address
+            user_agent: User agent
+            session_id: Session ID
+            url: URL path
         """
         security_data = {
             'event_type': event_type,
@@ -384,7 +451,7 @@ class SecureLogger:
         }
         level = level_map.get(severity, 'WARNING')
         
-        self._write_log(level, f"Security event: {message}", user, security_data, request_id)
+        self._write_log(level, f"Security event: {message}", user, security_data, request_id, None, client_ip, user_agent, session_id, url)
 
 
 # Global logger instance

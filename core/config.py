@@ -116,6 +116,18 @@ class PayswapConfig(BaseSettings):
     # ============================================================================
     CORS_ALLOWED_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000")
     CORS_ALLOW_CREDENTIALS: bool = Field(default=True)
+    
+    # ============================================================================
+    # SOCIAL AUTHENTICATION (OAuth)
+    # ============================================================================
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = Field(default=None)
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[SecretStr] = Field(default=None)
+    FACEBOOK_OAUTH_APP_ID: Optional[str] = Field(default=None)
+    FACEBOOK_OAUTH_APP_SECRET: Optional[SecretStr] = Field(default=None)
+    APPLE_OAUTH_CLIENT_ID: Optional[str] = Field(default=None)
+    APPLE_OAUTH_TEAM_ID: Optional[str] = Field(default=None)
+    APPLE_OAUTH_KEY_ID: Optional[str] = Field(default=None)
+    APPLE_OAUTH_PRIVATE_KEY: Optional[SecretStr] = Field(default=None)
 
     # ============================================================================
     # VALIDATORS

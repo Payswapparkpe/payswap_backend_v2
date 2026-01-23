@@ -159,12 +159,20 @@ Server will be available at `http://127.0.0.1:8000/`
 # Activate virtual environment
 source .venv/bin/activate
 
-# Start Celery worker
-celery -A core worker --loglevel=info
+# Option 1: Use the provided script (recommended - auto-detects platform)
+./run_celery.sh
+
+# Option 2: Manual command for macOS (if you encounter SIGSEGV errors)
+celery -A core worker --loglevel=info --pool=solo
+
+# Option 3: Manual command for Linux (default prefork)
+celery -A core worker --loglevel=info --pool=prefork --concurrency=8
 
 # Start Celery Beat (for scheduled tasks)
 celery -A core beat --loglevel=info
 ```
+
+**⚠️ macOS Users:** If you see `SIGSEGV` (segmentation fault) errors, use `--pool=solo` instead of the default `prefork` pool. See [docs/CELERY_TROUBLESHOOTING.md](docs/CELERY_TROUBLESHOOTING.md) for details.
 
 ### Access Points
 

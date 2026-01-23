@@ -6,9 +6,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from .permissions import IsExternalUser, HasAPIKey
+from api.mixins.response_mixin import StandardResponseMixin
 
 
-class HealthCheckView(APIView):
+class HealthCheckView(StandardResponseMixin, APIView):
     """
     Health check endpoint for API v2 (External)
     Public endpoint for external parties
@@ -16,45 +17,45 @@ class HealthCheckView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
-        return Response(
-            {
-                "status": "healthy",
+        return self.success_response(
+            message="API is healthy",
+            data={
                 "version": "v2",
                 "access_type": "external",
                 "public": True,
             },
-            status=status.HTTP_200_OK,
+            request=request
         )
 
 
-class PublicAPIView(APIView):
+class PublicAPIView(StandardResponseMixin, APIView):
     """
     Base view for public external endpoints
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
-        return Response(
-            {
-                "message": "Public endpoint",
+        return self.success_response(
+            message="Public endpoint accessed",
+            data={
                 "version": "v2",
             },
-            status=status.HTTP_200_OK,
+            request=request
         )
 
 
-class PartnerAPIView(APIView):
+class PartnerAPIView(StandardResponseMixin, APIView):
     """
     Base view for partner endpoints (requires API key)
     """
     permission_classes = [HasAPIKey]
     
     def get(self, request):
-        return Response(
-            {
-                "message": "Partner endpoint",
+        return self.success_response(
+            message="Partner endpoint accessed",
+            data={
                 "version": "v2",
                 "authenticated": True,
             },
-            status=status.HTTP_200_OK,
+            request=request
         )

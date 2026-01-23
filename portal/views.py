@@ -32,6 +32,13 @@ from portal.utils.user_utils import is_mfa_required_role
 from portal.permissions import CanCreateUser, CanManageKYC, CanManagePermissions
 from portal.utils.logging_helper import get_logger
 from portal.tasks.logging_tasks import log_user_action_task, log_security_event_task
+from portal.utils.ip_utils import get_client_ip, get_user_agent, get_session_id
+from portal.tasks.write_logs_task import write_logs_task
+from portal.utils.user_utils import generate_username, get_role_prefix
+from portal.services.otp_service import OTPService
+from portal.tasks.otp_dual_delivery_task import send_otp_dual_delivery_task
+from django.core.cache import cache
+import uuid
 from portal.utils.role_utils import (
     assign_permission_to_user, revoke_permission_from_user,
     change_user_role, assign_permission_to_role, revoke_permission_from_role
@@ -46,134 +53,563 @@ class LandingPageView(TemplateView):
 
 
 class SignInView(View):
-    """Sign in view"""
+    """Multi-step sign in view with IP logging, rate limiting, and account lockout"""
     template_name = 'portal/auth/signin.html'
     
     def get(self, request):
         if request.user.is_authenticated:
             return redirect('/dashboard/')
+        
+        # Check login step from session
+        login_step = request.session.get('login_step', 1)
+        
+        # Step 1: Credentials form
+        if login_step == 1:
+            form = SignInForm()
+            return render(request, self.template_name, {'form': form, 'step': 1})
+        
+        # Step 2: MFA verification (if reached)
+        elif login_step == 2:
+            user_id = request.session.get('login_user_id')
+            if not user_id:
+                return redirect('/signin/')
+            try:
+                user = User.objects.get(id=user_id)
+                if user.requires_mfa() and user.mfa_configured:
+                    return redirect('/mfa/verify/')
+            except User.DoesNotExist:
+                pass
+        
+        # Reset to step 1
+        request.session['login_step'] = 1
         form = SignInForm()
-        return render(request, self.template_name, {'form': form})
+        return render(request, self.template_name, {'form': form, 'step': 1})
     
     def post(self, request):
+        # Extract IP and context
+        client_ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        session_id = get_session_id(request)
+        request_id = get_request_id(request)
+        response_id = generate_response_id()
+        
         form = SignInForm(request.POST)
-        if form.is_valid():
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password']
-            
-            user = authenticate(request, username=username, password=password)
-            if user:
-                if not user.is_active:
-                    log_security_event_task.delay(
-                        event_type='failed_login',
-                        message='Login attempt with inactive account',
-                        user_id=user.id,
-                        severity='medium',
-                        extra_data={'reason': 'inactive_account'}
-                    )
-                    messages.error(request, 'Your account is inactive.')
-                    return render(request, self.template_name, {'form': form})
+        login_step = request.session.get('login_step', 1)
+        
+        # Step 1: Credentials Entry
+        if login_step == 1:
+            if form.is_valid():
+                username = form.cleaned_data['username']
+                password = form.cleaned_data['password']
                 
-                if not user.email_verified:
-                    log_security_event_task.delay(
-                        event_type='failed_login',
-                        message='Login attempt with unverified email',
-                        user_id=user.id,
-                        severity='low',
-                        extra_data={'reason': 'email_not_verified'}
-                    )
-                    messages.error(request, 'Please verify your email before signing in.')
-                    return render(request, self.template_name, {'form': form})
+                # Rate limiting: 5 attempts per 15 minutes per IP
+                rate_limit_key = f"login_attempts:{client_ip}"
+                attempts = cache.get(rate_limit_key, 0)
                 
-                # Check if MFA is required
-                if user.requires_mfa():
-                    if not user.mfa_configured:
-                        # Store user ID in session for MFA setup
-                        request.session['mfa_setup_user_id'] = user.id
-                        messages.info(request, 'MFA setup is required for your role.')
-                        return redirect('/mfa/setup/')
-                    else:
-                        # Store user ID in session for MFA verification
-                        request.session['mfa_verify_user_id'] = user.id
-                        return redirect('/mfa/verify/')
-                else:
-                    # No MFA required, login directly
+                if attempts >= 5:
+                    write_logs_task.delay(
+                        log_level='WARNING',
+                        message=f'Login rate limit exceeded for IP {client_ip}',
+                        module_name='portal.views.SignInView',
+                        url=request.path,
+                        request_id=request_id,
+                        response_id=response_id,
+                        user_id=None,
+                        extra_data={'action': 'login_rate_limit', 'ip': client_ip},
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        session_id=session_id
+                    )
+                    messages.error(request, 'Too many login attempts. Please try again in 15 minutes.')
+                    return render(request, self.template_name, {'form': form, 'step': 1})
+                
+                # Authenticate user
+                user = authenticate(request, username=username, password=password)
+                
+                if user:
+                    # Check if account is locked
+                    if user.is_account_locked():
+                        write_logs_task.delay(
+                            log_level='WARNING',
+                            message=f'Login attempt with locked account: {user.username}',
+                            module_name='portal.views.SignInView',
+                            url=request.path,
+                            request_id=request_id,
+                            response_id=response_id,
+                            user_id=user.id,
+                            extra_data={'action': 'login_locked_account', 'ip': client_ip},
+                            client_ip=client_ip,
+                            user_agent=user_agent,
+                            session_id=session_id
+                        )
+                        messages.error(request, 'Your account is temporarily locked due to multiple failed login attempts. Please try again later.')
+                        return render(request, self.template_name, {'form': form, 'step': 1})
+                    
+                    # Reset failed attempts on successful authentication
+                    user.reset_failed_attempts()
+                    
+                    # Step 2: Account Verification
+                    if not user.is_active:
+                        write_logs_task.delay(
+                            log_level='WARNING',
+                            message=f'Login attempt with inactive account: {user.username}',
+                            module_name='portal.views.SignInView',
+                            url=request.path,
+                            request_id=request_id,
+                            response_id=response_id,
+                            user_id=user.id,
+                            extra_data={'action': 'login_inactive', 'ip': client_ip},
+                            client_ip=client_ip,
+                            user_agent=user_agent,
+                            session_id=session_id
+                        )
+                        messages.error(request, 'Your account is inactive.')
+                        return render(request, self.template_name, {'form': form, 'step': 1})
+                    
+                    if not user.email_verified:
+                        write_logs_task.delay(
+                            log_level='WARNING',
+                            message=f'Login attempt with unverified email: {user.username}',
+                            module_name='portal.views.SignInView',
+                            url=request.path,
+                            request_id=request_id,
+                            response_id=response_id,
+                            user_id=user.id,
+                            extra_data={'action': 'login_unverified_email', 'ip': client_ip},
+                            client_ip=client_ip,
+                            user_agent=user_agent,
+                            session_id=session_id
+                        )
+                        messages.error(request, 'Please verify your email before signing in.')
+                        return render(request, self.template_name, {'form': form, 'step': 1})
+                    
+                    # Step 3: Profile Completion Check
+                    if hasattr(user, 'profile') and user.profile.profile_completion_required:
+                        # Store user ID and proceed to login (middleware will redirect)
+                        request.session['login_user_id'] = user.id
+                        request.session['login_step'] = 2
+                        login(request, user)
+                        
+                        write_logs_task.delay(
+                            log_level='INFO',
+                            message=f'User logged in, profile completion required: {user.username}',
+                            module_name='portal.views.SignInView',
+                            url=request.path,
+                            request_id=request_id,
+                            response_id=response_id,
+                            user_id=user.id,
+                            extra_data={'action': 'login_profile_completion_required', 'ip': client_ip},
+                            client_ip=client_ip,
+                            user_agent=user_agent,
+                            session_id=session_id
+                        )
+                        
+                        # Update login tracking
+                        user.last_login_ip = client_ip
+                        user.last_login_user_agent = user_agent
+                        user.login_count += 1
+                        user.save(update_fields=['last_login_ip', 'last_login_user_agent', 'login_count'])
+                        
+                        messages.info(request, 'Please complete your profile to continue.')
+                        return redirect('/profile/complete/')
+                    
+                    # Step 4: MFA Check
+                    if user.requires_mfa():
+                        if not user.mfa_configured:
+                            # Store user ID in session for MFA setup
+                            request.session['mfa_setup_user_id'] = user.id
+                            request.session['login_user_id'] = user.id
+                            request.session['login_step'] = 2
+                            
+                            write_logs_task.delay(
+                                log_level='INFO',
+                                message=f'MFA setup required for user: {user.username}',
+                                module_name='portal.views.SignInView',
+                                url=request.path,
+                                request_id=request_id,
+                                response_id=response_id,
+                                user_id=user.id,
+                                extra_data={'action': 'mfa_setup_required', 'ip': client_ip},
+                                client_ip=client_ip,
+                                user_agent=user_agent,
+                                session_id=session_id
+                            )
+                            
+                            messages.info(request, 'MFA setup is required for your role.')
+                            return redirect('/mfa/setup/')
+                        else:
+                            # Store user ID in session for MFA verification
+                            request.session['mfa_verify_user_id'] = user.id
+                            request.session['login_user_id'] = user.id
+                            request.session['login_step'] = 2
+                            
+                            write_logs_task.delay(
+                                log_level='INFO',
+                                message=f'MFA verification required for user: {user.username}',
+                                module_name='portal.views.SignInView',
+                                url=request.path,
+                                request_id=request_id,
+                                response_id=response_id,
+                                user_id=user.id,
+                                extra_data={'action': 'mfa_verification_required', 'ip': client_ip},
+                                client_ip=client_ip,
+                                user_agent=user_agent,
+                                session_id=session_id
+                            )
+                            
+                            return redirect('/mfa/verify/')
+                    
+                    # Step 5: Complete Login
                     login(request, user)
+                    
+                    # Update login tracking
+                    user.last_login_ip = client_ip
+                    user.last_login_user_agent = user_agent
+                    user.login_count += 1
+                    user.save(update_fields=['last_login_ip', 'last_login_user_agent', 'login_count'])
+                    
+                    # Clear login step from session
+                    request.session.pop('login_step', None)
+                    request.session.pop('login_user_id', None)
+                    
+                    # Log successful login
+                    write_logs_task.delay(
+                        log_level='INFO',
+                        message=f'User logged in successfully: {user.username}',
+                        module_name='portal.views.SignInView',
+                        url=request.path,
+                        request_id=request_id,
+                        response_id=response_id,
+                        user_id=user.id,
+                        extra_data={
+                            'action': 'login_success',
+                            'ip': client_ip,
+                            'role': user.role_code
+                        },
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        session_id=session_id
+                    )
+                    
                     log_user_action_task.delay(
                         action='login',
                         user_id=user.id,
-                        status='success'
+                        status='success',
+                        request_id=request_id
                     )
+                    
                     return redirect('/dashboard/')
+                else:
+                    # Invalid credentials - increment failed attempts for username if found
+                    try:
+                        user = User.objects.get(username=username)
+                        was_locked = user.increment_failed_attempts()
+                        
+                        if was_locked:
+                            write_logs_task.delay(
+                                log_level='WARNING',
+                                message=f'Account locked due to failed login attempts: {username}',
+                                module_name='portal.views.SignInView',
+                                url=request.path,
+                                request_id=request_id,
+                                response_id=response_id,
+                                user_id=user.id,
+                                extra_data={
+                                    'action': 'account_locked',
+                                    'ip': client_ip,
+                                    'failed_attempts': user.failed_login_attempts
+                                },
+                                client_ip=client_ip,
+                                user_agent=user_agent,
+                                session_id=session_id
+                            )
+                    except User.DoesNotExist:
+                        pass
+                    
+                    # Increment rate limit
+                    cache.set(rate_limit_key, attempts + 1, timeout=900)  # 15 minutes
+                    
+                    write_logs_task.delay(
+                        log_level='WARNING',
+                        message=f'Invalid login credentials for username: {username}',
+                        module_name='portal.views.SignInView',
+                        url=request.path,
+                        request_id=request_id,
+                        response_id=response_id,
+                        user_id=None,
+                        extra_data={
+                            'action': 'login_failed',
+                            'ip': client_ip,
+                            'username': username
+                        },
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        session_id=session_id
+                    )
+                    
+                    messages.error(request, 'Invalid username or password.')
             else:
-                log_security_event_task.delay(
-                    event_type='failed_login',
-                    message='Invalid credentials',
-                    severity='medium',
-                    extra_data={'username': username}
-                )
-                messages.error(request, 'Invalid username or password.')
-        else:
-            messages.error(request, 'Please correct the errors below.')
+                messages.error(request, 'Please correct the errors below.')
         
-        return render(request, self.template_name, {'form': form})
+        return render(request, self.template_name, {'form': form, 'step': login_step})
 
 
 class SignUpView(View):
-    """Sign up view for self-onboarding (Customer/Retailer)"""
+    """Multi-step sign up view with OTP dual delivery (email + SMS)"""
     template_name = 'portal/auth/signup.html'
     
     def get(self, request):
         if request.user.is_authenticated:
             return redirect('/dashboard/')
+        
+        # Check signup step from session
+        signup_step = request.session.get('signup_step', 1)
+        
+        # Step 1: Basic information form
+        if signup_step == 1:
+            form = SignUpForm()
+            return render(request, self.template_name, {'form': form, 'step': 1})
+        
+        # Step 2: OTP verification
+        elif signup_step == 2:
+            from portal.forms import OTPVerifyForm
+            otp_form = OTPVerifyForm()
+            signup_data = request.session.get('signup_data', {})
+            return render(request, self.template_name, {
+                'otp_form': otp_form,
+                'step': 2,
+                'email': signup_data.get('email', ''),
+                'phone': signup_data.get('phone', '')
+            })
+        
+        # Reset to step 1
+        request.session['signup_step'] = 1
         form = SignUpForm()
-        return render(request, self.template_name, {'form': form})
+        return render(request, self.template_name, {'form': form, 'step': 1})
     
     def post(self, request):
-        form = SignUpForm(request.POST)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    # Create user first (username will be auto-generated)
-                    user = User.objects.create_user(
-                        password=form.cleaned_data['password1'],
-                        role_code=form.cleaned_data['role_code'],
-                    )
-                    
-                    # Create profile (mandatory, OneToOne with user)
-                    profile = Profile.objects.create(
-                        user=user,
-                        first_name=form.cleaned_data.get('first_name'),
-                        email=form.cleaned_data.get('email'),
-                        phone=form.cleaned_data.get('phone'),
-                        type='individual',
-                        email_verified=False,  # Will be verified via email
-                    )
-                    
-                    # Update user email_verified status
-                    user.email_verified = False
-                    user.save()
-                    
-                    # Create wallet
-                    Wallet.objects.create(user=user)
-                    
-                    log_user_action_task.delay(
-                        action='signup',
-                        user_id=user.id,
-                        resource='user',
-                        resource_id=str(user.id),
-                        status='success',
-                        extra_data={'role': form.cleaned_data['role_code']}
-                    )
-                    
-                    messages.success(request, 'Account created successfully! Please verify your email.')
-                    return redirect('/signin/')
-            except Exception as e:
-                messages.error(request, f'Error creating account: {str(e)}')
-        else:
-            messages.error(request, 'Please correct the errors below.')
+        # Extract IP and context
+        client_ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        session_id = get_session_id(request)
+        request_id = get_request_id(request)
+        response_id = generate_response_id()
         
-        return render(request, self.template_name, {'form': form})
+        signup_step = request.session.get('signup_step', 1)
+        
+        # Step 1: Basic Information
+        if signup_step == 1:
+            form = SignUpForm(request.POST)
+            if form.is_valid():
+                # Store form data in session
+                request.session['signup_data'] = {
+                    'first_name': form.cleaned_data['first_name'],
+                    'email': form.cleaned_data['email'],
+                    'phone': form.cleaned_data['phone'],
+                    'password1': form.cleaned_data['password1'],
+                    'role_code': form.cleaned_data['role_code']
+                }
+                request.session['signup_step'] = 2
+                
+                # Log signup attempt
+                write_logs_task.delay(
+                    log_level='INFO',
+                    message=f'Signup step 1 completed: {form.cleaned_data["email"]}',
+                    module_name='portal.views.SignUpView',
+                    url=request.path,
+                    request_id=request_id,
+                    response_id=response_id,
+                    user_id=None,
+                    extra_data={
+                        'action': 'signup_step1',
+                        'email': form.cleaned_data['email'][:2] + '***',
+                        'phone': form.cleaned_data['phone'][:4] + '****',
+                        'role': form.cleaned_data['role_code']
+                    },
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    session_id=session_id
+                )
+                
+                # Generate and send OTP to both email and SMS
+                otp_service = OTPService()
+                otp_code = otp_service.generate_otp()
+                
+                # Store OTP in cache for both email and phone
+                from portal.utils.mfa_utils import store_otp_in_cache
+                from portal.utils.phone_utils import normalize_phone_number
+                
+                normalized_phone = normalize_phone_number(form.cleaned_data['phone'])
+                store_otp_in_cache(normalized_phone, otp_code, 300)  # 5 minutes
+                store_otp_in_cache(form.cleaned_data['email'], otp_code, 300)  # Also store by email
+                
+                # Send OTP to both channels simultaneously
+                send_otp_dual_delivery_task.delay(
+                    otp_code=otp_code,
+                    email=form.cleaned_data['email'],
+                    phone_number=normalized_phone,
+                    user_id=None,
+                    context={'signup': True},
+                    request_id=request_id,
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    session_id=session_id
+                )
+                
+                # Store OTP in session for verification
+                request.session['signup_otp'] = otp_code
+                request.session['signup_otp_expires'] = timezone.now().timestamp() + 300
+                
+                write_logs_task.delay(
+                    log_level='INFO',
+                    message=f'OTP sent to email and SMS for signup',
+                    module_name='portal.views.SignUpView',
+                    url=request.path,
+                    request_id=request_id,
+                    response_id=response_id,
+                    user_id=None,
+                    extra_data={
+                        'action': 'otp_sent_dual',
+                        'email': form.cleaned_data['email'][:2] + '***',
+                        'phone': normalized_phone[:4] + '****'
+                    },
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    session_id=session_id
+                )
+                
+                messages.info(request, 'Verification code sent to your email and mobile number. Please check both.')
+                return redirect('/signup/otp/')
+            else:
+                messages.error(request, 'Please correct the errors below.')
+                return render(request, self.template_name, {'form': form, 'step': 1})
+        
+        # Step 2: OTP Verification
+        elif signup_step == 2:
+            from portal.forms import OTPVerifyForm
+            from portal.utils.phone_utils import normalize_phone_number
+            from portal.utils.mfa_utils import verify_otp_from_cache
+            
+            otp_form = OTPVerifyForm(request.POST)
+            signup_data = request.session.get('signup_data', {})
+            
+            if otp_form.is_valid():
+                otp_code = otp_form.cleaned_data['otp_code']
+                email = signup_data.get('email')
+                phone = signup_data.get('phone')
+                
+                # Verify OTP from either email or phone
+                normalized_phone = normalize_phone_number(phone)
+                otp_valid = (
+                    verify_otp_from_cache(normalized_phone, otp_code) or
+                    verify_otp_from_cache(email, otp_code)
+                )
+                
+                if otp_valid:
+                    # Step 3: Create Account
+                    try:
+                        with transaction.atomic():
+                            # Create user
+                            user = User.objects.create_user(
+                                password=signup_data['password1'],
+                                role_code=signup_data['role_code'],
+                            )
+                            
+                            # Create profile
+                            profile = Profile.objects.create(
+                                user=user,
+                                first_name=signup_data['first_name'],
+                                email=email,
+                                phone=normalized_phone,
+                                type='individual',
+                                email_verified=True,  # Verified via OTP
+                                phone_verified=True,  # Verified via OTP
+                                profile_completion_required=False  # User provided all data
+                            )
+                            
+                            # Update user email_verified status
+                            user.email_verified = True
+                            user.save()
+                            
+                            # Create wallet
+                            Wallet.objects.create(user=user)
+                            
+                            # Clear signup session data
+                            request.session.pop('signup_step', None)
+                            request.session.pop('signup_data', None)
+                            request.session.pop('signup_otp', None)
+                            request.session.pop('signup_otp_expires', None)
+                            
+                            # Log successful signup
+                            write_logs_task.delay(
+                                log_level='INFO',
+                                message=f'User signed up successfully: {user.username}',
+                                module_name='portal.views.SignUpView',
+                                url=request.path,
+                                request_id=request_id,
+                                response_id=response_id,
+                                user_id=user.id,
+                                extra_data={
+                                    'action': 'signup_success',
+                                    'role': signup_data['role_code'],
+                                    'ip': client_ip
+                                },
+                                client_ip=client_ip,
+                                user_agent=user_agent,
+                                session_id=session_id
+                            )
+                            
+                            log_user_action_task.delay(
+                                action='signup',
+                                user_id=user.id,
+                                resource='user',
+                                resource_id=str(user.id),
+                                status='success',
+                                extra_data={'role': signup_data['role_code']},
+                                request_id=request_id
+                            )
+                            
+                            messages.success(request, 'Account created successfully! Please sign in.')
+                            return redirect('/signin/')
+                    except Exception as e:
+                        write_logs_task.delay(
+                            log_level='ERROR',
+                            message=f'Error creating account: {str(e)}',
+                            module_name='portal.views.SignUpView',
+                            url=request.path,
+                            request_id=request_id,
+                            response_id=response_id,
+                            user_id=None,
+                            extra_data={'action': 'signup_error', 'error': str(e)},
+                            client_ip=client_ip,
+                            user_agent=user_agent,
+                            session_id=session_id
+                        )
+                        messages.error(request, f'Error creating account: {str(e)}')
+                else:
+                    write_logs_task.delay(
+                        log_level='WARNING',
+                        message=f'Invalid OTP during signup',
+                        module_name='portal.views.SignUpView',
+                        url=request.path,
+                        request_id=request_id,
+                        response_id=response_id,
+                        user_id=None,
+                        extra_data={'action': 'otp_verification_failed', 'ip': client_ip},
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        session_id=session_id
+                    )
+                    messages.error(request, 'Invalid verification code. Please try again.')
+            
+            return render(request, self.template_name, {
+                'otp_form': otp_form,
+                'step': 2,
+                'email': email,
+                'phone': phone
+            })
+        
+        return redirect('/signup/')
 
 
 class MFASetupView(View):
@@ -970,10 +1406,17 @@ class ForgotPasswordView(View):
 
 
 class PasswordResetView(View):
-    """Password reset view with token"""
+    """Password reset view with token and IP logging"""
     template_name = 'portal/auth/password_reset.html'
     
     def get(self, request, uidb64, token):
+        # Extract IP and context
+        client_ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        session_id = get_session_id(request)
+        request_id = get_request_id(request)
+        response_id = generate_response_id()
+        
         if request.user.is_authenticated:
             return redirect('/dashboard/')
         
@@ -984,6 +1427,19 @@ class PasswordResetView(View):
             user = None
         
         if user is None or not default_token_generator.check_token(user, token):
+            write_logs_task.delay(
+                log_level='WARNING',
+                message=f'Invalid or expired password reset link accessed',
+                module_name='portal.views.PasswordResetView',
+                url=request.path,
+                request_id=request_id,
+                response_id=response_id,
+                user_id=None,
+                extra_data={'action': 'password_reset_invalid_token', 'ip': client_ip},
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id
+            )
             messages.error(request, 'Invalid or expired password reset link.')
             return redirect('/forgot-password/')
         
@@ -996,6 +1452,13 @@ class PasswordResetView(View):
         })
     
     def post(self, request, uidb64, token):
+        # Extract IP and context
+        client_ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        session_id = get_session_id(request)
+        request_id = get_request_id(request)
+        response_id = generate_response_id()
+        
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
@@ -1003,6 +1466,19 @@ class PasswordResetView(View):
             user = None
         
         if user is None or not default_token_generator.check_token(user, token):
+            write_logs_task.delay(
+                log_level='WARNING',
+                message=f'Invalid password reset token in POST',
+                module_name='portal.views.PasswordResetView',
+                url=request.path,
+                request_id=request_id,
+                response_id=response_id,
+                user_id=None,
+                extra_data={'action': 'password_reset_invalid_token_post', 'ip': client_ip},
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id
+            )
             messages.error(request, 'Invalid or expired password reset link.')
             return redirect('/forgot-password/')
         
@@ -1017,11 +1493,26 @@ class PasswordResetView(View):
                 user.profile.last_password_change = timezone.now()
                 user.profile.save()
             
+            write_logs_task.delay(
+                log_level='INFO',
+                message=f'Password reset completed: {user.username}',
+                module_name='portal.views.PasswordResetView',
+                url=request.path,
+                request_id=request_id,
+                response_id=response_id,
+                user_id=user.id,
+                extra_data={'action': 'password_reset_completed', 'ip': client_ip},
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id
+            )
+            
             log_security_event_task.delay(
                 event_type='password_reset_completed',
                 message='Password reset completed',
                 user_id=user.id,
-                severity='medium'
+                severity='medium',
+                request_id=request_id
             )
             
             messages.success(request, 'Your password has been reset successfully. Please sign in with your new password.')
@@ -1048,6 +1539,13 @@ class PasswordChangeView(View):
         return render(request, self.template_name, {'form': form})
     
     def post(self, request):
+        # Extract IP and context
+        client_ip = get_client_ip(request)
+        user_agent = get_user_agent(request)
+        session_id = get_session_id(request)
+        request_id = get_request_id(request)
+        response_id = generate_response_id()
+        
         form = PasswordChangeForm(user=request.user, data=request.POST)
         if form.is_valid():
             # Change password
@@ -1059,12 +1557,27 @@ class PasswordChangeView(View):
                 request.user.profile.last_password_change = timezone.now()
                 request.user.profile.save()
             
+            write_logs_task.delay(
+                log_level='INFO',
+                message=f'Password changed: {request.user.username}',
+                module_name='portal.views.PasswordChangeView',
+                url=request.path,
+                request_id=request_id,
+                response_id=response_id,
+                user_id=request.user.id,
+                extra_data={'action': 'password_changed', 'ip': client_ip},
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id
+            )
+            
             log_user_action_task.delay(
                 action='password_change',
                 user_id=request.user.id,
                 resource='user',
                 resource_id=str(request.user.id),
-                status='success'
+                status='success',
+                request_id=request_id
             )
             
             messages.success(request, 'Your password has been changed successfully.')
@@ -1130,3 +1643,199 @@ class SettingsView(TemplateView):
         context['profile'] = self.request.user.profile if hasattr(self.request.user, 'profile') else None
         context['user'] = self.request.user
         return context
+
+
+class ProfileCompletionView(View):
+    """Profile completion view for social signup users"""
+    template_name = 'portal/profile/complete.html'
+    
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get(self, request):
+        # Check if profile completion is actually required
+        if not hasattr(request.user, 'profile') or not request.user.profile:
+            messages.error(request, 'Profile not found.')
+            return redirect('/profile/create/')
+        
+        if not request.user.profile.profile_completion_required:
+            messages.info(request, 'Your profile is already complete.')
+            return redirect('/dashboard/')
+        
+        from portal.forms import ProfileCompletionForm
+        form = ProfileCompletionForm()
+        form.user = request.user  # Attach user for validation
+        return render(request, self.template_name, {'form': form})
+    
+    def post(self, request):
+        from portal.forms import ProfileCompletionForm
+        
+        form = ProfileCompletionForm(request.POST)
+        form.user = request.user  # Attach user for validation
+        
+        if form.is_valid():
+            # Extract IP and session info
+            client_ip = get_client_ip(request)
+            user_agent = get_user_agent(request)
+            session_id = get_session_id(request)
+            request_id = str(uuid.uuid4())
+            response_id = str(uuid.uuid4())
+            
+            try:
+                with transaction.atomic():
+                    profile = request.user.profile
+                    
+                    # Update required fields
+                    profile.phone = form.cleaned_data['phone']
+                    profile.address_line_1 = form.cleaned_data['address_line_1']
+                    profile.address_line_2 = form.cleaned_data.get('address_line_2', '')
+                    profile.city = form.cleaned_data['city']
+                    profile.state = form.cleaned_data['state']
+                    profile.pincode = form.cleaned_data['pincode']
+                    
+                    if form.cleaned_data.get('date_of_birth'):
+                        profile.date_of_birth = form.cleaned_data['date_of_birth']
+                    
+                    # Mark profile as complete
+                    profile.profile_completion_required = False
+                    profile.phone_verified = True  # Auto-verify phone after completion
+                    profile.save()
+                    
+                    # Log profile completion
+                    write_logs_task.delay(
+                        log_level='INFO',
+                        message=f'Profile completed by user {request.user.username}',
+                        module_name='portal.views.ProfileCompletionView',
+                        url=request.path,
+                        request_id=request_id,
+                        response_id=response_id,
+                        user_id=request.user.id,
+                        extra_data={
+                            'action': 'profile_completed',
+                            'profile_id': profile.id
+                        },
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        session_id=session_id
+                    )
+                    
+                    log_user_action_task.delay(
+                        action='complete_profile',
+                        user_id=request.user.id,
+                        resource='profile',
+                        resource_id=str(profile.id),
+                        status='success',
+                        request_id=request_id
+                    )
+                
+                messages.success(request, 'Profile completed successfully! You can now access all features.')
+                return redirect('/dashboard/')
+                
+            except Exception as e:
+                write_logs_task.delay(
+                    log_level='ERROR',
+                    message=f'Error completing profile: {str(e)}',
+                    module_name='portal.views.ProfileCompletionView',
+                    url=request.path,
+                    request_id=request_id,
+                    response_id=response_id,
+                    user_id=request.user.id,
+                    extra_data={'action': 'profile_completion_error', 'error': str(e)},
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    session_id=session_id
+                )
+                messages.error(request, 'An error occurred while completing your profile. Please try again.')
+        
+        return render(request, self.template_name, {'form': form})
+
+
+def social_callback_view(request):
+    """
+    Handle social authentication callback
+    Creates user with role=customer if new, links account if existing
+    """
+    from allauth.socialaccount.models import SocialAccount
+    from allauth.socialaccount import app_settings
+    
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+    session_id = get_session_id(request)
+    request_id = str(uuid.uuid4())
+    response_id = str(uuid.uuid4())
+    
+    # Log social auth attempt
+    write_logs_task.delay(
+        log_level='INFO',
+        message=f'Social authentication callback received',
+        module_name='portal.views.social_callback_view',
+        url=request.path,
+        request_id=request_id,
+        response_id=response_id,
+        user_id=None,
+        extra_data={
+            'action': 'social_auth_callback',
+            'provider': request.GET.get('provider', 'unknown')
+        },
+        client_ip=client_ip,
+        user_agent=user_agent,
+        session_id=session_id
+    )
+    
+    # Get social account from allauth
+    try:
+        social_account = SocialAccount.objects.get(
+            provider=request.GET.get('provider', ''),
+            uid=request.GET.get('uid', '')
+        )
+    except SocialAccount.DoesNotExist:
+        # New social signup - handle in allauth adapter
+        # Redirect to allauth's signup flow
+        from allauth.account.views import SignupView
+        return SignupView.as_view()(request)
+    
+    # If we reach here, social account exists
+    # Check if user exists
+    if social_account.user:
+        # Existing user - proceed to login
+        user = social_account.user
+        login(request, user)
+        
+        # Update login tracking
+        user.last_login_ip = client_ip
+        user.last_login_user_agent = user_agent
+        user.login_count += 1
+        user.reset_failed_attempts()
+        user.save(update_fields=['last_login_ip', 'last_login_user_agent', 'login_count', 'failed_login_attempts'])
+        
+        # Log successful login
+        write_logs_task.delay(
+            log_level='INFO',
+            message=f'Social login successful for user {user.username}',
+            module_name='portal.views.social_callback_view',
+            url=request.path,
+            request_id=request_id,
+            response_id=response_id,
+            user_id=user.id,
+            extra_data={
+                'action': 'social_login_success',
+                'provider': social_account.provider
+            },
+            client_ip=client_ip,
+            user_agent=user_agent,
+            session_id=session_id
+        )
+        
+        # Check profile completion
+        if hasattr(user, 'profile') and user.profile.profile_completion_required:
+            messages.info(request, 'Please complete your profile to continue.')
+            return redirect('/profile/complete/')
+        
+        # Redirect to dashboard
+        return redirect('/dashboard/')
+    
+    return redirect('/signin/')
+
+
+# SocialSignupAdapter is now in portal/adapters.py

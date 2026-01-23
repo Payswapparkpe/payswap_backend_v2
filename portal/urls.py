@@ -10,7 +10,14 @@ urlpatterns = [
     path('', views.LandingPageView.as_view(), name='landing'),
     path('signin/', views.SignInView.as_view(), name='signin'),
     path('signup/', views.SignUpView.as_view(), name='signup'),
+    path('signup/otp/', views.SignUpView.as_view(), name='signup_otp'),
     path('logout/', views.sign_out_view, name='logout'),
+    
+    # Social Auth
+    path('accounts/social/callback/', views.social_callback_view, name='social_callback'),
+    
+    # Profile Completion
+    path('profile/complete/', views.ProfileCompletionView.as_view(), name='profile_complete'),
     
     # Password Management
     path('forgot-password/', views.ForgotPasswordView.as_view(), name='forgot_password'),

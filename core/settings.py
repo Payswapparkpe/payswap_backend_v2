@@ -31,12 +31,20 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # Required for allauth
     # Third party apps
     "rest_framework",
     "drf_spectacular",
     "corsheaders",
     "django_celery_beat",
     "django_celery_results",
+    # Django Allauth for social authentication
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.facebook",
+    "allauth.socialaccount.providers.apple",
     # Local apps (portal must come after django.contrib.auth to override createsuperuser)
     "api",
     "portal.apps.PortalConfig",  # Use explicit app config to ensure command override
@@ -49,6 +57,9 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
+    "api.middleware.request_id_middleware.RequestIDMiddleware",  # Request ID extraction
+    "portal.middleware.ProfileCompletionMiddleware",  # Profile completion enforcement
     "portal.middleware.MFARequiredMiddleware",  # MFA enforcement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -229,6 +240,16 @@ CELERY_TASK_TIME_LIMIT = 1800  # 30 minutes
 CELERY_TASK_SOFT_TIME_LIMIT = 1500  # 25 minutes
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Celery worker pool settings
+# Use 'solo' pool on macOS to avoid SIGSEGV issues with prefork
+# For production on Linux, use 'prefork' or 'threads'
+# Options: 'prefork', 'solo', 'threads', 'gevent', 'eventlet'
+import sys
+if sys.platform == 'darwin':  # macOS
+    CELERY_WORKER_POOL = 'solo'  # Single process, no forking (safe for macOS)
+else:
+    CELERY_WORKER_POOL = 'prefork'  # Default for Linux
+
 # REST Framework settings with versioning
 REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
@@ -295,6 +316,97 @@ CSRF_TRUSTED_ORIGINS = payswap_config.cors_allowed_origins_list
 LOGIN_URL = '/signin/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
+
+# Django Allauth Configuration
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Allauth Account Settings
+# Login only accepts username or email - mobile numbers are NOT accepted for login
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}  # Allow both username and email, NOT mobile number
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*']  # Required fields for signup
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle email verification ourselves
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'
+ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
+ACCOUNT_SESSION_REMEMBER = True
+ACCOUNT_LOGOUT_ON_GET = False
+
+# Custom Allauth Adapter
+SOCIALACCOUNT_ADAPTER = 'portal.adapters.CustomSocialAccountAdapter'
+
+# Social Account Settings
+SOCIALACCOUNT_AUTO_SIGNUP = False  # We handle signup ourselves
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle verification
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_STORE_TOKENS = False  # Don't store OAuth tokens
+
+# Social Provider Settings (from environment variables)
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'APP': {
+            'client_id': payswap_config.GOOGLE_OAUTH_CLIENT_ID or '',
+            'secret': str(payswap_config.GOOGLE_OAUTH_CLIENT_SECRET) if payswap_config.GOOGLE_OAUTH_CLIENT_SECRET else '',
+            'key': ''
+        }
+    },
+    'facebook': {
+        'METHOD': 'oauth2',
+        'SCOPE': ['email', 'public_profile'],
+        'AUTH_PARAMS': {'auth_type': 'reauthenticate'},
+        'INIT_PARAMS': {'cookie': True},
+        'FIELDS': [
+            'id',
+            'first_name',
+            'last_name',
+            'middle_name',
+            'name',
+            'name_format',
+            'picture',
+            'short_name',
+            'email'
+        ],
+        'EXCHANGE_TOKEN': True,
+        'VERIFIED_EMAIL': False,
+        'VERSION': 'v13.0',
+        'APP': {
+            'client_id': payswap_config.FACEBOOK_OAUTH_APP_ID or '',
+            'secret': str(payswap_config.FACEBOOK_OAUTH_APP_SECRET) if payswap_config.FACEBOOK_OAUTH_APP_SECRET else '',
+            'key': ''
+        }
+    },
+    'apple': {
+        'APP': {
+            'client_id': payswap_config.APPLE_OAUTH_CLIENT_ID or '',
+            'secret': str(payswap_config.APPLE_OAUTH_PRIVATE_KEY) if payswap_config.APPLE_OAUTH_PRIVATE_KEY else '',
+            'key': payswap_config.APPLE_OAUTH_KEY_ID or '',
+            'team': payswap_config.APPLE_OAUTH_TEAM_ID or '',
+        }
+    }
+}
+
+# Security Headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True if not DEBUG else False
+SECURE_HSTS_PRELOAD = True if not DEBUG else False
+
+# Test Runner
+TEST_RUNNER = 'core.test_runner.CustomTestRunner'
 
 # Sentry settings
 if payswap_config.SENTRY_ENABLED:

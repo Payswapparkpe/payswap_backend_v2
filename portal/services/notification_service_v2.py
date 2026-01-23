@@ -226,7 +226,7 @@ class NotificationServiceV2:
             phone_numbers: List of phone numbers
             message: SMS message content
             user_id: Optional user ID for logging
-            async: Whether to send asynchronously (default: True)
+            async_send: Whether to send asynchronously (default: True)
         
         Returns:
             Dict with task IDs and summary
@@ -240,7 +240,7 @@ class NotificationServiceV2:
                     phone_number=phone,
                     message=message,
                     user_id=user_id,
-                    async=async
+                    async_send=async_send
                 )
                 if result.get('success'):
                     if async_send:

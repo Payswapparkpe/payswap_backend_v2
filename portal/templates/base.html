@@ -3,12 +3,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Payswap{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <!-- Ubuntu Font -->
+    <!-- Primary Meta Tags -->
+    <title>{% block title %}Payswap - Dashboard{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Payswap Dashboard - Manage your payments, wallets, and transactions{% endblock %}">
+    <meta name="robots" content="noindex, nofollow">
+    
+    <!-- Preconnect for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    
+    <!-- Ubuntu Font -->
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS 4 -->
@@ -16,22 +25,16 @@
     
     <!-- PACE.js -->
     <link rel="stylesheet" href="{% static 'portal/css/pace-theme.css' %}">
-    <script src="{% static 'portal/js/pace.min.js' %}"></script>
+    <script src="{% static 'portal/js/pace.min.js' %}" defer></script>
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'portal/css/custom.css' %}">
-    
-    <!-- Custom JS -->
-    <script src="{% static 'portal/js/custom.js' %}"></script>
-    
-    <!-- Toaster Notification System -->
-    <script src="{% static 'portal/js/toaster.js' %}"></script>
     
     {% block extra_head %}{% endblock %}
 </head>
@@ -53,44 +56,47 @@
     </div>
     {% endif %}
     
-    <div class="min-h-screen flex">
+    <div class="min-h-screen flex flex-col md:flex-row">
         <!-- Sidebar -->
         {% if user.is_authenticated %}
-        <aside class="w-64 bg-white border-r border-gray-200 shadow-sm" x-data="{ open: true }">
+        <aside class="w-64 bg-white border-r border-gray-200 shadow-sm hidden md:block" x-data="{ open: true }" aria-label="Main navigation">
             <div class="p-6">
-                <a href="{% url 'dashboard' %}" class="flex items-center">
-                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-8 w-auto">
+                <a href="{% url 'dashboard' %}" class="flex items-center" aria-label="Payswap Home">
+                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap Logo" class="h-8 w-auto" loading="eager">
                 </a>
             </div>
-            <nav class="px-4">
+            <nav class="px-4" role="navigation" aria-label="Sidebar navigation">
                 {% include 'portal/partials/sidebar_menu.html' %}
             </nav>
         </aside>
         {% endif %}
         
         <!-- Main Content -->
-        <main class="flex-1 {% if user.is_authenticated %}ml-0{% endif %}">
+        <main class="flex-1 min-w-0" role="main">
             <!-- Header -->
             {% if user.is_authenticated %}
-            <header class="bg-white border-b border-gray-200 shadow-sm">
-                <div class="px-6 py-4 flex justify-between items-center">
-                    <h2 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h2>
-                    <div class="flex items-center space-x-4">
-                        <a href="{% url 'profile' %}" class="text-sm text-gray-600 hover:text-[#0066CC]">{{ user.username }}</a>
-                        <a href="{% url 'settings' %}" class="text-sm text-gray-600 hover:text-[#0066CC]">Settings</a>
-                        <a href="{% url 'logout' %}" class="text-sm text-[#0066CC] hover:underline">Logout</a>
-                    </div>
+            <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+                <div class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h1 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
+                    <nav class="flex items-center flex-wrap gap-3 sm:gap-4" aria-label="User menu">
+                        <a href="{% url 'profile' %}" class="text-sm text-gray-600 hover:text-[#0066CC] transition-colors" aria-label="View profile">{{ user.username }}</a>
+                        <a href="{% url 'settings' %}" class="text-sm text-gray-600 hover:text-[#0066CC] transition-colors">Settings</a>
+                        <a href="{% url 'logout' %}" class="text-sm text-[#0066CC] hover:underline transition-colors">Logout</a>
+                    </nav>
                 </div>
             </header>
             {% endif %}
             
             <!-- Content Area -->
-            <div class="p-6">
-                
+            <div class="p-4 sm:p-6">
                 {% block content %}{% endblock %}
             </div>
         </main>
     </div>
+    
+    <!-- Custom JS - Loaded at end for better performance -->
+    <script src="{% static 'portal/js/custom.js' %}" defer></script>
+    <script src="{% static 'portal/js/toaster.js' %}" defer></script>
     
     {% block extra_js %}{% endblock %}
 </body>

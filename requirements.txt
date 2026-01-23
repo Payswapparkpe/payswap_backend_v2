@@ -2,6 +2,7 @@ Django
 djangorestframework
 dj-rest-auth
 django-allauth
+PyJWT
 psycopg2-binary
 dj-database-url
 redis

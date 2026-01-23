@@ -7,10 +7,53 @@ from django.contrib.auth import logout
 from portal.utils.user_utils import is_mfa_required_role
 
 
+class ProfileCompletionMiddleware:
+    """
+    Middleware to enforce profile completion for social signup users
+    Blocks dashboard access until profile is completed
+    """
+    
+    # Paths that don't require profile completion check
+    EXCLUDED_PATHS = [
+        '/profile/complete/',
+        '/logout/',
+        '/signin/',
+        '/signup/',
+        '/mfa/setup/',
+        '/mfa/verify/',
+        '/admin/',
+        '/static/',
+        '/media/',
+        '/api/',
+    ]
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+    
+    def __call__(self, request):
+        # Check if path is excluded
+        if any(request.path.startswith(path) for path in self.EXCLUDED_PATHS):
+            return self.get_response(request)
+        
+        # Check if user is authenticated
+        if request.user.is_authenticated:
+            user = request.user
+            
+            # Check if profile completion is required
+            if hasattr(user, 'profile') and user.profile:
+                if user.profile.profile_completion_required:
+                    # Redirect to profile completion page
+                    if request.path != '/profile/complete/':
+                        return redirect('/profile/complete/')
+        
+        return self.get_response(request)
+
+
 class MFARequiredMiddleware:
     """
     Middleware to enforce MFA setup for specific roles
     Enforced roles: Admin, Employee, Super, Distributor
+    Optional roles: Customer, Retailer, Vendor (show prompt but don't block)
     """
     
     # Paths that don't require MFA check
@@ -20,6 +63,7 @@ class MFARequiredMiddleware:
         '/mfa/setup/',
         '/mfa/verify/',
         '/logout/',
+        '/profile/complete/',
         '/admin/',
         '/static/',
         '/media/',

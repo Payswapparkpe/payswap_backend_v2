@@ -1,0 +1,129 @@
+================================================================================
+PAYSWAP - TESTING GUIDE (TDD)
+================================================================================
+
+This guide covers database reset, seeding, and comprehensive test execution.
+
+================================================================================
+DATABASE RESET AND SEEDING
+================================================================================
+
+1. CLEAN DATABASE AND RESEED (Recommended):
+   python manage.py clean_and_seed --noinput
+
+2. MANUAL STEPS:
+   # Reset database (drops all tables)
+   python manage.py reset_db --noinput
+   
+   # Run migrations (may need to fake allauth migration)
+   python manage.py migrate account 0006 --fake
+   python manage.py migrate
+   
+   # Setup roles
+   python manage.py setup_roles
+   
+   # Seed data
+   python manage.py seed_data --skip-delete
+
+================================================================================
+RUNNING TESTS
+================================================================================
+
+ALL TESTS:
+   python manage.py test portal.tests --verbosity=2
+
+SPECIFIC TEST SUITES:
+   # User Manager Tests (superuser creation, role assignment)
+   python manage.py test portal.tests.test_user_manager
+   
+   # Authentication Tests (login, signup, rate limiting, lockout)
+   python manage.py test portal.tests.test_authentication
+   
+   # Profile Completion Tests (social signup, middleware)
+   python manage.py test portal.tests.test_profile_completion
+   
+   # Logging Tests (IP extraction, categorization)
+   python manage.py test portal.tests.test_logging
+   
+   # OTP Dual Delivery Tests (email + SMS)
+   python manage.py test portal.tests.test_otp_dual_delivery
+   
+   # API Response Tests (request/response IDs)
+   python manage.py test portal.tests.test_api_responses
+
+SINGLE TEST:
+   python manage.py test portal.tests.test_user_manager.UserManagerTests.test_create_superuser_auto_assigns_super_role
+
+================================================================================
+TEST COVERAGE
+================================================================================
+
+1. AUTHENTICATION TESTS (test_authentication.py)
+   ✓ Multi-step login flow
+   ✓ Rate limiting (5 attempts per 15 minutes)
+   ✓ Account lockout (10 failed attempts)
+   ✓ Profile completion enforcement
+   ✓ IP address logging
+   ✓ MFA requirements by role
+
+2. USER MANAGER TESTS (test_user_manager.py)
+   ✓ create_superuser auto-assigns "super" role
+   ✓ create_superuser creates Profile automatically
+   ✓ create_superuser auto-generates username
+   ✓ create_user requires role_code
+   ✓ Username auto-generation by role prefix
+
+3. PROFILE COMPLETION TESTS (test_profile_completion.py)
+   ✓ profile_completion_required flag
+   ✓ Social signup sets profile_completion_required=True
+   ✓ Profile completion form validation
+   ✓ Middleware blocks dashboard access
+   ✓ Profile completion saves data correctly
+
+4. LOGGING TESTS (test_logging.py)
+   ✓ IP extraction from REMOTE_ADDR
+   ✓ IP extraction from X-Forwarded-For
+   ✓ IP extraction from X-Real-IP
+   ✓ User agent extraction
+   ✓ Session ID extraction
+   ✓ Log categorization by URL
+   ✓ Log categorization by module name
+
+5. OTP DUAL DELIVERY TESTS (test_otp_dual_delivery.py)
+   ✓ OTP generation (6 digits)
+   ✓ OTP stored for both email and phone
+   ✓ OTP verification from either channel
+   ✓ OTP service structure
+
+6. API RESPONSE TESTS (test_api_responses.py)
+   ✓ Request ID in response
+   ✓ Response ID generation
+   ✓ Standardized JSON format
+   ✓ Error response format
+
+================================================================================
+TEST DATABASE NOTES
+================================================================================
+
+- Test database is created automatically: test_payswap_db
+- Use --keepdb flag to reuse test database: python manage.py test --keepdb
+- Allauth migration 0006_emailaddress_lower may need to be faked
+- Custom test runner handles migration issues automatically
+
+================================================================================
+VERIFICATION
+================================================================================
+
+After seeding, verify:
+   python manage.py shell
+   >>> from portal.models import User, Profile, Role
+   >>> print(f'Roles: {Role.objects.count()}')  # Should be 7
+   >>> print(f'Users: {User.objects.count()}')  # Should be 9+
+   >>> print(f'Profiles: {Profile.objects.count()}')  # Should match Users
+
+Test superuser creation:
+   python manage.py createsuperuser
+   # Should auto-assign "super" role without prompting
+   # Should create Profile automatically
+
+================================================================================

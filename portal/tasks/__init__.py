@@ -1,7 +1,22 @@
 """
 Portal Celery Tasks
 """
-from . import logging_tasks
-from . import notification_tasks
+from . import sms_task
+from . import email_task
+from . import notification_task
+from . import otp_dual_delivery_task
+from . import clean_old_logs_task
+from . import write_logs_task
+from . import logging_tasks  # Keep for backward compatibility
+from . import notification_tasks  # Keep for backward compatibility
 
-__all__ = ['logging_tasks', 'notification_tasks']
+__all__ = [
+    'sms_task',
+    'email_task',
+    'notification_task',
+    'otp_dual_delivery_task',
+    'clean_old_logs_task',
+    'write_logs_task',
+    'logging_tasks',
+    'notification_tasks'
+]

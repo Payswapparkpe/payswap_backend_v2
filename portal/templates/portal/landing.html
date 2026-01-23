@@ -4,10 +4,16 @@
 {% block title %}Payswap - Digital Payment Infrastructure & Bill Payment Solutions{% endblock %}
 
 {% block extra_head %}
-<!-- Three.js for background animation (load early) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<!-- Preconnect for external resources -->
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
 <!-- Smooth scroll polyfill for better UX -->
 <script src="https://cdn.jsdelivr.net/gh/cferdinandi/smooth-scroll@15/dist/smooth-scroll.polyfills.min.js" defer></script>
+
+<!-- Particles.js for background effect - Loaded async -->
+<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js" defer></script>
+
 <style>
     /* Performance optimizations */
     * {
@@ -78,8 +84,8 @@
         opacity: 0;
     }
     
-    /* Three.js background container */
-    #threejs-background {
+    /* Particles.js background container */
+    #particles-js {
         position: fixed;
         top: 0;
         left: 0;
@@ -87,6 +93,7 @@
         height: 100%;
         z-index: 0;
         pointer-events: none;
+        background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
     }
     
     /* Content above background */
@@ -95,15 +102,32 @@
         z-index: 1;
     }
     
-    /* Optimized card hover effects */
+    /* Enhanced smooth card hover effects */
     .card {
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    background-color 0.3s ease;
         will-change: transform;
+        transform-style: preserve-3d;
+        backface-visibility: hidden;
     }
     
     .card:hover {
-        transform: translateY(-4px);
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 25px 50px -12px rgba(0, 102, 204, 0.25);
+    }
+    
+    /* Smooth icon hover within cards */
+    .card .w-20,
+    .card .w-16,
+    .card .w-14 {
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    .card:hover .w-20,
+    .card:hover .w-16,
+    .card:hover .w-14 {
+        transform: scale(1.15) rotate(5deg);
     }
     
     /* Smooth scroll behavior */
@@ -131,58 +155,100 @@
 {% endblock %}
 
 {% block content %}
-<!-- Three.js Background Animation -->
-<div id="threejs-background"></div>
+<!-- Particles.js Background -->
+<div id="particles-js"></div>
 
 <!-- Navigation -->
-<nav class="bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50 content-layer" x-data="{ mobileMenuOpen: false, scrolled: false }" 
-     @scroll.window="scrolled = window.scrollY > 50">
+<nav class="bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50 content-layer" 
+     x-data="{ mobileMenuOpen: false, scrolled: false }" 
+     @scroll.window="scrolled = window.scrollY > 50"
+     role="navigation"
+     aria-label="Main navigation">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex justify-between items-center">
             <div class="flex items-center">
-                <a href="/" class="flex items-center group">
-                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-10 w-auto transition-transform group-hover:scale-105">
+                <a href="/" class="flex items-center group" aria-label="Payswap Home">
+                    <img src="{% static 'portal/images/small-logo.png' %}" 
+                         alt="Payswap Logo" 
+                         class="h-10 w-auto transition-transform group-hover:scale-105"
+                         width="120"
+                         height="40"
+                         loading="eager">
                 </a>
             </div>
             
             <!-- Desktop Menu -->
-            <div class="hidden md:flex items-center space-x-1">
-                <a href="#features" class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium">Features</a>
-                <a href="#bill-payment" class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium">Bill Payment</a>
-                <a href="#solutions" class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium">Solutions</a>
-                <a href="#about" class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium">About</a>
-                <a href="/signin/" class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium">Sign In</a>
-                <a href="/signup/" class="ml-2 bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all transform hover:scale-105 font-semibold">
-                    Sign Up
-                </a>
+            <div class="hidden md:flex items-center space-x-1" role="menubar">
+                <a href="#features" 
+                   class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium"
+                   role="menuitem">Features</a>
+                <a href="#bill-payment" 
+                   class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium"
+                   role="menuitem">Bill Payment</a>
+                <a href="#solutions" 
+                   class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium"
+                   role="menuitem">Solutions</a>
+                <a href="#about" 
+                   class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium"
+                   role="menuitem">About</a>
+                <a href="/signin/" 
+                   class="px-4 py-2 text-gray-700 hover:text-[#0066CC] transition-colors rounded-lg hover:bg-blue-50 font-medium"
+                   role="menuitem">Sign In</a>
+                <a href="/signup/" 
+                   class="ml-2 bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all transform hover:scale-105 font-semibold"
+                   role="menuitem">Sign Up</a>
             </div>
             
             <!-- Mobile Menu Button -->
-            <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Toggle menu">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!mobileMenuOpen">
+            <button @click="mobileMenuOpen = !mobileMenuOpen" 
+                    class="md:hidden text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition-colors" 
+                    :aria-expanded="mobileMenuOpen"
+                    aria-label="Toggle navigation menu"
+                    aria-controls="mobile-menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!mobileMenuOpen" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                 </svg>
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="mobileMenuOpen" style="display: none;">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="mobileMenuOpen" style="display: none;" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
             </button>
         </div>
         
         <!-- Mobile Menu -->
-        <div x-show="mobileMenuOpen" 
+        <div id="mobile-menu"
+             x-show="mobileMenuOpen" 
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0 transform -translate-y-2"
              x-transition:enter-end="opacity-100 transform translate-y-0"
              x-transition:leave="transition ease-in duration-150"
              x-transition:leave-start="opacity-100 transform translate-y-0"
              x-transition:leave-end="opacity-0 transform -translate-y-2"
-             class="md:hidden mt-4 space-y-2 pb-4">
-            <a href="#features" @click="mobileMenuOpen = false" class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium">Features</a>
-            <a href="#bill-payment" @click="mobileMenuOpen = false" class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium">Bill Payment</a>
-            <a href="#solutions" @click="mobileMenuOpen = false" class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium">Solutions</a>
-            <a href="#about" @click="mobileMenuOpen = false" class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium">About</a>
-            <a href="/signin/" @click="mobileMenuOpen = false" class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium">Sign In</a>
-            <a href="/signup/" @click="mobileMenuOpen = false" class="block py-3 px-4 bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white rounded-lg text-center font-semibold shadow-md">Sign Up</a>
+             class="md:hidden mt-4 space-y-2 pb-4"
+             role="menu">
+            <a href="#features" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+               role="menuitem">Features</a>
+            <a href="#bill-payment" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+               role="menuitem">Bill Payment</a>
+            <a href="#solutions" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+               role="menuitem">Solutions</a>
+            <a href="#about" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+               role="menuitem">About</a>
+            <a href="/signin/" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 text-gray-700 hover:text-[#0066CC] hover:bg-blue-50 rounded-lg transition-colors font-medium"
+               role="menuitem">Sign In</a>
+            <a href="/signup/" 
+               @click="mobileMenuOpen = false" 
+               class="block py-3 px-4 bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white rounded-lg text-center font-semibold shadow-md"
+               role="menuitem">Sign Up</a>
         </div>
     </div>
 </nav>
@@ -526,59 +592,76 @@
 </section>
 
 <!-- Footer -->
-<footer class="bg-gray-900 text-gray-300 py-12 content-layer">
+<footer class="bg-gray-900 text-gray-300 py-12 content-layer" role="contentinfo">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid md:grid-cols-4 gap-8 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
             <div>
-                <a href="/" class="inline-block mb-4">
-                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-8 w-auto filter brightness-0 invert">
+                <a href="/" class="inline-block mb-4" aria-label="Payswap Home">
+                    <img src="{% static 'portal/images/small-logo.png' %}" 
+                         alt="Payswap Logo" 
+                         class="h-8 w-auto filter brightness-0 invert"
+                         width="120"
+                         height="32"
+                         loading="lazy">
                 </a>
                 <p class="text-sm mb-4 leading-relaxed">Digital payment infrastructure for modern businesses</p>
-                <div class="flex space-x-4">
-                    <a href="#" class="text-gray-400 hover:text-white transition-transform hover:scale-110" aria-label="Facebook">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <nav class="flex space-x-4" aria-label="Social media links">
+                    <a href="#" 
+                       class="text-gray-400 hover:text-white transition-transform hover:scale-110" 
+                       aria-label="Follow us on Facebook"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                         </svg>
                     </a>
-                    <a href="#" class="text-gray-400 hover:text-white transition-transform hover:scale-110" aria-label="Twitter">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <a href="#" 
+                       class="text-gray-400 hover:text-white transition-transform hover:scale-110" 
+                       aria-label="Follow us on Twitter"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
                         </svg>
                     </a>
-                    <a href="#" class="text-gray-400 hover:text-white transition-transform hover:scale-110" aria-label="LinkedIn">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <a href="#" 
+                       class="text-gray-400 hover:text-white transition-transform hover:scale-110" 
+                       aria-label="Follow us on LinkedIn"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                         </svg>
                     </a>
-                </div>
+                </nav>
             </div>
-            <div>
+            <nav aria-label="Product links">
                 <h4 class="text-white font-semibold mb-4">Product</h4>
                 <ul class="space-y-2 text-sm">
-                    <li><a href="#bill-payment" class="hover:text-white transition-colors">Bill Payments</a></li>
-                    <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
-                    <li><a href="#solutions" class="hover:text-white transition-colors">Solutions</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Pricing</a></li>
+                    <li><a href="#bill-payment" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Bill Payments</a></li>
+                    <li><a href="#features" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Features</a></li>
+                    <li><a href="#solutions" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Solutions</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Pricing</a></li>
                 </ul>
-            </div>
-            <div>
+            </nav>
+            <nav aria-label="Company links">
                 <h4 class="text-white font-semibold mb-4">Company</h4>
                 <ul class="space-y-2 text-sm">
-                    <li><a href="#about" class="hover:text-white transition-colors">About</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Blog</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Careers</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Contact</a></li>
+                    <li><a href="#about" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">About</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Blog</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Careers</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Contact</a></li>
                 </ul>
-            </div>
-            <div>
+            </nav>
+            <nav aria-label="Account links">
                 <h4 class="text-white font-semibold mb-4">Account</h4>
                 <ul class="space-y-2 text-sm">
-                    <li><a href="/signin/" class="hover:text-white transition-colors">Sign In</a></li>
-                    <li><a href="/signup/" class="hover:text-white transition-colors">Sign Up</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Support</a></li>
-                    <li><a href="#" class="hover:text-white transition-colors">Documentation</a></li>
+                    <li><a href="/signin/" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Sign In</a></li>
+                    <li><a href="/signup/" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Sign Up</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Support</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Documentation</a></li>
                 </ul>
-            </div>
+            </nav>
         </div>
         <div class="border-t border-gray-800 pt-8 text-center text-sm">
             <p>&copy; {% now "Y" %} Payswap. All rights reserved.</p>
@@ -589,88 +672,233 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Three.js Background Animation Script -->
+<!-- Particles.js Initialization - Optimized -->
 <script>
-    // Wait for Three.js to load, then initialize background
     (function() {
-        function loadBackgroundScript() {
-            if (typeof THREE !== 'undefined') {
-                const script = document.createElement('script');
-                script.src = '{% static "portal/js/threejs-background.js" %}';
-                script.async = true;
-                document.head.appendChild(script);
-            } else {
-                // Check again after a short delay
-                setTimeout(loadBackgroundScript, 100);
+        'use strict';
+        
+        function initParticles() {
+            if (typeof particlesJS === 'undefined') {
+                // Retry after a short delay if particles.js hasn't loaded
+                setTimeout(initParticles, 100);
+                return;
+            }
+            
+            try {
+                particlesJS('particles-js', {
+                particles: {
+                    number: {
+                        value: 80,
+                        density: {
+                            enable: true,
+                            value_area: 800
+                        }
+                    },
+                    color: {
+                        value: ['#0066CC', '#0052A3', '#4A90E2', '#003d7a']
+                    },
+                    shape: {
+                        type: 'circle',
+                        stroke: {
+                            width: 0,
+                            color: '#000000'
+                        }
+                    },
+                    opacity: {
+                        value: 0.5,
+                        random: true,
+                        anim: {
+                            enable: true,
+                            speed: 1,
+                            opacity_min: 0.1,
+                            sync: false
+                        }
+                    },
+                    size: {
+                        value: 3,
+                        random: true,
+                        anim: {
+                            enable: true,
+                            speed: 2,
+                            size_min: 0.1,
+                            sync: false
+                        }
+                    },
+                    line_linked: {
+                        enable: true,
+                        distance: 150,
+                        color: '#0066CC',
+                        opacity: 0.2,
+                        width: 1
+                    },
+                    move: {
+                        enable: true,
+                        speed: 1,
+                        direction: 'none',
+                        random: true,
+                        straight: false,
+                        out_mode: 'out',
+                        bounce: false,
+                        attract: {
+                            enable: false,
+                            rotateX: 600,
+                            rotateY: 1200
+                        }
+                    }
+                },
+                interactivity: {
+                    detect_on: 'canvas',
+                    events: {
+                        onhover: {
+                            enable: true,
+                            mode: 'repulse'
+                        },
+                        onclick: {
+                            enable: true,
+                            mode: 'push'
+                        },
+                        resize: true
+                    },
+                    modes: {
+                        grab: {
+                            distance: 140,
+                            line_linked: {
+                                opacity: 1
+                            }
+                        },
+                        bubble: {
+                            distance: 400,
+                            size: 40,
+                            duration: 2,
+                            opacity: 8,
+                            speed: 3
+                        },
+                        repulse: {
+                            distance: 100,
+                            duration: 0.4
+                        },
+                        push: {
+                            particles_nb: 4
+                        },
+                        remove: {
+                            particles_nb: 2
+                        }
+                    }
+                },
+                retina_detect: true
+                });
+            } catch (error) {
+                console.warn('Particles.js initialization failed:', error);
             }
         }
         
+        // Initialize when DOM is ready
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadBackgroundScript);
+            document.addEventListener('DOMContentLoaded', initParticles);
         } else {
-            loadBackgroundScript();
+            initParticles();
         }
     })();
 </script>
 
-<!-- Landing Page Enhancements -->
+<!-- Landing Page Enhancements - Optimized -->
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Initialize smooth scroll
-        if (typeof SmoothScroll !== 'undefined') {
-            const scroll = new SmoothScroll('a[href*="#"]', {
-                speed: 800,
-                speedAsDuration: true,
-                offset: 80
+    (function() {
+        'use strict';
+        
+        function initLandingPage() {
+            // Initialize smooth scroll
+            if (typeof SmoothScroll !== 'undefined') {
+                try {
+                    new SmoothScroll('a[href*="#"]', {
+                        speed: 800,
+                        speedAsDuration: true,
+                        offset: 80,
+                        easing: 'easeInOutCubic'
+                    });
+                } catch (error) {
+                    console.warn('SmoothScroll initialization failed:', error);
+                }
+            }
+            
+            // Intersection Observer for scroll-triggered animations
+            if ('IntersectionObserver' in window) {
+                const observerOptions = {
+                    threshold: 0.1,
+                    rootMargin: '0px 0px -50px 0px'
+                };
+                
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('loaded');
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, observerOptions);
+                
+                // Observe all animated elements
+                const animatedElements = document.querySelectorAll('.animate-fade-in-up, .animate-fade-in, .animate-slide-in-left, .animate-slide-in-right');
+                animatedElements.forEach(el => {
+                    el.classList.add('loading');
+                    observer.observe(el);
+                });
+            } else {
+                // Fallback for browsers without IntersectionObserver
+                document.querySelectorAll('.animate-fade-in-up, .animate-fade-in, .animate-slide-in-left, .animate-slide-in-right').forEach(el => {
+                    el.classList.add('loaded');
+                });
+            }
+            
+            // Performance: Reduce motion for users who prefer it
+            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelectorAll('.animate-fade-in-up, .animate-fade-in, .animate-slide-in-left, .animate-slide-in-right').forEach(el => {
+                    el.style.animation = 'none';
+                    el.style.opacity = '1';
+                });
+                // Disable particles for reduced motion
+                setTimeout(() => {
+                    if (window.pJSDom && window.pJSDom[0] && window.pJSDom[0].pJS) {
+                        window.pJSDom[0].pJS.particles.move.enable = false;
+                    }
+                }, 1000);
+            }
+            
+            // Enhanced card hover with smooth animations
+            document.querySelectorAll('.card').forEach(card => {
+                // Ensure smooth transitions
+                if (!card.style.transition) {
+                    card.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                }
+            });
+            
+            // Lazy load images
+            if ('loading' in HTMLImageElement.prototype) {
+                const images = document.querySelectorAll('img[loading="lazy"]');
+                images.forEach(img => {
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                    }
+                });
+            }
+            
+            // Optimize images with width/height attributes
+            document.querySelectorAll('img:not([width]):not([height])').forEach(img => {
+                img.addEventListener('load', function() {
+                    if (!this.width || !this.height) {
+                        this.style.aspectRatio = 'auto';
+                    }
+                });
             });
         }
         
-        // Intersection Observer for animations
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-        
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('loaded');
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, observerOptions);
-        
-        // Observe all animated elements
-        const animatedElements = document.querySelectorAll('.animate-fade-in-up, .animate-fade-in, .animate-slide-in-left, .animate-slide-in-right');
-        animatedElements.forEach(el => {
-            el.classList.add('loading');
-            observer.observe(el);
-        });
-        
-        // Performance: Reduce motion for users who prefer it
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            document.querySelectorAll('.animate-fade-in-up, .animate-fade-in, .animate-slide-in-left, .animate-slide-in-right').forEach(el => {
-                el.style.animation = 'none';
-                el.style.opacity = '1';
-            });
-            // Disable Three.js animation for reduced motion
-            setTimeout(() => {
-                if (window.threejsBackground) {
-                    window.threejsBackground.pause();
-                }
-            }, 1000);
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLandingPage);
+        } else {
+            initLandingPage();
         }
-        
-        // Lazy load images if any
-        if ('loading' in HTMLImageElement.prototype) {
-            const images = document.querySelectorAll('img[loading="lazy"]');
-            images.forEach(img => {
-                if (img.dataset.src) {
-                    img.src = img.dataset.src;
-                }
-            });
-        }
-    });
+    })();
 </script>
 
 <style>

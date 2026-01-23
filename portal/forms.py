@@ -8,6 +8,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from portal.models import User, Profile, KYC
 from portal.utils.validators import validate_phone_number
+from django.core.exceptions import ValidationError
 
 
 class MultipleFileInput(forms.Widget):
@@ -128,15 +129,16 @@ class SignUpForm(forms.Form):
 
 
 class SignInForm(forms.Form):
-    """Sign in form"""
+    """Sign in form - accepts username or email only, NOT mobile number"""
     
     username = forms.CharField(
+        label='Username or Email',
         error_messages={
             'required': 'Please enter your username or email address.'
         },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-            'placeholder': 'Enter your username',
+            'placeholder': 'Enter your username or email',
             'autofocus': True
         })
     )
@@ -150,6 +152,45 @@ class SignInForm(forms.Form):
         })
     )
     remember = forms.BooleanField(required=False)
+    
+    def clean_username(self):
+        """Validate that username is not a phone number"""
+        username = self.cleaned_data.get('username', '').strip()
+        
+        if not username:
+            return username
+        
+        # Check if input looks like a phone number (Indian format)
+        import re
+        # Remove common phone number formatting characters
+        cleaned = username.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+        # Check for Indian phone number patterns: +91XXXXXXXXXX, 91XXXXXXXXXX, 0XXXXXXXXXX, or 10 digits starting with 6-9
+        phone_patterns = [
+            r'^(\+91|91|0)?[6-9]\d{9}$',  # Indian mobile number pattern
+            r'^\d{10}$',  # 10 digits (could be phone)
+        ]
+        
+        for pattern in phone_patterns:
+            if re.match(pattern, cleaned):
+                raise forms.ValidationError(
+                    'Mobile number is not accepted for login. Please use your username or email address.'
+                )
+        
+        # Check if it's a valid email or username format
+        # Username should be alphanumeric with possible underscores/hyphens
+        # Email should contain @
+        if '@' in username:
+            # Looks like email - validate basic email format
+            if not re.match(r'^[^@]+@[^@]+\.[^@]+$', username):
+                raise forms.ValidationError('Please enter a valid email address.')
+        else:
+            # Should be username - validate it's not just digits (which could be phone)
+            if cleaned.isdigit() and len(cleaned) >= 10:
+                raise forms.ValidationError(
+                    'Mobile number is not accepted for login. Please use your username or email address.'
+                )
+        
+        return username
 
 
 class MFASetupForm(forms.Form):
@@ -724,3 +765,136 @@ class ProfileUpdateForm(forms.ModelForm):
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
         }
+
+
+class ProfileCompletionForm(forms.Form):
+    """Profile completion form for social signup users - Required fields"""
+    
+    phone = forms.CharField(
+        label='Mobile Number',
+        required=True,
+        error_messages={
+            'required': 'Mobile number is required to complete your profile.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your mobile number'
+        }),
+        validators=[validate_phone_number]
+    )
+    
+    address_line_1 = forms.CharField(
+        label='Address Line 1',
+        required=True,
+        error_messages={
+            'required': 'Address is required to complete your profile.'
+        },
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your address',
+            'rows': 3
+        })
+    )
+    
+    address_line_2 = forms.CharField(
+        label='Address Line 2',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Apartment, suite, etc. (optional)',
+            'rows': 2
+        })
+    )
+    
+    city = forms.CharField(
+        label='City',
+        required=True,
+        error_messages={
+            'required': 'City is required.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your city'
+        })
+    )
+    
+    state = forms.CharField(
+        label='State',
+        required=True,
+        error_messages={
+            'required': 'State is required.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your state'
+        })
+    )
+    
+    pincode = forms.CharField(
+        label='Pincode',
+        required=True,
+        error_messages={
+            'required': 'Pincode is required.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'placeholder': 'Enter your pincode'
+        }),
+        max_length=10
+    )
+    
+    date_of_birth = forms.DateField(
+        label='Date of Birth',
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
+            'type': 'date'
+        }),
+        help_text='Optional but recommended for account security'
+    )
+    
+    def clean_phone(self):
+        """Validate phone number uniqueness"""
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            # Check if phone already exists (excluding current user's profile)
+            from portal.models import Profile
+            if hasattr(self, 'user') and self.user and hasattr(self.user, 'profile'):
+                existing = Profile.objects.filter(phone=phone).exclude(user=self.user).exists()
+            else:
+                existing = Profile.objects.filter(phone=phone).exists()
+            
+            if existing:
+                raise forms.ValidationError('This mobile number is already registered.')
+        
+        return phone
+
+
+class OTPVerifyForm(forms.Form):
+    """OTP verification form for signup"""
+    
+    otp_code = forms.CharField(
+        label='Verification Code',
+        required=True,
+        max_length=6,
+        min_length=6,
+        error_messages={
+            'required': 'Please enter the verification code.',
+            'min_length': 'Verification code must be 6 digits.',
+            'max_length': 'Verification code must be 6 digits.'
+        },
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20 text-center text-2xl tracking-widest',
+            'placeholder': '000000',
+            'maxlength': '6',
+            'pattern': '[0-9]{6}',
+            'inputmode': 'numeric'
+        })
+    )
+    
+    def clean_otp_code(self):
+        """Validate OTP code format"""
+        otp_code = self.cleaned_data.get('otp_code')
+        if otp_code and not otp_code.isdigit():
+            raise forms.ValidationError('Verification code must contain only digits.')
+        return otp_code

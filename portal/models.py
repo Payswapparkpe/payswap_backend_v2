@@ -15,11 +15,16 @@ class UserManager(BaseUserManager):
     """Custom UserManager that handles auto-generated usernames"""
     
     def _create_user_object(self, username, email, password, **extra_fields):
-        """Override to not set email (email is a property that reads from Profile)"""
-        # Remove email from kwargs since it's a property
-        extra_fields.pop('email', None)
-        # Create user without email
+        """
+        Override to handle email field
+        Email field exists in User model (nullable) for Django compatibility
+        But actual email is stored in Profile model
+        """
+        # Keep email in extra_fields if provided (Django's createsuperuser may pass it)
+        # It will be stored in User.email (nullable field) and later synced to Profile
         user = self.model(username=username, **extra_fields)
+        if email:
+            user.email = email  # Store in User.email field (for Django compatibility)
         user.set_password(password)
         return user
     
@@ -48,7 +53,10 @@ class UserManager(BaseUserManager):
         return super().create_user(username, password=password, **extra_fields)
     
     def create_superuser(self, username=None, password=None, **extra_fields):
-        """Create superuser with auto-generated username if not provided"""
+        """
+        Create superuser with auto-generated username and auto-assigned "super" role
+        Uses Django's built-in createsuperuser command flow
+        """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         
@@ -57,7 +65,50 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
         
-        return self.create_user(username, password, **extra_fields)
+        # Auto-assign "super" role for superusers (unless explicitly overridden)
+        if 'role_code' not in extra_fields:
+            extra_fields['role_code'] = 'super'
+        
+        # Auto-verify email for superusers
+        extra_fields.setdefault('email_verified', True)
+        
+        # Create user (this will auto-generate username if not provided)
+        user = self.create_user(username, password, **extra_fields)
+        
+        # Create Profile if it doesn't exist (mandatory OneToOne)
+        # Profile will be created with minimal data - can be updated later via admin or profile page
+        if not hasattr(user, 'profile') or not user.profile:
+            from portal.models import Profile
+            import random
+            # Get email from user.email (set by Django's createsuperuser if provided)
+            # Or use a default placeholder that must be updated
+            email = user.email if user.email else f'{user.username}@payswap.local'
+            # Use first_name from user if available, otherwise use username
+            first_name = user.first_name if user.first_name else user.username
+            # Generate unique placeholder phone (91 + 10 random digits)
+            # Keep trying until we find a unique one
+            phone = None
+            max_attempts = 10
+            for _ in range(max_attempts):
+                random_digits = ''.join([str(random.randint(0, 9)) for _ in range(10)])
+                candidate_phone = f'91{random_digits}'
+                if not Profile.objects.filter(phone=candidate_phone).exists():
+                    phone = candidate_phone
+                    break
+            # Fallback if all attempts fail (very unlikely)
+            if not phone:
+                phone = f'91{user.id:010d}'  # Use user ID padded to 10 digits
+            Profile.objects.create(
+                user=user,
+                first_name=first_name,
+                email=email,
+                phone=phone,  # Unique placeholder - MUST be updated via profile page
+                type='individual',
+                email_verified=user.email_verified if user.email else False,
+                phone_verified=False,  # Phone needs to be updated and verified
+            )
+        
+        return user
 
 
 class Profile(models.Model):
@@ -313,6 +364,31 @@ class Profile(models.Model):
     phone_verified = models.BooleanField(default=False)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     
+    # Profile completion flag (for social signup users)
+    profile_completion_required = models.BooleanField(
+        default=False,
+        help_text="True if user must complete profile details (e.g., after social signup)"
+    )
+    
+    # Social authentication provider information
+    social_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ('google', 'Google'),
+            ('facebook', 'Facebook'),
+            ('apple', 'Apple')
+        ],
+        blank=True,
+        null=True,
+        help_text="Social provider used for signup/login"
+    )
+    social_provider_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="User ID from social provider"
+    )
+    
     # Audit fields
     created_by = models.ForeignKey(
         'User',
@@ -398,8 +474,9 @@ class User(AbstractUser):
     
     objects = UserManager()
     
-    # Exclude email from REQUIRED_FIELDS since it's a property, not a field
-    # Email is stored in Profile model
+    # REQUIRED_FIELDS: Django's createsuperuser will prompt for these fields
+    # We keep it empty since email is stored in Profile, not User model
+    # Django's default createsuperuser will still work because email field exists (nullable)
     REQUIRED_FIELDS = []  # Username and password are handled by AbstractUser
     
     ROLE_CHOICES = [
@@ -468,6 +545,14 @@ class User(AbstractUser):
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
     last_login_user_agent = models.TextField(blank=True, null=True)
     login_count = models.IntegerField(default=0)
+    
+    # Account lockout for failed login attempts
+    failed_login_attempts = models.IntegerField(default=0, help_text="Number of consecutive failed login attempts")
+    account_locked_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Account locked until this timestamp (30 minutes after 10 failed attempts)"
+    )
     
     # ============================================================================
     # EMAIL VERIFICATION (moved from profile for login checks)
@@ -593,6 +678,9 @@ class User(AbstractUser):
             return False
         if not self.email_verified:
             return False
+        # Check if account is locked
+        if self.is_account_locked():
+            return False
         if self.requires_mfa() and not self.mfa_configured:
             return False
         # Check KYC if required for role
@@ -600,6 +688,58 @@ class User(AbstractUser):
         if self.role_code in kyc_required_roles and not self.kyc_completed:
             return False
         return True
+    
+    def is_account_locked(self) -> bool:
+        """Check if account is currently locked"""
+        if self.account_locked_until:
+            from django.utils import timezone
+            if timezone.now() < self.account_locked_until:
+                return True
+            else:
+                # Lock expired, unlock account
+                self.unlock_account()
+        return False
+    
+    def lock_account(self, lockout_duration_minutes: int = 30):
+        """
+        Lock account for specified duration
+        
+        Args:
+            lockout_duration_minutes: Duration in minutes (default: 30)
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        self.account_locked_until = timezone.now() + timedelta(minutes=lockout_duration_minutes)
+        self.save(update_fields=['account_locked_until'])
+    
+    def unlock_account(self):
+        """Unlock account and reset failed attempts"""
+        self.account_locked_until = None
+        self.failed_login_attempts = 0
+        self.save(update_fields=['account_locked_until', 'failed_login_attempts'])
+    
+    def increment_failed_attempts(self, max_attempts: int = 10):
+        """
+        Increment failed login attempts and lock if threshold reached
+        
+        Args:
+            max_attempts: Maximum attempts before lockout (default: 10)
+        
+        Returns:
+            True if account was locked, False otherwise
+        """
+        self.failed_login_attempts += 1
+        if self.failed_login_attempts >= max_attempts:
+            self.lock_account()
+            return True
+        self.save(update_fields=['failed_login_attempts'])
+        return False
+    
+    def reset_failed_attempts(self):
+        """Reset failed login attempts (called on successful login)"""
+        if self.failed_login_attempts > 0:
+            self.failed_login_attempts = 0
+            self.save(update_fields=['failed_login_attempts'])
     
     def get_encrypted_totp_secret(self) -> str:
         """Get decrypted TOTP secret"""
