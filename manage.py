@@ -8,14 +8,27 @@ def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
     try:
+        import django
+        django.setup()
+        
         from django.core.management import execute_from_command_line
+        # Override createsuperuser command to use our custom command
+        # Clear the command cache and override
+        import django.core.management
+        from django.core.management import _commands
+        
+        # Clear any cached commands
+        if hasattr(django.core.management, '_commands'):
+            # Override createsuperuser before command discovery
+            _commands['createsuperuser'] = 'portal.management.commands.createsuperuser'
+        
+        execute_from_command_line(sys.argv)
     except ImportError as exc:
         raise ImportError(
             "Couldn't import Django. Are you sure it's installed and "
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
-    execute_from_command_line(sys.argv)
 
 
 if __name__ == "__main__":
