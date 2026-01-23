@@ -13,14 +13,12 @@ def main():
         
         from django.core.management import execute_from_command_line
         # Override createsuperuser command to use our custom command
-        # Clear the command cache and override
+        # Access _commands through the module
         import django.core.management
-        from django.core.management import _commands
         
-        # Clear any cached commands
+        # Override createsuperuser before command discovery
         if hasattr(django.core.management, '_commands'):
-            # Override createsuperuser before command discovery
-            _commands['createsuperuser'] = 'portal.management.commands.createsuperuser'
+            django.core.management._commands['createsuperuser'] = 'portal.management.commands.createsuperuser'
         
         execute_from_command_line(sys.argv)
     except ImportError as exc:
