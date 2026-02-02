@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<h1>Reject approval request #{{ approval_request.id }}</h1>
+<p><strong>Action:</strong> {{ approval_request.get_action_type_display }}</p>
+<p><strong>Entity:</strong> {{ approval_request.entity_type }} / {{ approval_request.entity_id }}</p>
+<p><strong>Requested by:</strong> {{ approval_request.requested_by.username }} at {{ approval_request.requested_at }}</p>
+<p>Rejection reason is required for audit.</p>
+<form method="post" action="">
+  {% csrf_token %}
+  <p>
+    <label for="id_rejection_reason">Rejection reason:</label><br>
+    <textarea name="rejection_reason" id="id_rejection_reason" rows="4" cols="60" placeholder="Required for audit"></textarea>
+  </p>
+  <p>
+    <input type="submit" value="Reject request">
+    <a href="{% url 'admin:portal_approvalrequest_changelist' %}">Cancel</a>
+  </p>
+</form>
+{% endblock %}

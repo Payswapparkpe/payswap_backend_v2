@@ -1,0 +1,24 @@
+:host {
+  display: block;
+}
+
+/* Subtle fade-in for above-the-fold sections */
+.payswap-landing .hero {
+  animation: fadeIn 0.7s ease-out;
+}
+
+.payswap-landing .trust-strip {
+  animation: fadeIn 0.7s ease-out 0.15s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
