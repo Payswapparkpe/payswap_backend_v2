@@ -5,15 +5,58 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="card">
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">Employee Dashboard</h2>
-        <p class="text-gray-600">Welcome, {{ user.username }}!</p>
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div>
+            <h1 class="page-title-enterprise">Employee Dashboard</h1>
+            <p class="page-description-enterprise">Welcome, {{ user.username }}! Manage your tasks and activities</p>
+        </div>
     </div>
     
-    <!-- Employee-specific content -->
-    <div class="card">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Your Tasks</h3>
-        <p class="text-gray-600">No pending tasks</p>
+    <!-- Welcome Card -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Your Tasks</h2>
+                <p class="text-gray-600">No pending tasks at the moment</p>
+            </div>
+            <div class="w-16 h-16 rounded-lg bg-blue-100 flex items-center justify-center">
+                <i class="ti ti-clipboard-check text-3xl text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card-enterprise">
+        <div class="card-enterprise-header">
+            <h3 class="card-enterprise-title">Quick Actions</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <a href="{% url 'profile' %}" class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition-colors">
+                    <i class="ti ti-user text-xl text-indigo-600"></i>
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-1">View Profile</h4>
+            </a>
+            <a href="{% url 'ticket_list' %}" class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition-colors">
+                    <i class="ti ti-ticket text-xl text-indigo-600"></i>
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-1">Tickets</h4>
+            </a>
+            <a href="{% url 'settings' %}" class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition-colors">
+                    <i class="ti ti-settings text-xl text-indigo-600"></i>
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-1">Settings</h4>
+            </a>
+            <a href="{% url 'wallet' %}" class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition-all group">
+                <div class="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition-colors">
+                    <i class="ti ti-wallet text-xl text-indigo-600"></i>
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-1">Wallet</h4>
+            </a>
+        </div>
     </div>
 </div>
 {% endblock %}

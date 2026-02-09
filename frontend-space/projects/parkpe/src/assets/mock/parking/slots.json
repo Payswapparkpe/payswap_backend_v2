@@ -1,0 +1,45 @@
+{
+  "locationId": "loc_001",
+  "slots": [
+    {
+      "id": "slot_001",
+      "locationId": "loc_001",
+      "code": "A-101",
+      "available": true,
+      "vehicleType": "four_wheeler",
+      "rate": 50,
+      "currency": "INR",
+      "features": ["covered", "ev_charging"]
+    },
+    {
+      "id": "slot_002",
+      "locationId": "loc_001",
+      "code": "A-102",
+      "available": true,
+      "vehicleType": "four_wheeler",
+      "rate": 50,
+      "currency": "INR",
+      "features": ["covered"]
+    },
+    {
+      "id": "slot_003",
+      "locationId": "loc_001",
+      "code": "A-103",
+      "available": false,
+      "vehicleType": "four_wheeler",
+      "rate": 50,
+      "currency": "INR",
+      "features": ["covered"]
+    },
+    {
+      "id": "slot_004",
+      "locationId": "loc_001",
+      "code": "B-201",
+      "available": true,
+      "vehicleType": "two_wheeler",
+      "rate": 20,
+      "currency": "INR",
+      "features": []
+    }
+  ]
+}

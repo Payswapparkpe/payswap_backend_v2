@@ -1,0 +1,290 @@
+/* Authenticated app shell – premium topbar + responsive drawer */
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+
+  &.scrolled {
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
+    border-bottom-color: rgba(0, 74, 173, 0.14);
+  }
+}
+
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(0.5rem, 2vw, 0.85rem) clamp(0.75rem, 4vw, 1.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(0.75rem, 2.5vw, 1.5rem);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-right: clamp(0.25rem, 1vw, 0.5rem);
+  margin-left: 0;
+}
+
+.brand-logo {
+  width: 65px;
+  height: 65px;
+  display: block;
+  object-fit: contain;
+}
+
+/* Marquee: auto-scroll nav; pauses on hover so user can click */
+.nav-marquee {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 0.5rem;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+
+  @media (min-width: 1024px) {
+    display: block;
+  }
+}
+
+.nav-track {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  width: max-content;
+  animation: nav-marquee 50s linear infinite;
+  padding: 0 0.5rem;
+
+  .nav-marquee:hover & {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes nav-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 9999px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 800;
+  font-size: 0.9rem;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  .material-icons {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: rgba(0, 74, 173, 0.06);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: rgba(0, 74, 173, 0.10);
+    color: var(--primary-700);
+    box-shadow: inset 0 0 0 1px rgba(0, 74, 173, 0.14);
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+}
+
+.icon-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s, color 0.15s;
+  flex-shrink: 0;
+
+  .material-icons {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: rgba(0, 74, 173, 0.06);
+    border-color: rgba(0, 74, 173, 0.20);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  }
+
+  &.active {
+    background: rgba(0, 74, 173, 0.10);
+    border-color: rgba(0, 74, 173, 0.20);
+    color: var(--primary-700);
+  }
+}
+
+.desktop-only {
+  display: none;
+  @media (min-width: 640px) {
+    display: inline-flex;
+  }
+}
+
+.mobile-only {
+  display: inline-flex;
+  @media (min-width: 1024px) {
+    display: none;
+  }
+}
+
+.app-main {
+  padding: 1.25rem 0 2.5rem;
+}
+
+.app-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Drawer */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: 210;
+}
+
+.drawer {
+  position: fixed;
+  right: 0.75rem;
+  top: 0.75rem;
+  width: min(420px, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+  z-index: 220;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.20);
+  backdrop-filter: blur(14px);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.drawer-logo {
+  height: 58px;
+  width: auto;
+}
+
+.drawer-links {
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 1rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 800;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+
+  .material-icons { font-size: 1.25rem; color: var(--text-secondary); }
+
+  &:hover {
+    background: rgba(0, 74, 173, 0.06);
+    border-color: rgba(0, 74, 173, 0.14);
+  }
+
+  &.active {
+    background: rgba(0, 74, 173, 0.10);
+    border-color: rgba(0, 74, 173, 0.16);
+  }
+}
+
+.drawer-foot {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+/* Dark theme tweaks */
+.dark-theme {
+  .topbar {
+    background: rgba(15, 23, 42, 0.72);
+    border-bottom-color: rgba(148, 163, 184, 0.14);
+    &.scrolled {
+      background: rgba(15, 23, 42, 0.88);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  .icon-btn {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(148, 163, 184, 0.18);
+    color: rgba(255, 255, 255, 0.82);
+    &:hover {
+      background: rgba(95, 149, 255, 0.10);
+      border-color: rgba(95, 149, 255, 0.25);
+      color: #fff;
+    }
+  }
+
+  .drawer {
+    background: rgba(15, 23, 42, 0.88);
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+
+  .drawer-link {
+    color: rgba(255, 255, 255, 0.92);
+    .material-icons { color: rgba(255, 255, 255, 0.72); }
+  }
+}
+

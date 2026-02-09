@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}ParkPe App Management{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">ParkPe App Management</h1>
+            <p class="text-gray-600 mt-1">Configure which services allow voucher / PG and which payment gateways are enabled. Manage everything from this page.</p>
+        </div>
+        <a href="{% url 'dashboard_admin' %}" class="text-blue-600 hover:underline">Back to Admin</a>
+    </div>
+
+    <!-- Voucher Management card -->
+    <div class="card-enterprise mb-8" id="voucher-management">
+        <div class="card-enterprise-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="ti ti-gift text-xl text-indigo-600"></i>
+                    <h3 class="card-enterprise-title">Voucher Management</h3>
+                </div>
+                <a href="{% url 'parkpe_service_config_add' %}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
+                    <i class="ti ti-plus mr-1"></i> Add service
+                </a>
+            </div>
+        </div>
+        <p class="text-sm text-gray-600 px-6 pb-2">Which services allow payment with voucher balance and/or PG (Cashfree).</p>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Voucher allowed</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PG allowed</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Active</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for c in service_configs %}
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ c.service_code|default:"—" }}</td>
+                        <td class="px-6 py-3 text-sm">{% if c.voucher_allowed %}<span class="text-green-600">Yes</span>{% else %}<span class="text-gray-400">No</span>{% endif %}</td>
+                        <td class="px-6 py-3 text-sm">{% if c.pg_allowed %}<span class="text-green-600">Yes</span>{% else %}<span class="text-gray-400">No</span>{% endif %}</td>
+                        <td class="px-6 py-3 text-sm">{% if c.is_active %}<span class="text-green-600">Yes</span>{% else %}<span class="text-gray-400">No</span>{% endif %}</td>
+                        <td class="px-6 py-3 text-sm">
+                            <a href="{% url 'parkpe_service_config_edit' c.pk %}" class="text-indigo-600 hover:underline">Edit</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">No service configs. <a href="{% url 'parkpe_service_config_add' %}" class="text-indigo-600 hover:underline">Add one</a> (e.g. service_code <code>BBPS</code>).</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Payment Gateway Management card -->
+    <div class="card-enterprise" id="payment-gateway-management">
+        <div class="card-enterprise-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="ti ti-credit-card text-xl text-emerald-600"></i>
+                    <h3 class="card-enterprise-title">Payment Gateway Management</h3>
+                </div>
+                <a href="{% url 'parkpe_gateway_config_add' %}" class="px-4 py-2 bg-emerald-600 text-white text-sm rounded-md hover:bg-emerald-700">
+                    <i class="ti ti-plus mr-1"></i> Add gateway
+                </a>
+            </div>
+        </div>
+        <p class="text-sm text-gray-600 px-6 pb-2">Which PGs are enabled. Empty service = voucher purchase; e.g. BBPS = PG for BBPS pay. Set one as default for voucher purchase.</p>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gateway</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Default for voucher</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Merchant ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credential key</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for c in gateway_configs %}
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ c.get_gateway_display }}</td>
+                        <td class="px-6 py-3 text-sm text-gray-600">{{ c.service_code|default:"(voucher purchase)" }}</td>
+                        <td class="px-6 py-3 text-sm">{% if c.enabled %}<span class="text-green-600">Yes</span>{% else %}<span class="text-gray-400">No</span>{% endif %}</td>
+                        <td class="px-6 py-3 text-sm">{% if c.is_default_for_voucher_purchase %}<span class="text-green-600">Yes</span>{% else %}—{% endif %}</td>
+                        <td class="px-6 py-3 text-sm text-gray-700">{{ c.merchant_id|default:"—" }}</td>
+                        <td class="px-6 py-3 text-sm text-gray-500">{{ c.credential_key|default:"—" }}</td>
+                        <td class="px-6 py-3 text-sm">
+                            <a href="{% url 'parkpe_gateway_config_edit' c.pk %}" class="text-emerald-600 hover:underline">Edit</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-500">No gateway configs. <a href="{% url 'parkpe_gateway_config_add' %}" class="text-emerald-600 hover:underline">Add one</a> (Cashfree, service empty for voucher purchase).</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

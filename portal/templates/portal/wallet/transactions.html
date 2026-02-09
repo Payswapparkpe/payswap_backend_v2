@@ -5,49 +5,75 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="card">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Transaction History</h2>
-        
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead>
-                    <tr class="border-b border-gray-200">
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Date</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Type</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Balance</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Reference</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for transaction in transactions %}
-                    <tr class="border-b border-gray-100 hover:bg-gray-50">
-                        <td class="py-3 px-4 text-sm text-gray-600">{{ transaction.created_at|date:"M d, Y H:i" }}</td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-1 rounded text-xs font-semibold {% if transaction.transaction_type == 'credit' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-                                {{ transaction.transaction_type|title }}
-                            </span>
-                        </td>
-                        <td class="py-3 px-4 text-sm font-semibold {% if transaction.transaction_type == 'credit' %}text-green-600{% else %}text-red-600{% endif %}">
-                            {% if transaction.transaction_type == 'credit' %}+{% else %}-{% endif %}₹{{ transaction.amount }}
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-600">₹{{ transaction.balance_after }}</td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-1 rounded text-xs font-semibold {% if transaction.status == 'completed' %}bg-green-100 text-green-800{% elif transaction.status == 'failed' %}bg-red-100 text-red-800{% else %}bg-amber-100 text-amber-800{% endif %}">
-                                {{ transaction.status|title }}
-                            </span>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-600">{{ transaction.reference|default:"-" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="py-8 text-center text-gray-600">No transactions found</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <i class="ti ti-history text-xl text-emerald-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">Transaction History</h1>
+                <p class="page-description-enterprise">View all your wallet transactions</p>
+            </div>
         </div>
+        <a href="{% url 'wallet' %}" class="btn-enterprise-secondary">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Wallet
+        </a>
+    </div>
+    
+    <!-- Enterprise Transactions Table -->
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Reference</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in transactions %}
+                <tr>
+                    <td class="text-gray-600">{{ transaction.created_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        {% if transaction.transaction_type == 'credit' %}
+                        <span class="badge-enterprise badge-enterprise-success">Credit</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-danger">Debit</span>
+                        {% endif %}
+                    </td>
+                    <td class="font-semibold {% if transaction.transaction_type == 'credit' %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {% if transaction.transaction_type == 'credit' %}+{% else %}-{% endif %}₹{{ transaction.amount }}
+                    </td>
+                    <td class="text-gray-600">₹{{ transaction.balance_after }}</td>
+                    <td>
+                        {% if transaction.status == 'completed' %}
+                        <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                        {% elif transaction.status == 'failed' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-warning">{{ transaction.status|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600 font-mono text-sm">{{ transaction.reference|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-16">
+                        <div class="flex flex-col items-center justify-center">
+                            <i class="ti ti-wallet-off text-5xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-900 font-semibold mb-1">No transactions found</p>
+                            <p class="text-sm text-gray-500">Your transaction history will appear here</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

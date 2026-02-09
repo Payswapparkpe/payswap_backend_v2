@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% load static %}
+{% load portal_tags %}
+
+{% block page_title %}KYC Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
+                <i class="ti ti-file-check text-xl text-amber-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">KYC Submissions</h1>
+                <p class="page-description-enterprise">Manage and review KYC document submissions</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Enterprise Stat Cards - 3D Style -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="stat-card-enterprise" data-color="blue" style="border-left-color: #3b82f6;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Total KYC</p>
+                    <p class="stat-value">{{ total_kycs|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #3b82f6;">
+                    <i class="ti ti-file-text text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="amber" style="border-left-color: #f59e0b;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Pending</p>
+                    <p class="stat-value">{{ pending_kycs|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #f59e0b;">
+                    <i class="ti ti-clock text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="emerald" style="border-left-color: #10b981;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Approved</p>
+                    <p class="stat-value">{{ approved_kycs|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #10b981;">
+                    <i class="ti ti-check text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="red" style="border-left-color: #ef4444;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Rejected</p>
+                    <p class="stat-value">{{ rejected_kycs|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #ef4444;">
+                    <i class="ti ti-x text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Enterprise Filters -->
+    <div class="card-enterprise">
+        <form method="get" action="{% url 'kyc_list' %}" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="input-enterprise">
+                        <option value="">All Status</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="document_type" class="form-label">Document Type</label>
+                    <select name="document_type" id="document_type" class="input-enterprise">
+                        <option value="">All Types</option>
+                        {% for value, label in document_type_choices %}
+                        <option value="{{ value }}" {% if request.GET.document_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="search" class="form-label">Search</label>
+                    <input type="text" name="search" id="search" value="{{ request.GET.search }}" 
+                           placeholder="Username, Document Number..." 
+                           class="input-enterprise">
+                </div>
+            </div>
+            
+            <div class="flex gap-3 pt-4 border-t border-gray-200">
+                <button type="submit" class="btn-enterprise-primary">Apply Filters</button>
+                <a href="{% url 'kyc_list' %}" class="btn-enterprise-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Enterprise KYC Table -->
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Document Type</th>
+                    <th>Document Number</th>
+                    <th>Status</th>
+                    <th>Vendor</th>
+                    <th>Submitted</th>
+                    <th>Verified</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kyc in kycs %}
+                <tr>
+                    <td class="font-semibold text-gray-900">{{ kyc.user.username }}</td>
+                    <td class="text-gray-600">{{ kyc.get_document_type_display }}</td>
+                    <td class="text-gray-600 font-mono text-sm">{{ kyc.document_number|truncatechars:20 }}</td>
+                    <td>
+                        {% if kyc.status == 'pending' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                        {% elif kyc.status == 'approved' %}
+                        <span class="badge-enterprise badge-enterprise-success">Approved</span>
+                        {% elif kyc.status == 'rejected' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Rejected</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ kyc.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">{{ kyc.verification_vendor|default:"-" }}</td>
+                    <td class="text-gray-600">{{ kyc.created_at|date:"M d, Y" }}</td>
+                    <td class="text-gray-600">
+                        {% if kyc.verified_at %}
+                            {{ kyc.verified_at|date:"M d, Y" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-16">
+                        <div class="flex flex-col items-center justify-center">
+                            <i class="ti ti-file-off text-5xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-900 font-semibold mb-1">No KYC submissions found</p>
+                            <p class="text-sm text-gray-500">Try adjusting your filters</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

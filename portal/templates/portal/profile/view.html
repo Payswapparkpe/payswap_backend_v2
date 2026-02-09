@@ -7,13 +7,24 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-    <div class="mb-6 flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">My Profile</h1>
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <i class="ti ti-user text-xl text-indigo-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">My Profile</h1>
+                <p class="page-description-enterprise">View and manage your profile information</p>
+            </div>
+        </div>
         <div class="flex gap-3">
-            <a href="{% url 'profile_update' %}" class="bg-[#0066CC] hover:bg-[#0052A3] text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200">
+            <a href="{% url 'profile_update' %}" class="btn-enterprise-primary">
+                <i class="ti ti-edit mr-2"></i>
                 Edit Profile
             </a>
-            <a href="{% url 'settings' %}" class="border border-gray-300 text-gray-700 font-semibold py-2 px-6 rounded-lg hover:bg-gray-50 transition-all duration-200">
+            <a href="{% url 'settings' %}" class="btn-enterprise-secondary">
+                <i class="ti ti-settings mr-2"></i>
                 Settings
             </a>
         </div>
@@ -22,12 +33,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Profile Photo & Basic Info -->
         <div class="lg:col-span-1">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="card-enterprise">
                 <div class="text-center">
                     {% if profile.profile_photo %}
-                    <img src="{{ profile.profile_photo.url }}" alt="Profile Photo" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-[#0066CC]">
+                    <img src="{{ profile.profile_photo.url }}" alt="Profile Photo" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-indigo-500">
                     {% else %}
-                    <div class="w-32 h-32 rounded-full mx-auto mb-4 bg-gradient-to-br from-[#0066CC] to-[#0052A3] flex items-center justify-center text-white text-4xl font-bold">
+                    <div class="w-32 h-32 rounded-full mx-auto mb-4 bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-4xl font-bold">
                         {{ profile.first_name|first|upper }}
                     </div>
                     {% endif %}
@@ -36,16 +47,20 @@
                     <div class="space-y-2 text-sm">
                         <p class="text-gray-600"><strong>Email:</strong> {{ profile.email }}</p>
                         <p class="text-gray-600"><strong>Phone:</strong> {{ profile.phone }}</p>
-                        {% if profile.email_verified %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Email Verified
-                        </span>
-                        {% endif %}
-                        {% if profile.phone_verified %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Phone Verified
-                        </span>
-                        {% endif %}
+                        <div class="flex flex-wrap gap-2 justify-center mt-3">
+                            {% if profile.email_verified %}
+                            <span class="badge-enterprise badge-enterprise-success">
+                                <i class="ti ti-check mr-1"></i>
+                                Email Verified
+                            </span>
+                            {% endif %}
+                            {% if profile.phone_verified %}
+                            <span class="badge-enterprise badge-enterprise-success">
+                                <i class="ti ti-check mr-1"></i>
+                                Phone Verified
+                            </span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -54,40 +69,45 @@
         <!-- Profile Details -->
         <div class="lg:col-span-2 space-y-6">
             <!-- Personal Information -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Personal Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-user-circle text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Personal Information</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="text-sm font-medium text-gray-500">First Name</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">First Name</label>
                         <p class="text-gray-900 font-semibold">{{ profile.first_name }}</p>
                     </div>
                     {% if profile.middle_name %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Middle Name</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Middle Name</label>
                         <p class="text-gray-900 font-semibold">{{ profile.middle_name }}</p>
                     </div>
                     {% endif %}
                     {% if profile.last_name %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Last Name</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Last Name</label>
                         <p class="text-gray-900 font-semibold">{{ profile.last_name }}</p>
                     </div>
                     {% endif %}
                     {% if profile.date_of_birth %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Date of Birth</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Date of Birth</label>
                         <p class="text-gray-900 font-semibold">{{ profile.date_of_birth|date:"F d, Y" }}</p>
                     </div>
                     {% endif %}
                     {% if profile.gender %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Gender</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Gender</label>
                         <p class="text-gray-900 font-semibold">{{ profile.get_gender_display }}</p>
                     </div>
                     {% endif %}
                     {% if profile.marital_status %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Marital Status</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Marital Status</label>
                         <p class="text-gray-900 font-semibold">{{ profile.get_marital_status_display }}</p>
                     </div>
                     {% endif %}
@@ -95,26 +115,31 @@
             </div>
             
             <!-- Contact Information -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Contact Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-phone text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Contact Information</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Email</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Email</label>
                         <p class="text-gray-900 font-semibold">{{ profile.email }}</p>
                     </div>
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Phone</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Phone</label>
                         <p class="text-gray-900 font-semibold">{{ profile.phone }}</p>
                     </div>
                     {% if profile.alternate_phone %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Alternate Phone</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Alternate Phone</label>
                         <p class="text-gray-900 font-semibold">{{ profile.alternate_phone }}</p>
                     </div>
                     {% endif %}
                     {% if profile.full_address %}
                     <div class="md:col-span-2">
-                        <label class="text-sm font-medium text-gray-500">Address</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Address</label>
                         <p class="text-gray-900 font-semibold">{{ profile.full_address }}</p>
                     </div>
                     {% endif %}
@@ -123,31 +148,44 @@
             
             <!-- Banking Information (if available) -->
             {% if profile.bank_name or profile.account_number %}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Banking Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-building-bank text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Banking Information</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% if profile.bank_name %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Bank Name</label>
-                        <p class="text-gray-900 font-semibold">{{ profile.bank_name }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Bank Name</label>
+                        <div class="flex items-center gap-3">
+                            {% if profile.ifsc_code %}
+                            <div id="bank-icon-{{ profile.id }}" class="bank-icon-container"></div>
+                            {% endif %}
+                            <p class="text-gray-900 font-semibold">{{ profile.bank_name }}</p>
+                        </div>
                     </div>
                     {% endif %}
                     {% if profile.account_holder_name %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Account Holder Name</label>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Account Holder Name</label>
                         <p class="text-gray-900 font-semibold">{{ profile.account_holder_name }}</p>
                     </div>
                     {% endif %}
                     {% if profile.account_number %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Account Number</label>
-                        <p class="text-gray-900 font-semibold">****{{ profile.account_number|slice:"-4" }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Account Number</label>
+                        <p class="text-gray-900 font-semibold font-mono">****{{ profile.account_number|slice:"-4" }}</p>
                     </div>
                     {% endif %}
                     {% if profile.ifsc_code %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">IFSC Code</label>
-                        <p class="text-gray-900 font-semibold">{{ profile.ifsc_code }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">IFSC Code</label>
+                        <div class="flex items-center gap-3">
+                            <div id="ifsc-icon-{{ profile.id }}" class="bank-icon-container"></div>
+                            <p class="text-gray-900 font-semibold font-mono">{{ profile.ifsc_code }}</p>
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -156,25 +194,30 @@
             
             <!-- Taxation Information -->
             {% if profile.pan_number or profile.aadhaar_number or profile.gst_number %}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Taxation Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-receipt text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Taxation Information</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% if profile.pan_number %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">PAN Number</label>
-                        <p class="text-gray-900 font-semibold">{{ profile.pan_number }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">PAN Number</label>
+                        <p class="text-gray-900 font-semibold font-mono">{{ profile.pan_number }}</p>
                     </div>
                     {% endif %}
                     {% if profile.aadhaar_number %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">Aadhaar Number</label>
-                        <p class="text-gray-900 font-semibold">****{{ profile.aadhaar_number|slice:"-4" }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Aadhaar Number</label>
+                        <p class="text-gray-900 font-semibold font-mono">****{{ profile.aadhaar_number|slice:"-4" }}</p>
                     </div>
                     {% endif %}
                     {% if profile.gst_number %}
                     <div>
-                        <label class="text-sm font-medium text-gray-500">GST Number</label>
-                        <p class="text-gray-900 font-semibold">{{ profile.gst_number }}</p>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">GST Number</label>
+                        <p class="text-gray-900 font-semibold font-mono">{{ profile.gst_number }}</p>
                     </div>
                     {% endif %}
                 </div>
@@ -183,4 +226,35 @@
         </div>
     </div>
 </div>
+
+<script>
+// Load bank icons when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    {% if profile.ifsc_code %}
+    // Load bank icon for IFSC code
+    const ifscIconContainer = document.getElementById('ifsc-icon-{{ profile.id }}');
+    if (ifscIconContainer && window.PaymentIcons) {
+        const iconHTML = window.PaymentIcons.createBankIconHTML(
+            '{{ profile.ifsc_code }}',
+            'md',
+            '{{ profile.bank_name|default:profile.ifsc_code }}',
+            'shadow-sm'
+        );
+        ifscIconContainer.innerHTML = iconHTML;
+    }
+    
+    // Also update bank name icon if exists
+    const bankIconContainer = document.getElementById('bank-icon-{{ profile.id }}');
+    if (bankIconContainer && window.PaymentIcons) {
+        const iconHTML = window.PaymentIcons.createBankIconHTML(
+            '{{ profile.ifsc_code }}',
+            'md',
+            '{{ profile.bank_name }}',
+            'shadow-sm'
+        );
+        bankIconContainer.innerHTML = iconHTML;
+    }
+    {% endif %}
+});
+</script>
 {% endblock %}

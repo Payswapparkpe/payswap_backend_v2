@@ -1,0 +1,24 @@
+[
+  {
+    "name": "razorpay",
+    "displayName": "Razorpay",
+    "logo": "/assets/images/payment-gateways/razorpay.svg",
+    "enabled": true,
+    "supportedMethods": ["card", "netbanking", "upi", "wallet"],
+    "minAmount": 1,
+    "maxAmount": 100000,
+    "processingFee": 0,
+    "description": "Fast and secure payments powered by Razorpay"
+  },
+  {
+    "name": "cashfree",
+    "displayName": "Cashfree",
+    "logo": "/assets/images/payment-gateways/cashfree.svg",
+    "enabled": true,
+    "supportedMethods": ["card", "netbanking", "upi", "wallet"],
+    "minAmount": 1,
+    "maxAmount": 100000,
+    "processingFee": 0,
+    "description": "Seamless payments with Cashfree"
+  }
+]

@@ -1,0 +1,38 @@
+{% extends "auth_base.html" %}
+{% load static %}
+
+{% block title %}Set PIN - Payswap{% endblock %}
+
+{% block auth_content %}
+<div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div class="card w-full max-w-md p-6 lg:p-8">
+        <div class="text-center mb-6">
+            <a href="/"><img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-10 w-auto mx-auto"></a>
+        </div>
+        <h2 class="text-xl font-bold text-gray-900 text-center mb-2">Set unlock PIN</h2>
+        <p class="text-sm text-gray-600 text-center mb-6">Use a 4-digit PIN to unlock after session expiry. OTP/2FA is still required for full sign-in.</p>
+        <form method="post" action="{% url 'set_pin' %}">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">PIN (4 digits)</label>
+                    {{ form.pin }}
+                    {% if form.pin.errors %}<p class="text-sm text-red-600 mt-1">{{ form.pin.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm PIN</label>
+                    {{ form.pin_confirm }}
+                    {% if form.pin_confirm.errors %}<p class="text-sm text-red-600 mt-1">{{ form.pin_confirm.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <a href="{% url 'dashboard' %}" class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold text-center hover:bg-gray-50">Cancel</a>
+                <button type="submit" class="flex-1 bg-[#0066CC] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#0052A3]">Set PIN</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

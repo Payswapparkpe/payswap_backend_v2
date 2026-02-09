@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Ticket {{ ticket.ticket_id }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <i class="ti ti-ticket text-xl text-indigo-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">{{ ticket.subject }}</h1>
+                <p class="page-description-enterprise">Ticket ID: <span class="font-mono">{{ ticket.ticket_id }}</span></p>
+            </div>
+        </div>
+        <a href="{% url 'ticket_list' %}" class="btn-enterprise-secondary">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to List
+        </a>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Ticket Details -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-file-text text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Description</h3>
+                    </div>
+                </div>
+                <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">{{ ticket.description }}</p>
+            </div>
+            
+            <!-- Notes Section -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="ti ti-notes text-xl text-indigo-600"></i>
+                            <h3 class="card-enterprise-title">Notes</h3>
+                        </div>
+                        <button onclick="document.getElementById('noteForm').classList.toggle('hidden')" 
+                                class="btn-enterprise-primary text-sm">
+                            <i class="ti ti-plus mr-2"></i>
+                            Add Note
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Add Note Form -->
+                <div id="noteForm" class="hidden mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_note">
+                        <div class="mb-4">
+                            <textarea name="content" rows="4" 
+                                      class="input-enterprise"
+                                      placeholder="Enter your note..." required></textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="is_internal" class="mr-2">
+                                <span class="text-sm text-gray-700">Internal note (not visible to customer)</span>
+                            </label>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="submit" class="btn-enterprise-primary text-sm">Add Note</button>
+                            <button type="button" onclick="document.getElementById('noteForm').classList.add('hidden')" 
+                                    class="btn-enterprise-secondary text-sm">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Notes List -->
+                <div class="space-y-4">
+                    {% for note in all_notes %}
+                    <div class="border-l-4 {% if note.is_internal %}border-blue-500 bg-blue-50{% else %}border-emerald-500 bg-emerald-50{% endif %} p-4 rounded-lg">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ note.created_by.username }}</p>
+                                <p class="text-xs text-gray-600">{{ note.created_at|date:"M d, Y H:i" }}</p>
+                            </div>
+                            {% if note.is_internal %}
+                            <span class="badge-enterprise badge-enterprise-info">Internal</span>
+                            {% else %}
+                            <span class="badge-enterprise badge-enterprise-success">Customer Visible</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">{{ note.content }}</p>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-8">
+                        <i class="ti ti-notes-off text-4xl text-gray-300 mb-3"></i>
+                        <p class="text-gray-600">No notes yet</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Attachments -->
+            {% if attachments %}
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <h3 class="card-enterprise-title">Attachments</h3>
+                </div>
+                <div class="space-y-2">
+                    {% for attachment in attachments %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="flex items-center">
+                            <i class="ti ti-paperclip text-gray-600 mr-3"></i>
+                            <span class="text-sm text-gray-700 font-medium">{{ attachment.file_name|default:attachment.file.name }}</span>
+                        </div>
+                        <a href="{{ attachment.file.url }}" target="_blank" class="btn-action text-sm">
+                            <i class="ti ti-download"></i>
+                            Download
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Ticket Info -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-info-circle text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Ticket Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Status</p>
+                        {% if ticket.status == 'NEW' %}
+                        <span class="badge-enterprise badge-enterprise-info">New</span>
+                        {% elif ticket.status == 'OPEN' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Open</span>
+                        {% elif ticket.status == 'RESOLVED' %}
+                        <span class="badge-enterprise badge-enterprise-success">Resolved</span>
+                        {% elif ticket.status == 'CLOSED' %}
+                        <span class="badge-enterprise badge-enterprise-gray">Closed</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ ticket.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Priority</p>
+                        {% if ticket.priority == 'LOW' %}
+                        <span class="badge-enterprise badge-enterprise-gray">Low</span>
+                        {% elif ticket.priority == 'MEDIUM' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Medium</span>
+                        {% elif ticket.priority == 'HIGH' %}
+                        <span class="badge-enterprise badge-enterprise-warning">High</span>
+                        {% elif ticket.priority == 'CRITICAL' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Critical</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ ticket.get_priority_display }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <p class="text-sm text-gray-600 mb-1">Created By</p>
+                        <p class="font-semibold text-gray-900">{{ ticket.created_by.username }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Assigned To</p>
+                        <p class="font-semibold text-gray-900">{{ ticket.assigned_to.username|default:"Unassigned" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Department</p>
+                        <p class="font-semibold text-gray-900">{{ ticket.department.name|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Created</p>
+                        <p class="font-semibold text-gray-900">{{ ticket.created_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% if ticket.resolved_at %}
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Resolved</p>
+                        <p class="font-semibold text-gray-900">{{ ticket.resolved_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-tools text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Actions</h3>
+                    </div>
+                </div>
+                
+                <!-- Update Status -->
+                {% if user.role_code == 'super' or user.role_code == 'admin' or user.role_code == 'support_agent' or user.role_code == 'dept_manager' or ticket.assigned_to == user %}
+                <form method="post" class="mb-4 pb-4 border-b border-gray-200">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_status">
+                    <label class="form-label">Update Status</label>
+                    <select name="status" class="input-enterprise mb-3">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if ticket.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-enterprise-primary w-full text-sm">Update Status</button>
+                </form>
+                {% endif %}
+                
+                <!-- Update Priority -->
+                {% if user.role_code == 'super' or user.role_code == 'admin' or user.role_code == 'support_agent' or user.role_code == 'dept_manager' %}
+                <form method="post" class="mb-4 pb-4 border-b border-gray-200">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_priority">
+                    <label class="form-label">Update Priority</label>
+                    <select name="priority" class="input-enterprise mb-3">
+                        {% for value, label in priority_choices %}
+                        <option value="{{ value }}" {% if ticket.priority == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-enterprise-primary w-full text-sm">Update Priority</button>
+                </form>
+                {% endif %}
+                
+                <!-- Assign Ticket -->
+                {% if user.role_code in 'super,admin,dept_manager'|make_list and available_agents %}
+                <form method="post" class="mb-4 pb-4 border-b border-gray-200">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="assign">
+                    <label class="form-label">Assign To</label>
+                    <select name="agent_id" class="input-enterprise mb-3">
+                        <option value="">Select Agent</option>
+                        {% for agent in available_agents %}
+                        <option value="{{ agent.user.id }}" {% if ticket.assigned_to == agent.user %}selected{% endif %}>
+                            {{ agent.user.username }} ({{ agent.current_tickets }}/{{ agent.max_tickets }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <textarea name="reason" rows="2" placeholder="Reason for assignment (optional)" 
+                              class="input-enterprise mb-3"></textarea>
+                    <button type="submit" class="btn-enterprise-primary w-full text-sm">Assign</button>
+                </form>
+                {% endif %}
+                
+                <!-- Pick Ticket (for agents) -->
+                {% if user.role_code == 'support_agent' and not ticket.assigned_to %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="pick">
+                    <button type="submit" class="btn-enterprise-primary w-full" style="background-color: #10b981;">
+                        <i class="ti ti-hand-grab mr-2"></i>
+                        Pick This Ticket
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            
+            <!-- Assignment History -->
+            {% if assignment_history %}
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-history text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Assignment History</h3>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    {% for history in assignment_history %}
+                    <div class="pb-3 {% if not forloop.last %}border-b border-gray-200{% endif %}">
+                        <p class="text-sm text-gray-700 font-medium mb-1">
+                            {% if history.assigned_from %}
+                            {{ history.assigned_from.username }} → {{ history.assigned_to.username }}
+                            {% else %}
+                            Assigned to {{ history.assigned_to.username }}
+                            {% endif %}
+                        </p>
+                        <p class="text-xs text-gray-500">{{ history.created_at|date:"M d, Y H:i" }}</p>
+                        {% if history.reason %}
+                        <p class="text-xs text-gray-600 italic mt-1">{{ history.reason }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

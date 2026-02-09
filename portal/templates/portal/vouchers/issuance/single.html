@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Issue Single Voucher{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-ticket text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Issue Single Voucher</h1>
+            <p class="page-description-enterprise">Create a single gift voucher</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="/vouchers/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Vouchers
+    </a>
+    {% endif %}
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-2xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div>
+            <label class="form-label-enterprise">Brand <span class="text-red-500">*</span></label>
+            <select name="brand_id" required class="form-select-enterprise" id="brand-select" onchange="loadClients(this.value)">
+                <option value="">Select a brand</option>
+                {% for brand in brands %}
+                <option value="{{ brand.id }}" {% if selected_brand_id == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }} ({{ brand.brand_code }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Client</label>
+            <select name="client_id" class="form-select-enterprise" id="client-select">
+                <option value="">Default (Payswap)</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}">{{ client.client_name }}{% if client.is_default %} (Default){% endif %}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Leave empty to use default Payswap client</p>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Voucher Amount (INR) <span class="text-red-500">*</span></label>
+            <input type="number" name="amount" step="0.01" min="0.01" required class="form-input-enterprise" placeholder="Enter amount">
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Mobile Number (Optional)</label>
+            <input type="text" name="mobile_number" class="form-input-enterprise" placeholder="Enter mobile number for OTP-based redemption">
+            <p class="text-xs text-gray-500 mt-1">If provided, voucher can be redeemed using OTP sent to this number</p>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Customer Email (Optional)</label>
+            <input type="email" name="recipient_email" class="form-input-enterprise" placeholder="customer@example.com">
+            <p class="text-xs text-gray-500 mt-1">If provided, voucher code and PIN will be emailed to the customer in a nice template</p>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Issue Voucher
+            </button>
+            <a href="/vouchers/" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+function loadClients(brandId) {
+    if (!brandId) {
+        document.getElementById('client-select').innerHTML = '<option value="">Default (Payswap)</option>';
+        return;
+    }
+    
+    // Fetch clients for selected brand
+    fetch(`/vouchers/clients/?brand_id=${brandId}&format=json`)
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('client-select');
+            select.innerHTML = '<option value="">Default (Payswap)</option>';
+            if (data.clients) {
+                data.clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.client_name + (client.is_default ? ' (Default)' : '');
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading clients:', error);
+        });
+}
+</script>
+{% endblock %}

@@ -5,46 +5,112 @@
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Welcome Card -->
-    <div class="card bg-gradient-to-r from-[#0066CC] to-[#0052A3] text-white">
-        <h2 class="text-2xl font-bold mb-2">Welcome, {{ user.username }}!</h2>
-        <p class="opacity-90">Manage your payments, bills, and wallet from here</p>
-    </div>
-    
-    <!-- Wallet Balance -->
-    <div class="card">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Wallet Balance</h3>
-        <div class="text-4xl font-bold text-[#0066CC] mb-2">
-            ₹{{ user.wallet.balance|default:"0.00" }}
-        </div>
-        <div class="flex space-x-4 mt-4">
-            <a href="{% url 'wallet' %}" class="text-[#0066CC] hover:underline">View Wallet</a>
-            <a href="{% url 'wallet_transactions' %}" class="text-[#0066CC] hover:underline">Transaction History</a>
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div>
+            <h1 class="page-title-enterprise">Welcome, {{ user.username }}!</h1>
+            <p class="page-description-enterprise">Manage your payments, bills, and wallet from here</p>
         </div>
     </div>
     
-    <!-- Bill Payment Section -->
-    <div class="card">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Bill Payments</h3>
-        <p class="text-gray-600 mb-4">Pay your bills quickly and securely</p>
-        <a href="#" class="btn btn-primary text-white">Pay Bills Now</a>
+    <!-- Wallet Balance Card - Enterprise Style -->
+    <div class="card-enterprise" style="border-left: 4px solid #4f46e5; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: white;">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-sm opacity-90 mb-2 uppercase tracking-wide">Available Balance</p>
+                <p class="text-4xl font-bold mb-2">₹{{ user.wallet.balance|default:"0.00" }}</p>
+                <p class="text-sm opacity-90">
+                    Status: <span class="font-semibold">{{ user.wallet.status|title }}</span>
+                </p>
+            </div>
+            <div class="w-20 h-20 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
+                <i class="ti ti-wallet text-4xl"></i>
+            </div>
+        </div>
     </div>
     
-    <!-- Quick Actions -->
+    <!-- Quick Actions Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="card">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Profile</h3>
-            <p class="text-gray-600 mb-4">Update your profile information</p>
-            <a href="{% url 'profile' %}" class="text-[#0066CC] hover:underline">View Profile →</a>
+        <!-- Wallet Card -->
+        <div class="card-enterprise">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Wallet</h3>
+                    <p class="text-sm text-gray-600 mb-4">View balance and transaction history</p>
+                </div>
+                <div class="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <i class="ti ti-wallet text-xl text-emerald-600"></i>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <a href="{% url 'wallet' %}" class="btn-action flex-1 text-center">
+                    <i class="ti ti-eye"></i>
+                    View Wallet
+                </a>
+                <a href="{% url 'wallet_transactions' %}" class="btn-action flex-1 text-center">
+                    <i class="ti ti-history"></i>
+                    Transactions
+                </a>
+            </div>
         </div>
         
-        <div class="card">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">KYC Status</h3>
-            <p class="text-gray-600 mb-4">
-                Status: <span class="font-semibold">{{ user.kyc_status|title }}</span>
-            </p>
+        <!-- Bill Payment Card -->
+        <div class="card-enterprise">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Bill Payments</h3>
+                    <p class="text-sm text-gray-600 mb-4">Pay your bills quickly and securely</p>
+                </div>
+                <div class="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <i class="ti ti-receipt text-xl text-blue-600"></i>
+                </div>
+            </div>
+            <button class="btn-enterprise-primary w-full">
+                <i class="ti ti-credit-card mr-2"></i>
+                Pay Bills Now
+            </button>
+        </div>
+        
+        <!-- Profile Card -->
+        <div class="card-enterprise">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Profile</h3>
+                    <p class="text-sm text-gray-600 mb-4">Update your profile information</p>
+                </div>
+                <div class="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <i class="ti ti-user text-xl text-indigo-600"></i>
+                </div>
+            </div>
+            <a href="{% url 'profile' %}" class="btn-action w-full text-center">
+                <i class="ti ti-arrow-right"></i>
+                View Profile
+            </a>
+        </div>
+        
+        <!-- KYC Status Card -->
+        <div class="card-enterprise">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">KYC Status</h3>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Status: <span class="font-semibold">{{ user.kyc_status|title }}</span>
+                    </p>
+                </div>
+                <div class="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <i class="ti ti-file-check text-xl text-amber-600"></i>
+                </div>
+            </div>
             {% if not user.kyc_completed %}
-            <a href="{% url 'kyc_submit' %}" class="text-[#0066CC] hover:underline">Complete KYC →</a>
+            <a href="{% url 'kyc_submit' %}" class="btn-enterprise-primary w-full">
+                <i class="ti ti-file-plus mr-2"></i>
+                Complete KYC
+            </a>
+            {% else %}
+            <span class="badge-enterprise badge-enterprise-success w-full text-center">
+                <i class="ti ti-check mr-1"></i>
+                KYC Completed
+            </span>
             {% endif %}
         </div>
     </div>

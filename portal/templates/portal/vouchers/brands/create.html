@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Create Brand{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-building-store text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Create Brand</h1>
+            <p class="page-description-enterprise">Add a new brand for gift voucher issuance</p>
+        </div>
+    </div>
+    <a href="/vouchers/brands/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Brands
+    </a>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Brand Name <span class="text-red-500">*</span></label>
+                <input type="text" name="brand_name" required class="form-input-enterprise" placeholder="Enter brand name">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Business Registration Number</label>
+                <input type="text" name="business_reg_no" class="form-input-enterprise" placeholder="Enter registration number">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Person</label>
+                <input type="text" name="contact_person" class="form-input-enterprise" placeholder="Enter contact person name">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Email</label>
+                <input type="email" name="contact_email" class="form-input-enterprise" placeholder="Enter email address">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Phone</label>
+                <input type="text" name="contact_phone" class="form-input-enterprise" placeholder="Enter phone number">
+            </div>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Address</label>
+            <textarea name="address" rows="3" class="form-textarea-enterprise" placeholder="Enter business address"></textarea>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Create Brand
+            </button>
+            <a href="/vouchers/brands/" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Batch Details - {{ batch.batch_reference }}{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <i class="ti ti-file-stack text-xl text-indigo-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Batch Details</h1>
+            <p class="page-description-enterprise">Reference: {{ batch.batch_reference }}</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/batches/" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Batches
+        </a>
+        {% endif %}
+        {% if batch.status == 'PROCESSING' %}
+        <a href="{% url 'voucher_batch_processing' batch_id=batch.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-enterprise-primary">
+            <i class="ti ti-loader-2 mr-2 animate-spin"></i>
+            View Processing
+        </a>
+        {% elif can_process %}
+        <form method="post" action="{% url 'voucher_batch_process' batch_id=batch.id %}" class="inline" onsubmit="return confirm('Are you sure you want to {% if batch.status == 'FAILED' %}retry{% else %}process{% endif %} this batch?');">
+            {% csrf_token %}
+            <button type="submit" class="btn-enterprise-primary" id="process-btn">
+                <i class="ti ti-{% if batch.status == 'FAILED' %}refresh{% else %}play{% endif %} mr-2"></i>
+                {% if batch.status == 'FAILED' %}Retry Batch{% else %}Process Batch{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        {% if can_export %}
+        <a href="/vouchers/batches/{{ batch.id }}/export/?format=csv" class="btn-enterprise-primary">
+            <i class="ti ti-download mr-2"></i>
+            Export CSV
+        </a>
+        <a href="/vouchers/batches/{{ batch.id }}/export/?format=excel" class="btn-enterprise-secondary">
+            <i class="ti ti-file-excel mr-2"></i>
+            Export Excel
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Status Card -->
+<div class="card-enterprise mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Status</p>
+            <p class="text-lg font-semibold">
+                {% if batch.status == 'COMPLETED' %}
+                <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                {% elif batch.status == 'PROCESSING' %}
+                <span class="badge-enterprise badge-enterprise-warning">Processing</span>
+                {% elif batch.status == 'FAILED' %}
+                <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                {% else %}
+                <span class="badge-enterprise badge-enterprise-gray">Pending</span>
+                {% endif %}
+            </p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Total Vouchers</p>
+            <p class="text-2xl font-bold text-gray-900">{{ batch.total_vouchers }}</p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Successful</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ batch.successful_vouchers }}</p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Failed</p>
+            <p class="text-2xl font-bold text-red-600">{{ batch.failed_vouchers }}</p>
+        </div>
+    </div>
+    
+    <!-- Progress Bar -->
+    {% if batch.status == 'PROCESSING' %}
+    <div class="mt-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Progress</span>
+            <span class="text-sm font-semibold text-gray-900">{{ batch.processed_vouchers }} / {{ batch.total_vouchers }}</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div class="bg-blue-600 h-2.5 rounded-full" style="width: {% widthratio batch.processed_vouchers batch.total_vouchers 100 %}%"></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Batch Details -->
+<div class="card-enterprise mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Batch Information</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Brand</p>
+            <p class="font-semibold text-gray-900">{{ batch.brand.brand_name }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Client</p>
+            <p class="font-semibold text-gray-900">{{ batch.client.client_name|default:"Payswap (Default)" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Issued By</p>
+            <p class="font-semibold text-gray-900">{{ batch.issued_by.username|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Issuer Type</p>
+            <p class="font-semibold text-gray-900">{{ batch.get_issuer_type_display|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Issuance Method</p>
+            <p class="font-semibold text-gray-900">{{ batch.get_issuance_method_display }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Created At</p>
+            <p class="font-semibold text-gray-900">{{ batch.created_at|date:"M d, Y H:i" }}</p>
+        </div>
+        {% if batch.batch_reference_number %}
+        <div>
+            <p class="text-sm text-gray-600">Batch Reference Number</p>
+            <p class="font-semibold text-gray-900">{{ batch.batch_reference_number }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Denomination Breakdown -->
+{% if denomination_breakdown.denominations %}
+<div class="card-enterprise mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Denomination Breakdown</h2>
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Amount</th>
+                    <th>Quantity</th>
+                    <th>Successful</th>
+                    <th>Failed</th>
+                    <th>Pending</th>
+                    <th>Total Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for denom in denomination_breakdown.denominations %}
+                <tr>
+                    <td class="font-semibold text-gray-900">₹{{ denom.amount }}</td>
+                    <td class="text-gray-900">{{ denom.quantity }}</td>
+                    <td class="text-emerald-600 font-semibold">{{ denom.successful }}</td>
+                    <td class="text-red-600 font-semibold">{{ denom.failed }}</td>
+                    <td class="text-gray-600">{{ denom.pending }}</td>
+                    <td class="text-gray-900">₹{{ denom.total_value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-gray-50">
+                <tr>
+                    <td class="font-bold text-gray-900">Total</td>
+                    <td class="font-bold text-gray-900">{{ denomination_breakdown.summary.total_requested }}</td>
+                    <td class="font-bold text-emerald-600">{{ denomination_breakdown.summary.total_successful }}</td>
+                    <td class="font-bold text-red-600">{{ denomination_breakdown.summary.total_failed }}</td>
+                    <td class="text-gray-600">{{ denomination_breakdown.summary.total_requested|add:"-"|add:denomination_breakdown.summary.total_processed }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Download Vouchers Section -->
+{% if can_export or batch.status == 'PROCESSING' %}
+<div class="card-enterprise mb-6">
+    <div class="card-enterprise-header">
+        <div class="flex items-center gap-2">
+            <i class="ti ti-download text-xl text-indigo-600"></i>
+            <h2 class="card-enterprise-title">Download Vouchers</h2>
+        </div>
+    </div>
+    {% if can_export %}
+    <div class="space-y-4">
+        <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <p class="text-sm text-gray-700 mb-2">
+                <strong>{{ vouchers_count }}</strong> vouchers are available for download.
+            </p>
+            <p class="text-xs text-gray-600">Download the complete batch with all voucher codes, PINs, and details.</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="/vouchers/batches/{{ batch.id }}/export/?format=csv" class="btn-enterprise-primary flex-1 justify-center">
+                <i class="ti ti-file-text mr-2"></i>
+                Download CSV
+            </a>
+            <a href="/vouchers/batches/{{ batch.id }}/export/?format=excel" class="btn-enterprise-secondary flex-1 justify-center">
+                <i class="ti ti-file-excel mr-2"></i>
+                Download Excel
+            </a>
+        </div>
+        {% if export_available %}
+        <p class="text-xs text-gray-500 text-center">
+            <i class="ti ti-check text-green-600"></i>
+            Result file available
+        </p>
+        {% endif %}
+    </div>
+    {% elif batch.status == 'PROCESSING' %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-sm text-gray-700">
+            <i class="ti ti-clock text-blue-600"></i>
+            Batch is currently processing. Download will be available once processing is complete.
+        </p>
+        <p class="text-xs text-gray-600 mt-2">
+            Progress: {{ batch.processed_vouchers }} / {{ batch.total_vouchers }} vouchers
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Vouchers Preview -->
+{% if vouchers %}
+<div class="card-enterprise">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Vouchers (Showing first 100)</h2>
+        <p class="text-sm text-gray-600">Total: {{ vouchers_count }} vouchers</p>
+    </div>
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Voucher Code</th>
+                    <th>Reference</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Issued At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for voucher in vouchers %}
+                <tr>
+                    <td class="font-mono font-semibold text-gray-900">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</td>
+                    <td class="text-gray-600">{{ voucher.reference_number }}</td>
+                    <td class="text-gray-900">₹{{ voucher.original_amount }}</td>
+                    <td>
+                        {% if voucher.status == 'ACTIVE' %}
+                        <span class="badge-enterprise badge-enterprise-success">Active</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ voucher.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">{{ voucher.issued_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Processing indicator -->
+{% if batch.status == 'PROCESSING' %}
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+    <div class="flex items-center gap-3">
+        <i class="ti ti-loader-2 text-blue-600 animate-spin text-xl"></i>
+        <div class="flex-1">
+            <p class="text-sm font-semibold text-blue-900">Processing in Progress</p>
+            <p class="text-xs text-blue-700">This batch is currently being processed. <a href="{% url 'voucher_batch_processing' batch_id=batch.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="underline">View processing screen</a> for real-time updates.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

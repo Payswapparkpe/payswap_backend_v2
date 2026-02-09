@@ -2,6 +2,10 @@
 API Version 2 Permissions - External Parties
 """
 from rest_framework import permissions
+from rest_framework.exceptions import PermissionDenied
+
+from portal.models import ApiVendor
+from portal.services.partner_vendor_service import PartnerVendorService
 
 
 class IsExternalUser(permissions.BasePermission):
@@ -22,19 +26,77 @@ class IsExternalUser(permissions.BasePermission):
 class HasAPIKey(permissions.BasePermission):
     """
     Permission for API key authentication (for external partners)
-    Customize based on your API key implementation
+    Requires valid API key in request
     """
     
     def has_permission(self, request, view):
-        # Check for API key in headers
-        api_key = request.META.get('HTTP_X_API_KEY') or request.META.get('HTTP_AUTHORIZATION')
-        
-        if not api_key:
+        # Check if API key is attached to request (from authentication)
+        if hasattr(request, 'api_key') and request.api_key:
+            return True
+        return False
+
+
+class HasServicePermission(permissions.BasePermission):
+    """
+    Permission class that checks service-level permissions
+    Usage: permission_classes = [HasAPIKey, HasServicePermission]
+    """
+    
+    # Override in view: service_name = 'voucher', required_action = 'issue'
+    service_name = None
+    required_action = None
+    
+    def has_permission(self, request, view):
+        # Must have API key first
+        if not hasattr(request, 'api_key') or not request.api_key:
             return False
         
-        # Add your API key validation logic here
-        # Example: Check against database or environment variable
-        # from core.config import payswap_config
-        # return api_key == payswap_config.get_external_api_key()
+        api_key = request.api_key
         
-        return True  # Placeholder - implement your validation
+        # Get service and action from view
+        service = getattr(view, 'service_name', None) or self.service_name
+        action = getattr(view, 'required_action', None) or self.required_action
+        
+        if not service or not action:
+            # If not specified, allow (view should handle validation)
+            return True
+        
+        # Check permission
+        has_perm = api_key.has_permission(service, action)
+        
+        if not has_perm:
+            raise PermissionDenied(
+                f'API key does not have permission for {service}.{action}'
+            )
+        
+        return True
+
+
+class HasVendorAccess(permissions.BasePermission):
+    """
+    Check if partner has access to the vendor being requested.
+    If request specifies vendor (query or body), validates partner is assigned that vendor.
+    If no vendor specified, allow (view will use partner's primary via VendorRouter).
+    """
+
+    def has_permission(self, request, view):
+        if not getattr(request, "api_key", None) or not request.api_key:
+            return False
+        partner = request.api_key.partner
+        service_code = getattr(view, "service_name", None)
+        if not service_code:
+            return True
+        vendor_code = None
+        if request.method == "GET":
+            vendor_code = (request.query_params.get("vendor") or "").strip().lower() or None
+        else:
+            vendor_code = (request.data.get("vendor") if getattr(request, "data", None) else None) or None
+            if isinstance(vendor_code, str):
+                vendor_code = vendor_code.strip().lower() or None
+        if not vendor_code:
+            return True
+        try:
+            vendor = ApiVendor.objects.get(code=vendor_code, is_active=True)
+        except ApiVendor.DoesNotExist:
+            return False
+        return PartnerVendorService.can_partner_use_vendor(partner, service_code, vendor)

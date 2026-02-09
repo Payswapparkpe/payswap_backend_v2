@@ -5,9 +5,9 @@ Tests: write_logs_task, IP logging, user agent, session ID, log categorization
 from django.test import TestCase
 from django.test import RequestFactory
 from django.core.cache import cache
-from portal.tasks.write_logs_task import write_logs_task, categorize_log
+from portal.tasks.write_logs_task import write_logs_task
 from portal.utils.ip_utils import get_client_ip, get_user_agent, get_session_id
-from portal.utils.logging_utils import get_module_name, get_request_id
+from portal.utils.logging_utils import get_module_name, get_request_id, categorize_log
 import json
 
 
@@ -78,6 +78,38 @@ class LoggingTests(TestCase):
         
         category = categorize_log(module_name='portal.views.auth', url=None)
         self.assertEqual(category, 'auth')
+    
+    def test_log_categorization_by_extra_data(self):
+        """Test log categorization based on extra_data operation field"""
+        # Test voucher operation detection via extra_data
+        category = categorize_log(
+            module_name='portal.views', 
+            url=None, 
+            extra_data={'operation': 'voucher_issued'}
+        )
+        self.assertEqual(category, 'gift_voucher')
+        
+        category = categorize_log(
+            module_name='portal.views', 
+            url=None, 
+            extra_data={'operation': 'batch_created'}
+        )
+        self.assertEqual(category, 'gift_voucher')
+        
+        category = categorize_log(
+            module_name='portal.views', 
+            url=None, 
+            extra_data={'operation': 'client_created'}
+        )
+        self.assertEqual(category, 'gift_voucher')
+        
+        # Test that non-voucher operations still work
+        category = categorize_log(
+            module_name='portal.views', 
+            url=None, 
+            extra_data={'operation': 'user_login'}
+        )
+        self.assertEqual(category, 'general')
     
     def test_write_logs_task_structure(self):
         """Test write_logs_task creates proper log structure"""

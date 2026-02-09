@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 3: Banking Information{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-building-bank text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 3: Banking Information</h1>
+            <p class="page-description-enterprise">Enter your bank account details for transactions</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-blue-800">
+                <i class="ti ti-shield-lock mr-2"></i>
+                Your banking information is encrypted and stored securely. Only authorized personnel can access this data.
+            </p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Bank Account Number <span class="text-red-500">*</span></label>
+                <input type="text" name="bank_account_number" value="{{ form.bank_account_number.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter account number">
+                {% if form.bank_account_number.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.bank_account_number.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">IFSC Code <span class="text-red-500">*</span></label>
+                <input type="text" name="bank_ifsc_code" value="{{ form.bank_ifsc_code.value|default:'' }}" maxlength="11" required class="form-input-enterprise" placeholder="Enter IFSC code">
+                {% if form.bank_ifsc_code.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.bank_ifsc_code.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-gray-500 mt-1">Format: ABCD0123456</p>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Bank Name <span class="text-red-500">*</span></label>
+                <input type="text" name="bank_name" value="{{ form.bank_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter bank name">
+                {% if form.bank_name.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.bank_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Account Holder Name <span class="text-red-500">*</span></label>
+                <input type="text" name="account_holder_name" value="{{ form.account_holder_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter account holder name">
+                {% if form.account_holder_name.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.account_holder_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=2 %}" class="btn-enterprise-outline">
+                <i class="ti ti-arrow-left mr-2"></i>
+                Previous
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Continue to Next Step
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

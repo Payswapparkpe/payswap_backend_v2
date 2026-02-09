@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 6: Review & Submit{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-check text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 6: Review & Submit</h1>
+            <p class="page-description-enterprise">Review all information before submitting for approval</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Card -->
+<div class="card-enterprise max-w-4xl">
+    <h3 class="text-lg font-semibold text-gray-900 mb-6">Review Your Information</h3>
+    
+    <!-- Step 1: Basic Information -->
+    <div class="border-b border-gray-200 pb-6 mb-6">
+        <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="ti ti-check-circle text-green-600"></i>
+            Step 1: Basic Information
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="text-gray-600">Brand Name</p>
+                <p class="font-medium text-gray-900">{{ brand.brand_name }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Contact Person</p>
+                <p class="font-medium text-gray-900">{{ brand.contact_person|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Contact Email</p>
+                <p class="font-medium text-gray-900">{{ brand.contact_email|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Contact Phone</p>
+                <p class="font-medium text-gray-900">{{ brand.contact_phone|default:"-" }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-gray-600">Address</p>
+                <p class="font-medium text-gray-900">{{ brand.address|default:"-" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Step 2: Business Details -->
+    <div class="border-b border-gray-200 pb-6 mb-6">
+        <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="ti ti-check-circle text-green-600"></i>
+            Step 2: Business Details
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="text-gray-600">Business Type</p>
+                <p class="font-medium text-gray-900">{{ brand.get_business_type_display|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Registration Number</p>
+                <p class="font-medium text-gray-900">{{ brand.business_reg_no|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">PAN Number</p>
+                <p class="font-medium text-gray-900">{{ brand.pan_number|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">GST Number</p>
+                <p class="font-medium text-gray-900">{{ brand.gst_number|default:"-" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Step 3: Banking -->
+    <div class="border-b border-gray-200 pb-6 mb-6">
+        <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="ti ti-check-circle text-green-600"></i>
+            Step 3: Banking Information
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="text-gray-600">Bank Name</p>
+                <p class="font-medium text-gray-900">{{ brand.bank_name|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">IFSC Code</p>
+                <p class="font-medium text-gray-900">{{ brand.bank_ifsc_code|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Account Holder Name</p>
+                <p class="font-medium text-gray-900">{{ brand.account_holder_name|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Account Number</p>
+                <p class="font-medium text-gray-900">****{{ brand.get_decrypted_bank_account|slice:"-4:" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Step 4: Documents -->
+    <div class="border-b border-gray-200 pb-6 mb-6">
+        <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="ti ti-check-circle text-green-600"></i>
+            Step 4: Documents
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="text-gray-600">Business Registration</p>
+                {% if brand.business_registration_doc %}
+                <a href="{{ brand.business_registration_doc }}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
+                {% else %}
+                <p class="text-red-600">Not uploaded</p>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-gray-600">PAN Document</p>
+                {% if brand.pan_document %}
+                <a href="{{ brand.pan_document }}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
+                {% else %}
+                <p class="text-red-600">Not uploaded</p>
+                {% endif %}
+            </div>
+            {% if brand.gst_certificate %}
+            <div>
+                <p class="text-gray-600">GST Certificate</p>
+                <a href="{{ brand.gst_certificate }}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
+            </div>
+            {% endif %}
+            {% if brand.bank_statement %}
+            <div>
+                <p class="text-gray-600">Bank Statement</p>
+                <a href="{{ brand.bank_statement }}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Step 5: Agreement -->
+    <div class="mb-6">
+        <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="ti ti-check-circle text-green-600"></i>
+            Step 5: Terms & Agreement
+        </h4>
+        <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-2">
+                {% if brand.terms_accepted %}
+                <i class="ti ti-check text-green-600"></i>
+                <span class="text-gray-700">Terms and Conditions accepted</span>
+                {% else %}
+                <i class="ti ti-x text-red-600"></i>
+                <span class="text-red-600">Terms not accepted</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2">
+                {% if brand.agreement_signed %}
+                <i class="ti ti-check text-green-600"></i>
+                <span class="text-gray-700">Agreement signed</span>
+                {% else %}
+                <i class="ti ti-x text-red-600"></i>
+                <span class="text-red-600">Agreement not signed</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit Form -->
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <input type="checkbox" name="confirm_submit" id="confirm_submit" value="1" required class="mt-1 form-checkbox-enterprise">
+                <label for="confirm_submit" class="text-sm text-gray-700">
+                    I confirm that all information provided is accurate and complete. I understand that false information may result in rejection of my onboarding application. <span class="text-red-500">*</span>
+                </label>
+            </div>
+            {% if form.confirm_submit.errors %}
+            <p class="text-sm text-red-600 mt-2">{{ form.confirm_submit.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=5 %}" class="btn-enterprise-outline">
+                <i class="ti ti-arrow-left mr-2"></i>
+                Previous
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-send mr-2"></i>
+                Submit for Approval
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@ Email sending task using utils
 """
 from celery import shared_task
 from typing import Optional, Dict, Any
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.template.loader import render_to_string
 from django.conf import settings
 from core.config import payswap_config
@@ -23,7 +23,8 @@ def send_email_task(
     request_id: Optional[str] = None,
     client_ip: Optional[str] = None,
     user_agent: Optional[str] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    use_parkpe: bool = False,
 ) -> Dict[str, Any]:
     """
     Celery task to send email asynchronously
@@ -101,14 +102,31 @@ def send_email_task(
                     session_id=session_id
                 )
         
+        # Connection: Parkpe SMTP for voucher system, else default
+        connection = None
+        from_email = payswap_config.SMTP_DEFAULT_FROM
+        if use_parkpe and payswap_config.is_parkpe_smtp_configured():
+            parkpe_config = payswap_config.get_email_config_parkpe()
+            connection = get_connection(
+                backend=parkpe_config["EMAIL_BACKEND"],
+                host=parkpe_config["EMAIL_HOST"],
+                port=parkpe_config["EMAIL_PORT"],
+                username=parkpe_config["EMAIL_HOST_USER"],
+                password=parkpe_config["EMAIL_HOST_PASSWORD"],
+                use_tls=parkpe_config["EMAIL_USE_TLS"],
+                fail_silently=False,
+            )
+            from_email = parkpe_config["DEFAULT_FROM_EMAIL"]
+
         # Send email
         send_mail(
             subject=subject,
             message=message,
-            from_email=payswap_config.SMTP_DEFAULT_FROM,
+            from_email=from_email,
             recipient_list=[to_email],
             html_message=html_message,
             fail_silently=False,
+            connection=connection,
         )
         
         # Log success

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reseller Partner Management{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Reseller Partner Management</h1>
+            <p class="text-gray-600 mt-2">Manage all reseller partners, pricing, commissions, and settlements</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'admin_service_catalog' %}" class="bg-emerald-600 text-white px-6 py-2 rounded hover:bg-emerald-700">
+                Service Catalog (Market APIs)
+            </a>
+            <a href="{% url 'admin_vendor_management_dashboard' %}" class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700">
+                Vendor Management
+            </a>
+            <a href="{% url 'admin_reseller_partner_onboard' %}" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                Onboard New Partner
+            </a>
+        </div>
+    </div>
+
+    <!-- Overall Statistics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-sm font-medium text-gray-500">Total Partners</h3>
+            <p class="text-3xl font-bold text-gray-900 mt-2">{{ total_partners }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-sm font-medium text-gray-500">Active Partners</h3>
+            <p class="text-3xl font-bold text-green-600 mt-2">{{ active_partners }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-sm font-medium text-gray-500">Pending Onboarding</h3>
+            <p class="text-3xl font-bold text-yellow-600 mt-2">{{ pending_onboarding }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-sm font-medium text-gray-500">Total Revenue (30d)</h3>
+            <p class="text-3xl font-bold text-gray-900 mt-2">₹{{ financial_summary.total_revenue|default:"0.00"|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <!-- Partner List -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-900">All Partners</h2>
+            <a href="{% url 'admin_reseller_partner_list' %}" class="text-blue-600 hover:text-blue-900">View All →</a>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Partner</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue (30d)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission (30d)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wallet Balance</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in partner_list %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">{{ item.partner.company_name }}</div>
+                                <div class="text-sm text-gray-500">{{ item.partner.partner_code }}</div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                {% if item.partner.status == 'ACTIVE' %}bg-green-100 text-green-800
+                                {% elif item.partner.status == 'SUSPENDED' %}bg-red-100 text-red-800
+                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ item.partner.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₹{{ item.summary.financial.total_revenue|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₹{{ item.summary.financial.total_commission|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₹{{ item.summary.financial.wallet_balance|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <a href="{% url 'admin_reseller_partner_detail' partner_id=item.partner.id %}" class="text-blue-600 hover:text-blue-900 mr-4">View</a>
+                            <a href="{% url 'admin_reseller_partner_pricing' partner_id=item.partner.id %}" class="text-green-600 hover:text-green-900 mr-4">Pricing</a>
+                            <a href="{% url 'admin_reseller_partner_reports' partner_id=item.partner.id %}" class="text-purple-600 hover:text-purple-900">Reports</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No partners found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

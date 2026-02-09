@@ -24,7 +24,8 @@ def send_notification_task(
     request_id: Optional[str] = None,
     client_ip: Optional[str] = None,
     user_agent: Optional[str] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    use_parkpe: bool = False,
 ) -> Dict[str, Any]:
     """
     Unified notification dispatcher
@@ -88,7 +89,8 @@ def send_notification_task(
                     request_id=request_id,
                     client_ip=client_ip,
                     user_agent=user_agent,
-                    session_id=session_id
+                    session_id=session_id,
+                    use_parkpe=use_parkpe,
                 )
                 task_ids.append({'channel': 'email', 'task_id': task.id})
             except Exception as e:

@@ -1,0 +1,238 @@
+<div class="auth-shell">
+  <div class="auth-grid">
+    <!-- Brand / Value prop -->
+    <aside class="brand-panel">
+      <a routerLink="/home" class="brand">
+        <img class="brand-logo-img" src="assets/parkpe-logo.svg" alt="ParkPe" />
+      </a>
+
+      <h1 class="brand-title">Welcome back.</h1>
+      <p class="brand-subtitle">
+        Sign in to manage FASTag, challans, parking and bills — with a clean, secure experience.
+      </p>
+
+      <div class="brand-badges" role="list">
+        <div class="badge" role="listitem"><span class="material-icons">verified_user</span> Secure</div>
+        <div class="badge" role="listitem"><span class="material-icons">bolt</span> Fast</div>
+        <div class="badge" role="listitem"><span class="material-icons">lock</span> OTP Verified</div>
+      </div>
+
+      <div class="brand-features">
+        <div class="feature">
+          <span class="material-icons">qr_code_2</span>
+          <div>
+            <div class="feature-title">ParkPe Connect</div>
+            <div class="feature-desc">Scan QR, contact owners without sharing numbers.</div>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="material-icons">receipt_long</span>
+          <div>
+            <div class="feature-title">Receipts & history</div>
+            <div class="feature-desc">Track transactions and download receipts anytime.</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="brand-footnote">
+        New here? <a routerLink="/auth/register">Create an account</a>
+      </p>
+    </aside>
+
+    <!-- Login card -->
+    <section class="auth-panel">
+      <div class="auth-card card scale-in">
+        <div class="auth-header">
+          <h2 class="auth-title">Sign in</h2>
+          <p class="auth-subtitle">
+            @if (loginMode === 'mobile') {
+              Use your mobile number. We&apos;ll send an OTP via SMS to sign you in.
+            } @else {
+              Use your email and password to continue.
+            }
+          </p>
+        </div>
+
+        <!-- Login mode: Mobile (primary) or Email -->
+        <div class="login-mode-tabs" role="tablist">
+          <button
+            type="button"
+            class="mode-tab"
+            [class.active]="loginMode === 'mobile'"
+            (click)="setLoginMode('mobile')"
+            role="tab"
+            [attr.aria-selected]="loginMode === 'mobile'"
+          >
+            <span class="material-icons">phone_android</span>
+            Mobile (OTP)
+          </button>
+          <button
+            type="button"
+            class="mode-tab"
+            [class.active]="loginMode === 'email'"
+            (click)="setLoginMode('email')"
+            role="tab"
+            [attr.aria-selected]="loginMode === 'email'"
+          >
+            <span class="material-icons">mail</span>
+            Email
+          </button>
+        </div>
+
+        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
+          @if (loginMode === 'email') {
+            <div class="form-group">
+              <label for="email" class="form-label">Email</label>
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                class="form-control"
+                [class.error]="email?.invalid && email?.touched"
+                [attr.aria-invalid]="email?.invalid && email?.touched"
+                aria-describedby="email-error"
+                placeholder="you&#64;example.com"
+                autocomplete="email"
+              />
+              @if (email?.invalid && email?.touched) {
+                <span id="email-error" class="error-message" role="alert">
+                  @if (email?.errors?.['required']) { Email is required }
+                  @if (email?.errors?.['email']) { Please enter a valid email }
+                </span>
+              }
+            </div>
+            <!-- Password (email only) -->
+            <div class="form-group">
+              <label for="password" class="form-label">Password</label>
+              <div class="password-input">
+                <input
+                  id="password"
+                  [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password"
+                  class="form-control"
+                  [class.error]="password?.invalid && password?.touched"
+                  [attr.aria-invalid]="password?.invalid && password?.touched"
+                  aria-describedby="password-error"
+                  placeholder="Enter your password"
+                  autocomplete="current-password"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  (click)="togglePasswordVisibility()"
+                  [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+                >
+                  <span class="material-icons">
+                    {{ showPassword ? 'visibility_off' : 'visibility' }}
+                  </span>
+                </button>
+              </div>
+              @if (password?.invalid && password?.touched) {
+                <span id="password-error" class="error-message" role="alert">
+                  @if (password?.errors?.['required']) { Password is required }
+                  @if (password?.errors?.['minlength']) { Password must be at least 6 characters }
+                </span>
+              }
+            </div>
+            <div class="form-group-checkbox">
+              <label class="checkbox-label">
+                <input type="checkbox" formControlName="rememberMe" />
+                <span>Remember me</span>
+              </label>
+              <a routerLink="/auth/forgot-password" class="forgot-link">Forgot password?</a>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+              @if (loading) {
+                <span class="spinner"></span>
+                <span>Signing in...</span>
+              } @else {
+                <span>Continue</span>
+                <span class="material-icons">arrow_forward</span>
+              }
+            </button>
+          } @else {
+            <!-- Mobile: phone then OTP -->
+            @if (!otpSent) {
+              <div class="form-group">
+                <label for="phone" class="form-label">Mobile number</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  formControlName="phone"
+                  class="form-control"
+                  [class.error]="phone?.invalid && phone?.touched"
+                  [attr.aria-invalid]="phone?.invalid && phone?.touched"
+                  aria-describedby="phone-error"
+                  placeholder="10-digit number (e.g. 9876543210)"
+                  autocomplete="tel"
+                  inputmode="numeric"
+                  maxlength="10"
+                />
+                @if (phone?.invalid && phone?.touched) {
+                  <span id="phone-error" class="error-message" role="alert">
+                    @if (phone?.errors?.['required']) { Mobile number is required }
+                    @if (phone?.errors?.['pattern']) { Enter a valid 10-digit Indian mobile number }
+                  </span>
+                }
+              </div>
+              <button type="button" class="btn btn-primary btn-block" [disabled]="sendingOtp || phone?.invalid" (click)="sendOtp()">
+                @if (sendingOtp) {
+                  <span class="spinner"></span>
+                  <span>Sending OTP...</span>
+                } @else {
+                  <span>Send OTP</span>
+                  <span class="material-icons">sms</span>
+                }
+              </button>
+            } @else {
+              <div class="form-group otp-sent-info">
+                <p class="otp-sent-text">OTP sent to {{ getMaskedPhone() }}</p>
+                <button type="button" class="link-button" (click)="backToMobileInput()">Change number</button>
+              </div>
+              <div class="form-group">
+                <label for="otp" class="form-label">Enter OTP</label>
+                <input
+                  id="otp"
+                  type="text"
+                  formControlName="otp"
+                  class="form-control form-control-otp"
+                  [class.error]="otp?.invalid && otp?.touched"
+                  [attr.aria-invalid]="otp?.invalid && otp?.touched"
+                  placeholder="6-digit code"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                />
+                @if (otp?.invalid && otp?.touched) {
+                  <span class="error-message" role="alert">
+                    @if (otp?.errors?.['required']) { OTP is required }
+                    @if (otp?.errors?.['pattern']) { Enter the 6-digit OTP }
+                  </span>
+                }
+              </div>
+              <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+                @if (loading) {
+                  <span class="spinner"></span>
+                  <span>Verifying...</span>
+                } @else {
+                  <span>Verify &amp; sign in</span>
+                  <span class="material-icons">arrow_forward</span>
+                }
+              </button>
+            }
+          }
+        </form>
+
+        <div class="auth-footer">
+          <p>
+            Don&apos;t have an account?
+            <a routerLink="/auth/register" class="auth-link">Sign up</a>
+          </p>
+          <p class="back-home">
+            <a routerLink="/home" class="auth-link">← Back to home</a>
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

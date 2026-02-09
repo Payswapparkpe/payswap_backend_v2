@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Assign {{ vendor.name }} to Partners{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="mb-6">
+        <a href="{% url 'admin_service_catalog' %}" class="text-blue-600 hover:underline text-sm">← Service Catalog</a>
+        <h1 class="text-2xl font-bold text-gray-900 mt-2">Assign to Partners</h1>
+        <p class="text-gray-600 mt-1">{{ service_name }} – {{ vendor.name }} ({{ vendor.code }})</p>
+        <p class="text-sm text-gray-500 mt-1">Select partners who can use this vendor for {{ service_name }}. They will need an API key to call the APIs.</p>
+    </div>
+
+    <form method="post" class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+        {% csrf_token %}
+        <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-700">Select partners</span>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">Save assignments</button>
+        </div>
+        <ul class="divide-y divide-gray-200 max-h-[60vh] overflow-y-auto">
+            {% for partner in partners %}
+            <li class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50">
+                <input type="checkbox" name="partner_ids" value="{{ partner.id }}" id="partner-{{ partner.id }}"
+                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                       {% if partner.id in assigned_partner_ids %}checked{% endif %}>
+                <label for="partner-{{ partner.id }}" class="flex-1 cursor-pointer">
+                    <span class="font-medium text-gray-900">{{ partner.company_name }}</span>
+                    <span class="text-gray-500 text-sm ml-2">({{ partner.partner_code }})</span>
+                </label>
+            </li>
+            {% empty %}
+            <li class="px-5 py-8 text-center text-gray-500">No active partners. <a href="{% url 'admin_reseller_partner_onboard' %}" class="text-blue-600 hover:underline">Onboard a partner</a>.</li>
+            {% endfor %}
+        </ul>
+        <div class="px-5 py-3 bg-gray-50 border-t border-gray-200">
+            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">Save assignments</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,584 @@
+/* Dashboard – ParkPe: modern, clean, brand-blue accent */
+$bg: transparent;
+$fg: var(--text-primary);
+$card-bg: #ffffff;
+$muted: #f1f5f9;
+$muted-fg: #6b7280;
+$border: #e5e7eb;
+$primary: #004aad; /* from logo */
+$primary-ink: #00255c;
+$accent: #8b5cf6;
+
+:host {
+  display: block;
+  min-height: 0;
+  background: $bg;
+  color: $fg;
+  font-family: inherit;
+}
+
+.dashboard-landing {
+  min-height: 0;
+  background: $bg;
+  color: $fg;
+}
+
+.dashboard-main {
+  padding: 0;
+}
+
+.dashboard-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  @media (min-width: 900px) {
+    grid-template-columns: 1fr 380px;
+    gap: 2rem;
+  }
+}
+
+.dashboard-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.sliding-banner-section {
+  width: 100%;
+}
+
+/* Hero banner (replaces placeholder sliding banner). Use .card.hero-card so it overrides base .card styles. */
+.card.hero-card {
+  border: none;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 160px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(1200px 240px at 0% 0%, rgba(255, 255, 255, 0.18), transparent 55%),
+    linear-gradient(135deg, $primary, $accent);
+  box-shadow: 0 18px 40px rgba(0, 74, 173, 0.18);
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.hero-left {
+  min-width: 0;
+}
+
+.hero-kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+  letter-spacing: 0.02em;
+}
+
+.hero-title {
+  margin: 0.25rem 0 0.5rem 0;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.hero-subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.92;
+  max-width: 52ch;
+}
+
+.hero-cta {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  &:hover {
+    transform: translateY(-1px);
+  }
+  &.primary {
+    background: rgba(255, 255, 255, 0.95);
+    color: $primary-ink;
+    box-shadow: 0 10px 18px rgba(17, 24, 39, 0.12);
+  }
+  &.ghost {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+}
+
+.hero-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  align-items: flex-end;
+
+  @media (max-width: 640px) {
+    align-items: flex-start;
+  }
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  .material-icons {
+    font-size: 1.05rem;
+  }
+}
+
+/* Your Vehicles – add vehicle system below blue card */
+.vehicles-section {
+  width: 100%;
+}
+
+.vehicles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.vehicles-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: $fg;
+}
+
+.vehicles-links {
+  display: flex;
+  gap: 0.75rem;
+  .section-link {
+    font-size: 0.8rem;
+  }
+}
+
+.vehicles-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+}
+
+.vehicle-card {
+  flex: 0 0 auto;
+  width: 200px;
+  min-height: 100px;
+  background: $card-bg;
+  border: 1px solid $border;
+  border-radius: 1rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  &:hover {
+    border-color: $primary;
+    box-shadow: 0 8px 20px rgba(0, 74, 173, 0.08);
+  }
+  &.placeholder {
+    color: $muted-fg;
+    font-size: 0.9rem;
+  }
+}
+
+.vehicle-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.vehicle-icon {
+  font-size: 1.75rem;
+  color: $muted-fg;
+  flex-shrink: 0;
+}
+
+.vehicle-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.vehicle-reg {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: $fg;
+}
+
+.vehicle-meta {
+  font-size: 0.75rem;
+  color: $muted-fg;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-card {
+  flex-direction: column;
+  gap: 0.35rem;
+  background: $muted;
+  border-style: dashed;
+  border-color: $border;
+  &.small {
+    width: 120px;
+    min-height: 80px;
+    .add-sublabel {
+      display: none;
+    }
+  }
+}
+
+.add-icon {
+  font-size: 2rem;
+  color: $primary;
+}
+
+.add-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: $primary;
+}
+
+.add-sublabel {
+  font-size: 0.7rem;
+  color: $muted-fg;
+  text-align: center;
+}
+
+.overview-section {
+  .overview-label {
+    font-size: 0.875rem;
+    color: $muted-fg;
+    margin: 0 0 0.25rem 0;
+  }
+  .overview-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: $fg;
+    margin: 0 0 1rem 0;
+  }
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+.dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+/* Shared section header (Quick Actions + Recent) */
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.section-subtitle {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.75rem;
+  color: $muted-fg;
+}
+
+.section-link {
+  align-self: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: $primary;
+  text-decoration: none;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.5rem;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Wrapper card – background card for quick actions */
+.quick-actions-wrapper {
+  padding: 1.25rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Grid: larger tiles that actually fit the right column */
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 92px;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 88px;
+  }
+}
+
+.action-card {
+  cursor: pointer;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  background: $card-bg;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px rgba(17, 24, 39, 0.08);
+    border-color: rgba(0, 74, 173, 0.25);
+  }
+}
+
+.action-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 74, 173, 0.10);
+  color: $primary-ink;
+
+  .material-icons {
+    font-size: 1.25rem;
+  }
+}
+
+.action-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.action-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.action-desc {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: $muted-fg;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.action-chevron {
+  flex: 0 0 auto;
+  color: rgba(107, 114, 128, 0.9);
+  font-size: 1.25rem;
+}
+
+.recent-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.recent-card {
+  padding: 1.25rem;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.recent-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: $fg;
+  margin: 0;
+}
+
+.recent-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: $muted-fg;
+  font-size: 0.875rem;
+  .material-icons {
+    font-size: 2.5rem;
+    opacity: 0.6;
+  }
+}
+
+.recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recent-item {
+  padding: 0;
+  border-bottom: 1px solid $border;
+  font-size: 0.875rem;
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.recent-item-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+  border-radius: 0.5rem;
+  margin: 0 -0.25rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  &:hover {
+    background: rgba(0, 74, 173, 0.06);
+  }
+}
+
+.recent-desc {
+  color: $fg;
+}
+
+.recent-amount {
+  font-weight: 600;
+  color: $fg;
+}
+
+.card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: rgba(0, 74, 173, 0.10);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  .material-icons {
+    font-size: 1.25rem;
+    color: $primary-ink;
+  }
+}
+
+.card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: $fg;
+  margin: 0 0 0.25rem 0;
+}
+
+.card-desc {
+  font-size: 0.8125rem;
+  color: $muted-fg;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.summary-card {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 3px;
+    width: 100%;
+    background: linear-gradient(90deg, $primary, $accent);
+    opacity: 0.9;
+  }
+
+  .card-icon {
+    margin-bottom: 0.5rem;
+  }
+  .summary-value {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: $fg;
+    margin: 0;
+  }
+}
+

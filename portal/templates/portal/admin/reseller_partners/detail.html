@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Partner Details - {{ partner.company_name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">{{ partner.company_name }}</h1>
+            <p class="text-gray-600 mt-2">Partner Code: {{ partner.partner_code }}</p>
+        </div>
+        <div class="flex gap-4">
+            <a href="{% url 'admin_partner_vendor_assignment' partner_id=partner.id %}" class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700">
+                Manage Vendors
+            </a>
+            <a href="{% url 'admin_reseller_partner_pricing' partner_id=partner.id %}" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+                Manage Pricing
+            </a>
+            <a href="{% url 'admin_reseller_partner_reports' partner_id=partner.id %}" class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700">
+                View Reports
+            </a>
+            <a href="{% url 'admin_reseller_partner_settlement' partner_id=partner.id %}" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                Settlements
+            </a>
+        </div>
+    </div>
+
+    <!-- Partner Information -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Partner Information</h2>
+            <dl class="grid grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Company Name</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.company_name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Partner Code</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.partner_code }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Contact Person</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.contact_person }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Email</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.email }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Phone</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.phone }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Business Type</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ partner.get_business_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Status</dt>
+                    <dd class="mt-1">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                            {% if partner.status == 'ACTIVE' %}bg-green-100 text-green-800
+                            {% elif partner.status == 'SUSPENDED' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ partner.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Onboarding Status</dt>
+                    <dd class="mt-1">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                            {% if partner.onboarding_status == 'APPROVED' %}bg-green-100 text-green-800
+                            {% elif partner.onboarding_status == 'REJECTED' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ partner.get_onboarding_status_display }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Financial Summary (Last 30 Days)</h2>
+            <dl class="space-y-4">
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-gray-500">Total Revenue</dt>
+                    <dd class="text-sm font-bold text-gray-900">₹{{ summary.financial.total_revenue|floatformat:2 }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-gray-500">Total Commission</dt>
+                    <dd class="text-sm font-bold text-green-600">₹{{ summary.financial.total_commission|floatformat:2 }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-gray-500">Wallet Balance</dt>
+                    <dd class="text-sm font-bold text-gray-900">₹{{ summary.financial.wallet_balance|floatformat:2 }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-gray-500">Pending Settlements</dt>
+                    <dd class="text-sm font-bold text-yellow-600">₹{{ summary.financial.pending_settlements|floatformat:2 }}</dd>
+                </div>
+                <div class="flex justify-between border-t pt-4">
+                    <dt class="text-sm font-medium text-gray-900">Net Earnings</dt>
+                    <dd class="text-sm font-bold text-blue-600">₹{{ summary.financial.net_earnings|floatformat:2 }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Service Breakdown -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Service Performance</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transactions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for service in summary.services %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ service.service__name|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{{ service.revenue|default:"0.00"|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">₹{{ service.commission|default:"0.00"|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ service.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-gray-500">No service data available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for transaction in recent_transactions %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ transaction.transaction_date|date:"M d, Y H:i" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ transaction.get_transaction_type_display }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ transaction.service.name|default:"N/A" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{{ transaction.amount|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">₹{{ transaction.commission_amount|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                {% if transaction.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                {% elif transaction.status == 'FAILED' %}bg-red-100 text-red-800
+                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ transaction.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No transactions found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pricing Configurations -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Pricing Configurations</h2>
+        {% if pricing_configs %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pricing Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for pricing in pricing_configs %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ pricing.service.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pricing.get_pricing_type_display }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pricing.get_commission_type_display }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if pricing.commission_type == 'REVENUE_SHARE' %}
+                                {{ pricing.commission_percentage }}%
+                            {% else %}
+                                ₹{{ pricing.fixed_commission|floatformat:2 }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full {% if pricing.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {% if pricing.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500">No pricing configurations set. <a href="{% url 'admin_reseller_partner_pricing' partner_id=partner.id %}" class="text-blue-600 hover:text-blue-900">Configure pricing</a></p>
+        {% endif %}
+    </div>
+
+    <!-- API Keys -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">API Keys ({{ active_api_keys }} active)</h2>
+        {% if api_keys %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Key Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Used</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for key in api_keys|slice:":5" %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ key.key_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ key.get_key_type_display }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full {% if key.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ key.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if key.last_used_at %}{{ key.last_used_at|date:"M d, Y" }}{% else %}Never{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ key.created_at|date:"M d, Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500">No API keys created yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="mt-6">
+        <a href="{% url 'admin_reseller_partner_dashboard' %}" class="text-blue-600 hover:text-blue-900">← Back to Partner Dashboard</a>
+    </div>
+</div>
+{% endblock %}

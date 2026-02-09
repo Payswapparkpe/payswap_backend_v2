@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Services{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <i class="ti ti-server text-xl text-emerald-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">Services</h1>
+                <p class="page-description-enterprise">Manage API services and integrations</p>
+            </div>
+            <a href="{% url 'api_explorer' %}" class="ml-auto btn-enterprise btn-enterprise-secondary flex items-center gap-2">
+                <i class="ti ti-send"></i>
+                <span>API Explorer (Postman)</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Enterprise Stat Cards - 3D Style -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="stat-card-enterprise" data-color="blue" style="border-left-color: #3b82f6;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Total Services</p>
+                    <p class="stat-value">{{ total_services|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #3b82f6;">
+                    <i class="ti ti-server text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="emerald" style="border-left-color: #10b981;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Active Services</p>
+                    <p class="stat-value">{{ active_services|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #10b981;">
+                    <i class="ti ti-check text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="amber" style="border-left-color: #f59e0b;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Pending</p>
+                    <p class="stat-value">{{ pending_services|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #f59e0b;">
+                    <i class="ti ti-clock text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="purple" style="border-left-color: #8b5cf6;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Inactive</p>
+                    <p class="stat-value">{{ inactive_services|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #8b5cf6;">
+                    <i class="ti ti-x text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Services Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for service in services %}
+        <a href="{% url 'service_detail' service_id=service.id %}" class="card-enterprise hover:shadow-md transition-all cursor-pointer block">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">{{ service.name }}</h3>
+                    <p class="text-sm text-gray-500 font-mono">{{ service.code }}</p>
+                </div>
+                <div>
+                    {% if service.status == 'active' and service.is_enabled %}
+                        <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    {% elif service.status == 'pending' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                    {% elif service.status == 'maintenance' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Maintenance</span>
+                    {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">Inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if service.description %}
+            <p class="text-sm text-gray-600 mb-4">{{ service.description }}</p>
+            {% endif %}
+            
+            <div class="space-y-2 text-sm border-t border-gray-200 pt-4">
+                {% if service.category %}
+                <div class="flex items-center text-gray-600">
+                    <i class="ti ti-category w-4 mr-2"></i>
+                    <span class="font-medium">Category:</span>
+                    <span class="ml-2 font-mono">{{ service.category }}</span>
+                </div>
+                {% endif %}
+                {% if service.api_provider %}
+                <div class="flex items-center text-gray-600">
+                    <i class="ti ti-building-store w-4 mr-2"></i>
+                    <span class="font-medium">Provider:</span>
+                    <span class="ml-2">{{ service.api_provider }}</span>
+                </div>
+                {% endif %}
+                <div class="flex items-center text-gray-600">
+                    <i class="ti ti-shield-check w-4 mr-2"></i>
+                    <span class="font-medium">KYC Required:</span>
+                    <span class="ml-2">{% if service.requires_kyc %}Yes{% else %}No{% endif %}</span>
+                </div>
+                {% if service.min_balance %}
+                <div class="flex items-center text-gray-600">
+                    <i class="ti ti-currency-rupee w-4 mr-2"></i>
+                    <span class="font-medium">Min Balance:</span>
+                    <span class="ml-2">₹{{ service.min_balance }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </a>
+        {% empty %}
+        <div class="col-span-full">
+            <div class="card-enterprise text-center py-12">
+                <i class="ti ti-server-off text-5xl text-gray-300 mb-4"></i>
+                <p class="text-gray-900 font-semibold mb-1">No services found</p>
+                <p class="text-sm text-gray-500">Services will appear here once configured</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

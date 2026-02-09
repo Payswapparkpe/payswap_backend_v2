@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 5: Terms & Agreement{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <i class="ti ti-file-contract text-xl text-indigo-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 5: Terms & Agreement</h1>
+            <p class="page-description-enterprise">Review and accept terms and conditions</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- Terms and Conditions -->
+        <div class="border border-gray-200 rounded-lg p-6 max-h-96 overflow-y-auto mb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Terms and Conditions</h3>
+            <div class="prose prose-sm text-gray-700">
+                <p>By using Payswap's voucher issuance services, you agree to the following terms:</p>
+                <ol class="list-decimal list-inside space-y-2 mt-4">
+                    <li>You are authorized to issue vouchers on behalf of your brand.</li>
+                    <li>All vouchers issued must comply with applicable laws and regulations.</li>
+                    <li>You are responsible for maintaining accurate records of all voucher transactions.</li>
+                    <li>Payswap reserves the right to suspend or terminate services for violations.</li>
+                    <li>All fees and charges will be clearly communicated before transaction processing.</li>
+                    <li>You agree to provide accurate business information and keep it updated.</li>
+                    <li>Payswap is not liable for any misuse of vouchers by end customers.</li>
+                    <li>You must maintain sufficient funds for voucher issuance and related fees.</li>
+                </ol>
+                <p class="mt-4">For the complete terms and conditions, please refer to the service agreement document.</p>
+            </div>
+        </div>
+        
+        <div class="space-y-4">
+            <div class="flex items-start gap-3">
+                <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required class="mt-1 form-checkbox-enterprise">
+                <label for="terms_accepted" class="text-sm text-gray-700">
+                    I have read and accept the <strong>Terms and Conditions</strong> <span class="text-red-500">*</span>
+                </label>
+            </div>
+            {% if form.terms_accepted.errors %}
+            <p class="text-sm text-red-600">{{ form.terms_accepted.errors.0 }}</p>
+            {% endif %}
+            
+            <div class="flex items-start gap-3">
+                <input type="checkbox" name="agreement_signed" id="agreement_signed" value="1" required class="mt-1 form-checkbox-enterprise">
+                <label for="agreement_signed" class="text-sm text-gray-700">
+                    I confirm that the <strong>Service Agreement</strong> has been signed and uploaded <span class="text-red-500">*</span>
+                </label>
+            </div>
+            {% if form.agreement_signed.errors %}
+            <p class="text-sm text-red-600">{{ form.agreement_signed.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=4 %}" class="btn-enterprise-outline">
+                <i class="ti ti-arrow-left mr-2"></i>
+                Previous
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Continue to Review
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

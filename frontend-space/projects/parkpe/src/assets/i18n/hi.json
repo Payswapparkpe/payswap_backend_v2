@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "पार्कपे",
+    "title": "स्मार्ट पार्किंग और भुगतान"
+  },
+  "common": {
+    "login": "साइन इन करें",
+    "register": "साइन अप करें",
+    "logout": "साइन आउट",
+    "submit": "जमा करें",
+    "cancel": "रद्द करें",
+    "save": "सेव करें",
+    "edit": "संपादित करें",
+    "delete": "हटाएं",
+    "search": "खोजें",
+    "back": "वापस",
+    "next": "आगे",
+    "loading": "लोड हो रहा है...",
+    "noData": "कोई डेटा उपलब्ध नहीं"
+  },
+  "auth": {
+    "welcomeBack": "वापसी पर स्वागत है",
+    "signInToAccount": "अपने खाते में साइन इन करें",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "rememberMe": "मुझे याद रखें",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "dontHaveAccount": "खाता नहीं है?",
+    "alreadyHaveAccount": "पहले से खाता है?",
+    "createAccount": "खाता बनाएं",
+    "fullName": "पूरा नाम",
+    "phone": "फोन नंबर",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "acceptTerms": "मैं सेवा की शर्तों और गोपनीयता नीति से सहमत हूं"
+  },
+  "dashboard": {
+    "welcome": "वापसी पर स्वागत है",
+    "overview": "यहाँ आपका सारांश है",
+    "totalSpend": "कुल खर्च (इस महीने)",
+    "pendingChallans": "लंबित चालान",
+    "fastagBalance": "फास्टैग बैलेंस",
+    "activeBookings": "सक्रिय बुकिंग",
+    "quickActions": "त्वरित कार्य"
+  },
+  "parking": {
+    "title": "पार्किंग",
+    "findParking": "अपने पास पार्किंग खोजें",
+    "selectSlot": "पार्किंग स्लॉट चुनें",
+    "bookParking": "पार्किंग बुक करें",
+    "confirmBooking": "बुकिंग की पुष्टि करें",
+    "vehicleNumber": "वाहन नंबर",
+    "availableSlots": "उपलब्ध स्लॉट"
+  },
+  "payment": {
+    "selectMethod": "भुगतान विधि चुनें",
+    "proceedToPay": "भुगतान करें",
+    "paymentSuccess": "भुगतान सफल!",
+    "paymentFailed": "भुगतान विफल",
+    "transactionHistory": "लेनदेन इतिहास",
+    "downloadReceipt": "रसीद डाउनलोड करें"
+  }
+}

@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}VoucherX - Tabbed View{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
+            <i class="ti ti-layout-grid text-xl text-white"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">VoucherX</h1>
+            <p class="page-description-enterprise">All voucher features in one place</p>
+        </div>
+    </div>
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Dashboard
+    </a>
+</div>
+
+<!-- Tabs Navigation -->
+<div class="card-enterprise mb-6">
+    <div class="border-b border-gray-200">
+        <nav class="flex space-x-8" aria-label="Tabs">
+            <a href="?tab=brands" class="tab-link {% if active_tab == 'brands' %}active{% endif %}">
+                <i class="ti ti-building-store mr-2"></i>
+                Brands
+            </a>
+            <a href="?tab=onboarding" class="tab-link {% if active_tab == 'onboarding' %}active{% endif %}">
+                <i class="ti ti-checklist mr-2"></i>
+                Onboarding
+                {% if user.role_code in 'super,admin' or user.is_staff %}
+                {% if pending_brands %}
+                <span class="ml-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{{ pending_brands|length }}</span>
+                {% endif %}
+                {% endif %}
+            </a>
+            <a href="?tab=issuance" class="tab-link {% if active_tab == 'issuance' %}active{% endif %}">
+                <i class="ti ti-gift mr-2"></i>
+                Issuance
+            </a>
+            <a href="?tab=vouchers" class="tab-link {% if active_tab == 'vouchers' %}active{% endif %}">
+                <i class="ti ti-gift-card mr-2"></i>
+                Vouchers
+            </a>
+            <a href="?tab=reports" class="tab-link {% if active_tab == 'reports' %}active{% endif %}">
+                <i class="ti ti-chart-bar mr-2"></i>
+                Reports
+            </a>
+        </nav>
+    </div>
+</div>
+
+<!-- Tab Content -->
+<div class="tab-content">
+    {% if active_tab == 'brands' %}
+    <!-- Brands Tab -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Brands</h3>
+            {% if user.role_code in 'super,admin' or user.is_staff %}
+            <a href="{% url 'voucherx_admin_onboard' %}" class="btn-enterprise-primary">
+                <i class="ti ti-plus mr-2"></i>
+                Create Brand
+            </a>
+            {% endif %}
+        </div>
+        <div class="table-enterprise">
+            <table class="w-full">
+                <thead>
+                    <tr>
+                        <th>Brand Code</th>
+                        <th>Brand Name</th>
+                        <th>Onboarding Status</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for brand in brands %}
+                    <tr>
+                        <td class="font-semibold text-gray-900">{{ brand.brand_code }}</td>
+                        <td class="text-gray-900">{{ brand.brand_name }}</td>
+                        <td>
+                            {% if brand.onboarding_status == 'APPROVED' %}
+                            <span class="badge-enterprise badge-enterprise-success">Approved</span>
+                            {% elif brand.onboarding_status == 'SUBMITTED' %}
+                            <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                            {% elif brand.onboarding_status == 'IN_PROGRESS' %}
+                            <span class="badge-enterprise badge-enterprise-info">In Progress</span>
+                            {% else %}
+                            <span class="badge-enterprise badge-enterprise-gray">Not Started</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if brand.status == 'ACTIVE' %}
+                            <span class="badge-enterprise badge-enterprise-success">Active</span>
+                            {% else %}
+                            <span class="badge-enterprise badge-enterprise-gray">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-gray-600">{{ brand.created_at|date:"M d, Y" }}</td>
+                        <td class="text-right">
+                            <a href="{% url 'voucher_brand_detail' brand_id=brand.id %}" class="btn-action">
+                                <i class="ti ti-eye"></i>
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-8">
+                            <p class="text-gray-600">No brands found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4">
+            <a href="{% url 'voucher_brand_list' %}?from=voucherx" class="btn-enterprise-outline">
+                View All Brands
+            </a>
+        </div>
+    </div>
+    
+    {% elif active_tab == 'onboarding' %}
+    <!-- Onboarding Tab -->
+    <div class="space-y-6">
+        {% if user.role_code in 'super,admin' or user.is_staff %}
+        <!-- Pending Reviews -->
+        <div class="card-enterprise">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Pending Reviews</h3>
+                <a href="{% url 'brand_onboarding_admin_list' %}?from=voucherx" class="btn-enterprise-primary text-sm">
+                    View All
+                </a>
+            </div>
+            {% if pending_brands %}
+            <div class="table-enterprise">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th>Brand Name</th>
+                            <th>Contact Email</th>
+                            <th>Submitted By</th>
+                            <th>Submitted At</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for brand in pending_brands %}
+                        <tr>
+                            <td class="font-semibold text-gray-900">{{ brand.brand_name }}</td>
+                            <td class="text-gray-600">{{ brand.contact_email|default:"-" }}</td>
+                            <td class="text-gray-600">{{ brand.created_by.username|default:"-" }}</td>
+                            <td class="text-gray-600">{{ brand.updated_at|date:"M d, Y H:i" }}</td>
+                            <td class="text-right">
+                                <a href="{% url 'brand_onboarding_admin_detail' brand_id=brand.id %}?from=voucherx" class="btn-action">
+                                    <i class="ti ti-eye"></i>
+                                    Review
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i class="ti ti-check-circle text-4xl text-green-500 mb-2"></i>
+                <p class="text-gray-600">No pending reviews</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- In Progress Onboarding -->
+        <div class="card-enterprise">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">In Progress</h3>
+            </div>
+            {% if in_progress_brands %}
+            <div class="table-enterprise">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th>Brand Name</th>
+                            <th>Contact Email</th>
+                            <th>Started By</th>
+                            <th>Last Updated</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for brand in in_progress_brands %}
+                        <tr>
+                            <td class="font-semibold text-gray-900">{{ brand.brand_name }}</td>
+                            <td class="text-gray-600">{{ brand.contact_email|default:"-" }}</td>
+                            <td class="text-gray-600">{{ brand.created_by.username|default:"-" }}</td>
+                            <td class="text-gray-600">{{ brand.updated_at|date:"M d, Y H:i" }}</td>
+                            <td class="text-right">
+                                <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-action">
+                                    <i class="ti ti-arrow-right"></i>
+                                    Continue
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-600">No brands in progress</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% elif active_tab == 'issuance' %}
+    <!-- Issuance Tab -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Single Issuance -->
+        <div class="card-enterprise">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <i class="ti ti-gift text-indigo-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">Single Issuance</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Issue a single voucher quickly</p>
+            <a href="{% url 'voucher_issue_single' %}?from=voucherx" class="btn-enterprise-primary w-full">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Issue Single Voucher
+            </a>
+        </div>
+        
+        <!-- Bulk Issuance -->
+        <div class="card-enterprise">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <i class="ti ti-file-upload text-purple-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">Bulk Issuance</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Upload CSV/Excel file for bulk issuance</p>
+            <a href="{% url 'voucher_issue_bulk' %}?from=voucherx" class="btn-enterprise-primary w-full">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Issue Bulk Vouchers
+            </a>
+        </div>
+    </div>
+    
+    <!-- Available Brands -->
+    <div class="card-enterprise mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Brands</h3>
+        {% if available_brands %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for brand in available_brands %}
+            <div class="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors">
+                <p class="font-semibold text-gray-900">{{ brand.brand_name }}</p>
+                <p class="text-sm text-gray-600">{{ brand.brand_code }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <i class="ti ti-alert-circle text-4xl text-amber-500 mb-2"></i>
+            <p class="text-gray-600">No brands available for issuance</p>
+            <p class="text-sm text-gray-500 mt-2">Complete brand onboarding first</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Recent Batches -->
+    {% if recent_batches %}
+    <div class="card-enterprise mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Bulk Batches</h3>
+        <div class="table-enterprise">
+            <table class="w-full">
+                <thead>
+                    <tr>
+                        <th>Batch Reference</th>
+                        <th>Brand</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in recent_batches %}
+                    <tr>
+                        <td class="font-semibold">
+                            <a href="{% url 'voucher_batch_detail' batch_id=batch.id %}?from=voucherx" 
+                               class="text-indigo-600 hover:text-indigo-700 font-mono transition-colors">
+                                {{ batch.batch_reference }}
+                            </a>
+                        </td>
+                        <td class="text-gray-600">{{ batch.brand.brand_name }}</td>
+                        <td class="text-gray-600">{{ batch.total_vouchers }}</td>
+                        <td>
+                            {% if batch.status == 'COMPLETED' %}
+                            <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                            {% elif batch.status == 'PROCESSING' %}
+                            <span class="badge-enterprise badge-enterprise-info">Processing</span>
+                            {% else %}
+                            <span class="badge-enterprise badge-enterprise-gray">{{ batch.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-gray-600">{{ batch.created_at|date:"M d, Y" }}</td>
+                        <td class="text-right">
+                            <a href="{% url 'voucher_bulk_status' batch_id=batch.id %}?from=voucherx" class="btn-action">
+                                <i class="ti ti-eye"></i>
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% elif active_tab == 'vouchers' %}
+    <!-- Vouchers Tab -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Recent Vouchers</h3>
+            <a href="{% url 'voucher_list' %}?from=voucherx" class="btn-enterprise-outline text-sm">
+                View All
+            </a>
+        </div>
+        {% if vouchers %}
+        <div class="table-enterprise">
+            <table class="w-full">
+                <thead>
+                    <tr>
+                        <th>Voucher Code</th>
+                        <th>Brand</th>
+                        <th>Amount</th>
+                        <th>Balance</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for voucher in vouchers %}
+                    <tr>
+                        <td class="font-semibold text-gray-900">{{ voucher.voucher_code }}</td>
+                        <td class="text-gray-600">{{ voucher.brand.brand_name }}</td>
+                        <td class="text-gray-900">₹{{ voucher.original_amount }}</td>
+                        <td class="text-gray-900">₹{{ voucher.current_balance }}</td>
+                        <td>
+                            {% if voucher.status == 'ACTIVE' %}
+                            <span class="badge-enterprise badge-enterprise-success">Active</span>
+                            {% elif voucher.status == 'REDEEMED' %}
+                            <span class="badge-enterprise badge-enterprise-gray">Redeemed</span>
+                            {% else %}
+                            <span class="badge-enterprise badge-enterprise-warning">{{ voucher.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-gray-600">{{ voucher.issued_at|date:"M d, Y" }}</td>
+                        <td class="text-right">
+                            <a href="{% url 'voucher_detail' voucher_id=voucher.id %}?from=voucherx" class="btn-action">
+                                <i class="ti ti-eye"></i>
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <p class="text-gray-600">No vouchers found</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% elif active_tab == 'reports' %}
+    <!-- Reports Tab -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <a href="{% url 'voucher_report_issuance' %}?from=voucherx" class="card-enterprise hover:shadow-lg transition-shadow">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <i class="ti ti-file-upload text-indigo-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">Issuance Report</h3>
+            </div>
+            <p class="text-sm text-gray-600">View voucher issuance statistics and trends</p>
+        </a>
+        
+        <a href="{% url 'voucher_report_redemption' %}?from=voucherx" class="card-enterprise hover:shadow-lg transition-shadow">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                    <i class="ti ti-file-download text-green-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">Redemption Report</h3>
+            </div>
+            <p class="text-sm text-gray-600">View voucher redemption statistics</p>
+        </a>
+        
+        <a href="{% url 'voucher_report_outstanding' %}?from=voucherx" class="card-enterprise hover:shadow-lg transition-shadow">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <i class="ti ti-currency-rupee text-blue-600"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">Outstanding Balance</h3>
+            </div>
+            <p class="text-sm text-gray-600">View outstanding voucher balances</p>
+        </a>
+    </div>
+    
+    <!-- Summary Stats -->
+    {% if issuance_summary %}
+    <div class="card-enterprise">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Monthly Summary</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 bg-indigo-50 rounded-lg">
+                <p class="text-sm text-gray-600">Total Issued</p>
+                <p class="text-2xl font-bold text-gray-900">{{ issuance_summary.total_issued }}</p>
+            </div>
+            <div class="p-4 bg-green-50 rounded-lg">
+                <p class="text-sm text-gray-600">Total Value</p>
+                <p class="text-2xl font-bold text-gray-900">₹{{ issuance_summary.total_value|floatformat:0 }}</p>
+            </div>
+            <div class="p-4 bg-blue-50 rounded-lg">
+                <p class="text-sm text-gray-600">Average Value</p>
+                <p class="text-2xl font-bold text-gray-900">₹{{ issuance_summary.avg_value|floatformat:0 }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<style>
+.tab-link {
+    @apply flex items-center px-4 py-3 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 hover:border-gray-300 transition-colors;
+}
+.tab-link.active {
+    @apply text-indigo-600 border-indigo-600;
+}
+</style>
+{% endblock %}

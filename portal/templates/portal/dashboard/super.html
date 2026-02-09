@@ -4,10 +4,145 @@
 {% block page_title %}Super Dashboard{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="card">
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">Super Dashboard</h2>
-        <p class="text-gray-600">Welcome, {{ user.username }}!</p>
+<!-- Enterprise Stat Cards - 3D Style with Light Colors -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="stat-card-enterprise" data-color="indigo" style="border-left-color: #6366f1;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Total Users</p>
+                <p class="stat-value">{{ total_users|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #6366f1;">
+                <i class="ti ti-users text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="amber" style="border-left-color: #f59e0b;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Pending KYC</p>
+                <p class="stat-value">{{ pending_kyc|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #f59e0b;">
+                <i class="ti ti-file-text text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="emerald" style="border-left-color: #10b981;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Total Wallets</p>
+                <p class="stat-value">{{ total_wallets|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #10b981;">
+                <i class="ti ti-wallet text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="blue" style="border-left-color: #3b82f6;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Active Profiles</p>
+                <p class="stat-value">{{ active_profiles|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #3b82f6;">
+                <i class="ti ti-user-check text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="teal" style="border-left-color: #14b8a6;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Total Partners</p>
+                <p class="stat-value">{{ total_partners|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #14b8a6;">
+                <i class="ti ti-building-store text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="green" style="border-left-color: #22c55e;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Active Partners</p>
+                <p class="stat-value">{{ active_partners|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #22c55e;">
+                <i class="ti ti-check text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card-enterprise" data-color="orange" style="border-left-color: #f97316;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Pending Onboarding</p>
+                <p class="stat-value">{{ pending_partner_onboarding|default:0 }}</p>
+            </div>
+            <div class="stat-icon" style="color: #f97316;">
+                <i class="ti ti-clock text-2xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card-enterprise">
+    <div class="card-enterprise-header">
+        <div class="flex items-center gap-2">
+            <i class="ti ti-bolt text-xl text-indigo-600"></i>
+            <h3 class="card-enterprise-title">Quick Actions</h3>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <a href="{% url 'user_list' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-lg transition-all group bg-gradient-to-br from-indigo-50 to-indigo-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-indigo-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-users text-2xl text-indigo-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Users</h4>
+            <p class="text-xs text-gray-600 text-center">Manage users</p>
+        </a>
+        <a href="{% url 'kyc_list' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-lg transition-all group bg-gradient-to-br from-amber-50 to-amber-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-amber-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-file-check text-2xl text-amber-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">KYC</h4>
+            <p class="text-xs text-gray-600 text-center">Review submissions</p>
+        </a>
+        <a href="{% url 'permissions' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all group bg-gradient-to-br from-blue-50 to-blue-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-blue-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-shield-check text-2xl text-blue-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Permissions</h4>
+            <p class="text-xs text-gray-600 text-center">Manage access</p>
+        </a>
+        <a href="{% url 'log_list' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-lg transition-all group bg-gradient-to-br from-purple-50 to-purple-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-purple-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-file-text text-2xl text-purple-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Logs</h4>
+            <p class="text-xs text-gray-600 text-center">System logs</p>
+        </a>
+        <a href="{% url 'voucherx_dashboard' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-emerald-300 hover:shadow-lg transition-all group bg-gradient-to-br from-emerald-50 to-emerald-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-emerald-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-gift text-2xl text-emerald-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">VoucherX</h4>
+            <p class="text-xs text-gray-600 text-center">Gift vouchers</p>
+        </a>
+        <a href="{% url 'services_list' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-emerald-300 hover:shadow-lg transition-all group bg-gradient-to-br from-emerald-50 to-emerald-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-emerald-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-server text-2xl text-emerald-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Services</h4>
+            <p class="text-xs text-gray-600 text-center">API services</p>
+        </a>
+        <a href="{% url 'admin_reseller_partner_dashboard' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-lg transition-all group bg-gradient-to-br from-teal-50 to-teal-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-teal-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                <i class="ti ti-building-store text-2xl text-teal-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Partners</h4>
+            <p class="text-xs text-gray-600 text-center">Partner management</p>
+        </a>
     </div>
 </div>
 {% endblock %}

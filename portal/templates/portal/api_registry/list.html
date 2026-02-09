@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}API Registry{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-900">API Endpoints</h2>
+        <div class="flex gap-4">
+            <a href="{% url 'api_product_list' %}" class="text-[#0066CC] hover:underline">API Control (Parkpe / Payswap)</a>
+            <a href="{% url 'dashboard_admin' %}" class="text-[#0066CC] hover:underline">Back to Admin</a>
+        </div>
+    </div>
+
+    <div class="flex gap-4 items-center">
+        <form method="get" class="flex gap-2">
+            <select name="version" class="border rounded px-2 py-1 text-sm">
+                <option value="">All versions</option>
+                <option value="v1" {% if request.GET.version == 'v1' %}selected{% endif %}>v1</option>
+                <option value="v2" {% if request.GET.version == 'v2' %}selected{% endif %}>v2</option>
+            </select>
+            <select name="status" class="border rounded px-2 py-1 text-sm">
+                <option value="">All statuses</option>
+                <option value="ON" {% if request.GET.status == 'ON' %}selected{% endif %}>ON</option>
+                <option value="OFF" {% if request.GET.status == 'OFF' %}selected{% endif %}>OFF</option>
+            </select>
+            <button type="submit" class="btn btn-primary text-white text-sm">Filter</button>
+        </form>
+        <a href="{% url 'api_registry_logs' %}" class="text-[#0066CC] hover:underline text-sm">View API Logs</a>
+    </div>
+
+    <div class="card">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-gray-200">
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">API Name</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Endpoint</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Method</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Version</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Category</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Toggle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for api in apis %}
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="py-3 px-4 text-sm font-semibold text-gray-900">{{ api.api_name }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600 font-mono">{{ api.endpoint }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ api.http_method }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ api.version }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ api.service_category.name|default:"-" }}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-1 rounded text-xs font-semibold {% if api.status == 'ON' %}bg-green-100 text-green-800{% else %}bg-gray-200 text-gray-800{% endif %}">
+                                {{ api.status }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <form method="post" action="{% url 'api_registry_toggle' api.pk %}" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[#0066CC] hover:underline text-sm">
+                                    Turn {% if api.status == 'ON' %}OFF{% else %}ON{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-gray-600">No APIs in registry. Run: python manage.py sync_api_registry</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&version={{ request.GET.version }}&status={{ request.GET.status }}" class="text-[#0066CC]">Previous</a>{% endif %}
+        <span class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&version={{ request.GET.version }}&status={{ request.GET.status }}" class="text-[#0066CC]">Next</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

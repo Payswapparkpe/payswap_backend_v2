@@ -1,0 +1,18 @@
+<div class="connect-embed">
+  <header class="connect-embed-header">
+    <a routerLink="/dashboard" class="back-link">
+      <span class="material-icons">arrow_back</span>
+      Back to ParkPe
+    </a>
+    <span class="title">Connect – Secure vehicle communication</span>
+    <a [href]="rawUrl" target="_blank" rel="noopener noreferrer" class="open-new">
+      Open in new tab
+      <span class="material-icons">open_in_new</span>
+    </a>
+  </header>
+  <iframe
+    [src]="connectAppUrl"
+    class="connect-iframe"
+    title="ParkPe Connect – Create QR, contact vehicle owners securely"
+  ></iframe>
+</div>

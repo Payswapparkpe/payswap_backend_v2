@@ -1,0 +1,14 @@
+{
+  "razorpay": {
+    "razorpayOrderId": "order_mock_rzp_123456789",
+    "amount": 50000,
+    "currency": "INR",
+    "receipt": "receipt_001"
+  },
+  "cashfree": {
+    "paymentSessionId": "session_mock_cf_987654321",
+    "orderId": "order_mock_cf_001",
+    "orderAmount": 500,
+    "orderCurrency": "INR"
+  }
+}

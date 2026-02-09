@@ -24,6 +24,22 @@ The backend is designed to be **secure, scalable, compliant, and API-first**, al
 
 ---
 
+## 📁 Project structure
+
+| Path | Purpose |
+|------|--------|
+| **core/** | Django settings, config, CSRF middleware |
+| **api/** | REST API: v1, v2, auth_parkpe, parkpe_api, bbps, connect, etc. |
+| **portal/** | Django app: models, admin, views, templates, services, tasks, management commands |
+| **docs/** | Documentation (auth, MFA, API, vendor integration). Start at `docs/README.md` |
+| **deploy/** | Deployment (e.g. systemd units). See `deploy/README.md` |
+| **scripts/** | Standalone scripts (e.g. fetch images). Prefer `manage.py` commands when using Django. See `scripts/README.md` |
+| **Cashfree/, Mobikwik/, Euronet BBPS/** | Vendor reference/keys; paths referenced in `.env` — do not move without updating env and code |
+| **Image Files/** | Asset storage; referenced by scripts |
+| **frontend-space/** | Angular workspace (ParkPe app under `projects/parkpe/`) |
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -61,9 +77,13 @@ source .venv/bin/activate
 
 #### Step 3: Install Dependencies
 
+Run from the project root (where `requirements.txt` lives):
+
 ```bash
 pip install -r requirements.txt
 ```
+
+> **Tip:** If you see `ModuleNotFoundError: No module named 'simple_history'` when running `manage.py`, install deps again: `pip install -r requirements.txt`, then run migrations.
 
 #### Step 4: Environment Configuration
 
@@ -106,12 +126,14 @@ SIGNING_SECRET=your-signing-secret-change-in-production
 # Create PostgreSQL database
 createdb payswap_db
 
-# Run migrations
+# Run migrations (from project root)
 python manage.py migrate
 
 # Create superuser (optional)
 python manage.py createsuperuser
 ```
+
+**Troubleshooting:** `Could not open requirements file: ... 'requirements.txt...'` usually means the command was run from the wrong directory or a typo in the filename. Use `pip install -r requirements.txt` (no extra text) from the project root.
 
 #### Step 6: Redis Setup
 
@@ -319,6 +341,8 @@ celery -A core beat --loglevel=info
 - Status reconciliation
 - Commission & fee calculation
 - Provider failover support
+
+**Vendor reference (Euronet BBPS, Cashfree, Mobikwik, PayPoint AEPS/DMT):** See **`docs/VENDOR_INTEGRATION_REFERENCE.md`** for correct understanding, required parameters, `.env` keys, and test commands. Use project folders `Euronet BBPS/`, `Cashfree/`, `Mobikwik/`, and PayPoint online docs; all keys from env. Test CLI: `python manage.py test_euronet_bbps`, `test_mobikwik_bbps`, `test_paypoint_aeps`, `test_all_cashfree_apis`.
 
 ---
 

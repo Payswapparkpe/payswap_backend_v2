@@ -281,7 +281,8 @@ function otpVerification() {
             
             // Auto-submit when all filled
             if (this.otpDigits.every(d => d) && this.otpDigits.length === 6) {
-                this.submitForm();
+                // Use setTimeout to ensure form is ready
+                setTimeout(() => this.submitForm(), 100);
             }
         },
         
@@ -375,7 +376,18 @@ function otpVerification() {
             this.errorMessage = '';
             this.successMessage = '';
             
-            const form = this.$el.querySelector('form');
+            // Get the form element - try multiple methods to ensure we get it
+            let form = this.$el.querySelector('form');
+            if (!form) {
+                // Fallback: try to find form in the component
+                form = document.querySelector('form[action*="mfa/verify"]');
+            }
+            if (!form || !(form instanceof HTMLFormElement)) {
+                this.errorMessage = 'Form not found. Please refresh the page.';
+                this.submitting = false;
+                return;
+            }
+            
             const formData = new FormData(form);
             
             // Set the correct code based on method
@@ -417,7 +429,9 @@ function otpVerification() {
         },
         
         goBack() {
-            window.location.href = '{% url "signin" %}';
+            // Clear MFA verification session state and go back to signin
+            // Add query parameter to signal session cleanup
+            window.location.href = '{% url "signin" %}?clear_mfa=1';
         }
     }
 }

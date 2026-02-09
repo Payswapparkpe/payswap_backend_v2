@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ vendor.name }} - {{ service.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'service_detail' service_id=service.id %}" class="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back to {{ service.name }}</span>
+        </a>
+    </div>
+
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shadow-lg">
+                <i class="ti {{ vendor.icon }} text-2xl text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="page-title-enterprise">{{ vendor.name }}</h1>
+                <p class="page-description-enterprise">{{ vendor.description }}</p>
+            </div>
+            <div>
+                {% if vendor.status == 'available' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif vendor.status == 'unavailable' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Unavailable</span>
+                {% else %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Info Card -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Vendor Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Vendor Name</p>
+                <p class="text-base font-semibold text-gray-900">{{ vendor.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Status</p>
+                <p class="text-base text-gray-900 capitalize">
+                    {% if vendor.status == 'available' %}Active (configured){% else %}Pending – set PAYPOINT_DMT_* in .env{% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Service</p>
+                <p class="text-base text-gray-900">{{ service.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Total APIs</p>
+                <p class="text-base text-gray-900">{{ apis|length }} Services</p>
+            </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <p class="text-sm text-gray-600 mb-2">
+                PayPoint DMT (Domestic Money Transfer) provides sender registration, add beneficiary, remit, and transaction status. Credentials (UserCode, Password, IdentificationCode, Key) are configured in <code class="bg-gray-100 px-1 rounded">.env</code>; UserCode, Password and IdentificationCode are encrypted via PayPoint’s Encrypt API before each request. Docs: <a href="https://docs.paypointindia.co.in/api/paypoint-dmt-api/dmt-api/overview" target="_blank" rel="noopener">PayPoint DMT Overview</a>. Partners use <strong>API v2</strong>: <code class="bg-gray-100 px-1 rounded">/api/v2/dmt/</code>.
+            </p>
+            {% if vendor.documentation_url %}
+            <a href="{{ vendor.documentation_url }}" target="_blank" rel="noopener" class="text-indigo-600 hover:text-indigo-800 text-sm">Documentation <i class="ti ti-external-link"></i></a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- DMT APIs -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">DMT APIs</h2>
+                <p class="text-sm text-gray-500 mt-1">Sender registration, add beneficiary, remit, transaction status, get beneficiaries</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for api in apis %}
+            <div class="p-4 border border-gray-200 rounded-lg hover:border-violet-300 hover:shadow-md transition-all">
+                <div class="flex items-start gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
+                        <i class="ti {{ api.icon }} text-violet-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h5 class="font-semibold text-gray-900">{{ api.name }}</h5>
+                        <p class="text-xs text-gray-500 mt-1">{{ api.description }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if api.status == 'working' %}
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <i class="ti ti-check-circle"></i> Working
+                    </span>
+                    {% elif api.status == 'error' %}
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
+                        <i class="ti ti-alert-circle"></i> Error
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        <i class="ti ti-help-circle"></i> Unknown
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+            <p class="text-sm text-gray-700">
+                <strong>API v2 endpoints:</strong><br>
+                <code>POST /api/v2/dmt/register-sender/</code> – sender/remitter registration<br>
+                <code>POST /api/v2/dmt/add-beneficiary/</code> – add beneficiary<br>
+                <code>POST /api/v2/dmt/remit/</code> – money transfer<br>
+                <code>GET /api/v2/dmt/status/&lt;ref_id&gt;/</code> – transaction status<br>
+                <code>POST /api/v2/dmt/beneficiaries/</code> – get beneficiaries
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

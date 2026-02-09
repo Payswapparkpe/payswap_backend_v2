@@ -7,9 +7,17 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Update Profile</h1>
-        <p class="text-gray-600">Update your personal and account information</p>
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <i class="ti ti-edit text-xl text-indigo-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">Update Profile</h1>
+                <p class="page-description-enterprise">Update your personal and account information</p>
+            </div>
+        </div>
     </div>
     
     <form method="POST" enctype="multipart/form-data" class="space-y-6">
@@ -17,102 +25,108 @@
         
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Personal Information Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Personal Information</h3>
-                <div class="space-y-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-user-circle text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Personal Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-6">
                     <div>
-                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
-                            First Name *
+                        <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                            First Name <span class="text-red-600">*</span>
                         </label>
                         {{ form.first_name }}
                         {% if form.first_name.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                        <p class="form-error-message">{{ form.first_name.errors.0 }}</p>
                         {% endif %}
                     </div>
                     
                     <div>
-                        <label for="{{ form.middle_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.middle_name.id_for_label }}" class="form-label">
                             Middle Name
                         </label>
                         {{ form.middle_name }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.last_name.id_for_label }}" class="form-label">
                             Last Name
                         </label>
                         {{ form.last_name }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.date_of_birth.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.date_of_birth.id_for_label }}" class="form-label">
                             Date of Birth
                         </label>
                         {{ form.date_of_birth }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.gender.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.gender.id_for_label }}" class="form-label">
                             Gender
                         </label>
                         {{ form.gender }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.marital_status.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.marital_status.id_for_label }}" class="form-label">
                             Marital Status
                         </label>
                         {{ form.marital_status }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.profile_photo.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.profile_photo.id_for_label }}" class="form-label">
                             Profile Photo
                         </label>
                         {{ form.profile_photo }}
                         {% if profile.profile_photo %}
-                        <p class="mt-2 text-sm text-gray-600">Current: <a href="{{ profile.profile_photo.url }}" target="_blank" class="text-[#0066CC] hover:underline">View</a></p>
+                        <p class="form-help-text">Current: <a href="{{ profile.profile_photo.url }}" target="_blank" class="text-indigo-600 hover:text-indigo-700">View</a></p>
                         {% endif %}
                     </div>
                 </div>
             </div>
             
             <!-- Contact Information Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Contact Information</h3>
-                <div class="space-y-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-phone text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Contact Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-6">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Email
-                        </label>
-                        <input type="email" value="{{ profile.email }}" disabled class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                        <p class="mt-1 text-xs text-gray-500">Email cannot be changed. Contact support if needed.</p>
+                        <label class="form-label">Email</label>
+                        <input type="email" value="{{ profile.email }}" disabled class="input-enterprise" style="background-color: #f9fafb; color: #6b7280;">
+                        <p class="form-help-text">Email cannot be changed. Contact support if needed.</p>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Phone
-                        </label>
-                        <input type="tel" value="{{ profile.phone }}" disabled class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                        <p class="mt-1 text-xs text-gray-500">Phone cannot be changed. Contact support if needed.</p>
+                        <label class="form-label">Phone</label>
+                        <input type="tel" value="{{ profile.phone }}" disabled class="input-enterprise" style="background-color: #f9fafb; color: #6b7280;">
+                        <p class="form-help-text">Phone cannot be changed. Contact support if needed.</p>
                     </div>
                     
                     <div>
-                        <label for="{{ form.alternate_phone.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.alternate_phone.id_for_label }}" class="form-label">
                             Alternate Phone
                         </label>
                         {{ form.alternate_phone }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.address_line_1.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.address_line_1.id_for_label }}" class="form-label">
                             Address Line 1
                         </label>
                         {{ form.address_line_1 }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.address_line_2.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.address_line_2.id_for_label }}" class="form-label">
                             Address Line 2
                         </label>
                         {{ form.address_line_2 }}
@@ -120,13 +134,13 @@
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label for="{{ form.city.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <label for="{{ form.city.id_for_label }}" class="form-label">
                                 City
                             </label>
                             {{ form.city }}
                         </div>
                         <div>
-                            <label for="{{ form.state.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <label for="{{ form.state.id_for_label }}" class="form-label">
                                 State
                             </label>
                             {{ form.state }}
@@ -134,7 +148,7 @@
                     </div>
                     
                     <div>
-                        <label for="{{ form.pincode.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.pincode.id_for_label }}" class="form-label">
                             Pincode
                         </label>
                         {{ form.pincode }}
@@ -143,46 +157,51 @@
             </div>
             
             <!-- Banking Information Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Banking Information</h3>
-                <div class="space-y-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-building-bank text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Banking Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-6">
                     <div>
-                        <label for="{{ form.bank_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.bank_name.id_for_label }}" class="form-label">
                             Bank Name
                         </label>
                         {{ form.bank_name }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.account_holder_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.account_holder_name.id_for_label }}" class="form-label">
                             Account Holder Name
                         </label>
                         {{ form.account_holder_name }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.account_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.account_number.id_for_label }}" class="form-label">
                             Account Number
                         </label>
                         {{ form.account_number }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.ifsc_code.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.ifsc_code.id_for_label }}" class="form-label">
                             IFSC Code
                         </label>
                         {{ form.ifsc_code }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.branch_name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.branch_name.id_for_label }}" class="form-label">
                             Branch Name
                         </label>
                         {{ form.branch_name }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.account_type.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.account_type.id_for_label }}" class="form-label">
                             Account Type
                         </label>
                         {{ form.account_type }}
@@ -191,32 +210,37 @@
             </div>
             
             <!-- Taxation Information Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Taxation Information</h3>
-                <div class="space-y-4">
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-receipt text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Taxation Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-6">
                     <div>
-                        <label for="{{ form.pan_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.pan_number.id_for_label }}" class="form-label">
                             PAN Number
                         </label>
                         {{ form.pan_number }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.aadhaar_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.aadhaar_number.id_for_label }}" class="form-label">
                             Aadhaar Number
                         </label>
                         {{ form.aadhaar_number }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.gst_number.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.gst_number.id_for_label }}" class="form-label">
                             GST Number
                         </label>
                         {{ form.gst_number }}
                     </div>
                     
                     <div>
-                        <label for="{{ form.tax_id.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <label for="{{ form.tax_id.id_for_label }}" class="form-label">
                             Other Tax ID
                         </label>
                         {{ form.tax_id }}
@@ -226,11 +250,12 @@
         </div>
         
         <!-- Submit Buttons -->
-        <div class="flex gap-4 justify-end">
-            <a href="{% url 'profile' %}" class="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+        <div class="flex gap-3 justify-end pt-6 border-t border-gray-200">
+            <a href="{% url 'profile' %}" class="btn-enterprise-secondary">
                 Cancel
             </a>
-            <button type="submit" class="bg-[#0066CC] hover:bg-[#0052A3] text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
                 Save Changes
             </button>
         </div>

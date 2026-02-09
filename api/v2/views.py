@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from .permissions import IsExternalUser, HasAPIKey
+from .authentication import APIKeyAuthentication
 from api.mixins.response_mixin import StandardResponseMixin
 
 
@@ -48,6 +49,7 @@ class PartnerAPIView(StandardResponseMixin, APIView):
     """
     Base view for partner endpoints (requires API key)
     """
+    authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey]
     
     def get(self, request):

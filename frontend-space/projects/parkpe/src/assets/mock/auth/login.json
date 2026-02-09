@@ -1,0 +1,15 @@
+{
+  "token": "mock_jwt_token_abc123xyz789",
+  "refreshToken": "mock_refresh_token_def456uvw012",
+  "user": {
+    "id": "user_001",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+919876543210",
+    "role": "user",
+    "emailVerified": true,
+    "phoneVerified": true,
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  "expiresIn": 3600
+}

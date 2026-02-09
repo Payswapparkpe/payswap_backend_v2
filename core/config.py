@@ -3,7 +3,7 @@ Secure Environment Configuration using Pydantic Settings
 File: core/config.py
 """
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Tuple
 from functools import lru_cache
 
 from pydantic import Field, SecretStr, PostgresDsn, RedisDsn, model_validator
@@ -53,7 +53,10 @@ class PayswapConfig(BaseSettings):
     ENCRYPTION_KEY: SecretStr = Field(..., min_length=32)
     SIGNING_SECRET: SecretStr = Field(..., min_length=32)
     JWT_SIGNING_KEY: SecretStr = Field(..., min_length=32)
-    JWT_ACCESS_TOKEN_LIFETIME: int = Field(default=300)
+    JWT_ACCESS_TOKEN_LIFETIME: int = Field(
+        default=3600,
+        description="Access token lifetime in seconds. Use 900–3600 (15–60 min) for production.",
+    )
     JWT_REFRESH_TOKEN_LIFETIME: int = Field(default=86400)
 
     # ============================================================================
@@ -61,17 +64,131 @@ class PayswapConfig(BaseSettings):
     # ============================================================================
     KALEYRA_API_KEY: SecretStr = Field(...)
     KALEYRA_SID: str = Field(...)
-    # Note: Base URL is constructed in KaleyraClient using India-specific endpoint
-    # India endpoint: https://api.in.kaleyra.io/v1/<<SID>>
-    KALEYRA_BASE_URL: str = Field(default="https://api.in.kaleyra.io/v1")
+    # Sender ID/Header - This is what appears as the sender name in SMS
+    KALEYRA_HEADER_PAYSWAP: str = Field(default="PYSWAP")
+    # OTP Template ID for Kaleyra (DLT-approved) – Payswap registration OTP
+    KALEYRA_OTP_TEMPLATE_ID: str = Field(default="1007640321725099860")
+    # Base URL for Kaleyra API (without protocol, will be added in code)
+    # Example: api.in.kaleyra.io (will become https://api.in.kaleyra.io/v1/{SID})
+    KALEYRA_BASE_URL: str = Field(default="api.in.kaleyra.io")
     
     # ============================================================================
     # DOCUMENT VERIFICATION
     # ============================================================================
     CASHFREE_API_KEY: Optional[SecretStr] = Field(default=None)
     CASHFREE_API_SECRET: Optional[SecretStr] = Field(default=None)
+    CASHFREE_PUBLIC_KEY: Optional[str] = Field(
+        default=None,
+        description="Cashfree public key (PEM format) for signature generation. Required if IP is not whitelisted."
+    )
+    CASHFREE_PUBLIC_KEY_PATH: Optional[str] = Field(
+        default=None,
+        description="Path to Cashfree public key file (alternative to CASHFREE_PUBLIC_KEY)"
+    )
     INVINCIBLE_OCEAN_API_KEY: Optional[SecretStr] = Field(default=None)
     INVINCIBLE_OCEAN_API_SECRET: Optional[SecretStr] = Field(default=None)
+    
+    # ============================================================================
+    # LEGALITY (Document Signing & Stamp Paper)
+    # ============================================================================
+    LEGALITY_AUTH_TOKEN: Optional[SecretStr] = Field(default=None)
+    LEGALITY_PRIVATE_SALT: Optional[SecretStr] = Field(default=None)
+    
+    # ============================================================================
+    # CASHFREE PAYMENT GATEWAY (PG)
+    # ============================================================================
+    CASHFREE_PG_CLIENT_ID: Optional[SecretStr] = Field(default=None)
+    CASHFREE_PG_CLIENT_SECRET: Optional[SecretStr] = Field(default=None)
+    CASHFREE_PG_PARTNER_KEY: Optional[SecretStr] = Field(default=None)
+    CASHFREE_PG_CLIENT_SIGNATURE: Optional[SecretStr] = Field(default=None)
+    CASHFREE_PG_PARTNER_MERCHANT_ID: Optional[str] = Field(default=None)
+    CASHFREE_PG_ENVIRONMENT: str = Field(default='SANDBOX', description='SANDBOX or PRODUCTION')
+
+    # (Razorpay PG removed; ParkPe uses Cashfree only.)
+
+    # ============================================================================
+    # MOBIKWIK BBPS (Bharat Bill Payment System) – New API (Token + Encrypted Payload)
+    # UAT docs: Token Generation, Balance Check, Validation, View Bill, Recharge, Transaction Status
+    # Request body (when required): encryptedSessionKey, encryptedPayload, keyVersion, iv
+    # ============================================================================
+    MOBIKWIK_BBPS_ENABLED: bool = Field(default=False, description='Enable Mobikwik BBPS integration')
+    MOBIKWIK_BBPS_CLIENT_ID: Optional[str] = Field(default=None, description='Mobikwik BBPS Client ID (for Token API)')
+    MOBIKWIK_BBPS_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description='Mobikwik BBPS Client Secret (for Token API)')
+    MOBIKWIK_BBPS_MERCHANT_ID: Optional[str] = Field(default=None, description='Mobikwik BBPS Merchant ID')
+    MOBIKWIK_BBPS_API_KEY: Optional[SecretStr] = Field(default=None, description='Mobikwik BBPS API Key (optional if using token)')
+    MOBIKWIK_BBPS_SECRET_KEY: Optional[SecretStr] = Field(default=None, description='Mobikwik BBPS Secret Key (checksum)')
+    MOBIKWIK_BBPS_BASE_URL: str = Field(
+        default='https://alpha3.mobikwik.com',
+        description='Mobikwik BBPS API base URL (testing: alpha3.mobikwik.com; change for production)'
+    )
+    MOBIKWIK_BBPS_ENVIRONMENT: str = Field(default='UAT', description='UAT or PRODUCTION')
+    MOBIKWIK_BBPS_USE_ENCRYPTION: bool = Field(
+        default=False,
+        description='Use encrypted request body (encryptedSessionKey, encryptedPayload, keyVersion, iv)'
+    )
+    MOBIKWIK_BBPS_PUBLIC_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description='Mobikwik public key (PEM) for encrypting session key when MOBIKWIK_BBPS_USE_ENCRYPTION=True'
+    )
+    MOBIKWIK_BBPS_PUBLIC_KEY_PATH: Optional[str] = Field(
+        default=None,
+        description='Path to Mobikwik public key PEM file (e.g. Mobikwik/public_key.pem); used if MOBIKWIK_BBPS_PUBLIC_KEY not set'
+    )
+    MOBIKWIK_BBPS_KEY_VERSION: str = Field(default='1.0', description='Key version for encrypted payload (match Mobikwik README, e.g. 1.0)')
+    MOBIKWIK_BBPS_TOKEN_PATH: Optional[str] = Field(
+        default=None,
+        description='Override token API path (e.g. /oauth/token or /v1/token). Set from Mobikwik RT-Recharge & Bill Payment API doc if token fails.'
+    )
+
+    # ============================================================================
+    # EURONET BBPS (Bharat Connect / EFT APME) – Single endpoint EnService
+    # UAT: https://epayuat.eftapme.com/ENServiceAES256/API/EnService
+    # ============================================================================
+    EURONET_BBPS_ENABLED: bool = Field(default=False, description='Enable Euronet BBPS integration')
+    EURONET_BBPS_BASE_URL: str = Field(
+        default='https://epayuat.eftapme.com/ENServiceAES256/API',
+        description='Euronet EnService API base URL (UAT: epayuat.eftapme.com)'
+    )
+    EURONET_BBPS_MERCHANT_CODE: Optional[str] = Field(default=None, description='Euronet Merchant Code (e.g. PAY)')
+    EURONET_BBPS_USERNAME: Optional[str] = Field(default=None, description='Euronet Username (e.g. PAY_01)')
+    EURONET_BBPS_PASSWORD: Optional[SecretStr] = Field(default=None, description='Euronet User Pass')
+    EURONET_BBPS_STORE_CODE: Optional[str] = Field(default=None, description='Euronet Store Code (e.g. PAY_01)')
+    EURONET_BBPS_CHANNEL_CODE: str = Field(default='INT', description='Channel Code (e.g. INT for Internet Banking)')
+    EURONET_BBPS_AGENT_ID: Optional[str] = Field(default=None, description='Euronet Agent id (e.g. EU01EU02000000000001)')
+    EURONET_BBPS_SALT: Optional[str] = Field(default=None, description='Euronet Salt Value for hash')
+    EURONET_BBPS_ENCRYPTION_KEY: Optional[SecretStr] = Field(default=None, description='Euronet Encryption key (from UAT details)')
+
+    # ============================================================================
+    # PAYPOINT AEPS (Aadhaar Enabled Payment System)
+    # Docs: https://docs.paypointindia.co.in/api/paypoint-aeps-api/paypoint/overview
+    # UserCode, Password, IdentificationCode must be encrypted via Encrypt API before each request.
+    # ============================================================================
+    PAYPOINT_AEPS_ENABLED: bool = Field(default=False, description='Enable PayPoint AEPS integration')
+    PAYPOINT_AEPS_BASE_URL: str = Field(
+        default='https://api.paypointindia.co.in',
+        description='PayPoint AEPS API base URL (from PayPoint contract; IP whitelist required)'
+    )
+    PAYPOINT_AEPS_USER_CODE: Optional[str] = Field(default=None, description='PayPoint UserCode (encrypted via Encrypt API before use)')
+    PAYPOINT_AEPS_PASSWORD: Optional[SecretStr] = Field(default=None, description='PayPoint Password (encrypted via Encrypt API before use)')
+    PAYPOINT_AEPS_IDENTIFICATION_CODE: Optional[str] = Field(default=None, description='PayPoint IdentificationCode (encrypted via Encrypt API before use)')
+    PAYPOINT_AEPS_KEY: Optional[SecretStr] = Field(default=None, description='PayPoint Key (provided by PayPoint; not encrypted)')
+    PAYPOINT_AEPS_ENVIRONMENT: str = Field(default='UAT', description='UAT or PRODUCTION')
+
+    # ============================================================================
+    # PAYPOINT DMT (Domestic Money Transfer)
+    # Docs: https://docs.paypointindia.co.in/api/paypoint-dmt-api/dmt-api/overview
+    # Same Encrypt API as AEPS; UserCode, Password, IdentificationCode encrypted before each request.
+    # ============================================================================
+    PAYPOINT_DMT_ENABLED: bool = Field(default=False, description='Enable PayPoint DMT integration')
+    PAYPOINT_DMT_BASE_URL: str = Field(
+        default='https://api.paypointindia.co.in',
+        description='PayPoint DMT API base URL (IP whitelist required)'
+    )
+    PAYPOINT_DMT_USER_CODE: Optional[str] = Field(default=None, description='PayPoint DMT UserCode (encrypted via Encrypt API before use)')
+    PAYPOINT_DMT_PASSWORD: Optional[SecretStr] = Field(default=None, description='PayPoint DMT Password (encrypted via Encrypt API before use)')
+    PAYPOINT_DMT_IDENTIFICATION_CODE: Optional[str] = Field(default=None, description='PayPoint DMT IdentificationCode (encrypted via Encrypt API before use)')
+    PAYPOINT_DMT_KEY: Optional[SecretStr] = Field(default=None, description='PayPoint DMT Key (provided by PayPoint; not encrypted)')
+    PAYPOINT_DMT_ENVIRONMENT: str = Field(default='UAT', description='UAT or PRODUCTION')
 
     # ============================================================================
     # EMAIL
@@ -84,10 +201,39 @@ class PayswapConfig(BaseSettings):
     SMTP_DEFAULT_FROM: str = Field(default="no-reply@payswap.in")
 
     # ============================================================================
-    # AWS S3
+    # EMAIL SMTP Parkpe (for voucher system – Zoho etc.)
     # ============================================================================
-    S3_ACCESS_KEY: SecretStr = Field(...)
-    S3_SECRET_KEY: SecretStr = Field(...)
+    SMTP_HOST_Parkpe: Optional[str] = Field(default=None, description="Parkpe SMTP host (e.g. smtppro.zoho.in)")
+    SMTP_PORT_Parkpe: Optional[int] = Field(default=587)
+    SMTP_USER_Parkpe: Optional[str] = Field(default=None)
+    SMTP_PASSWORD_Parkpe: Optional[SecretStr] = Field(default=None)
+    SMTP_USE_TLS_Parkpe: bool = Field(default=True)
+    SMTP_DEFAULT_FROM_Parkpe: Optional[str] = Field(default=None)
+    PARKPE_SMTP_SSL_VERIFY: bool = Field(default=True, description="Set false in dev if SSL verify fails (e.g. macOS)")
+    PARKPE_VOUCHER_BRAND_ID: Optional[int] = Field(
+        default=None,
+        description="Gift Voucher Brand ID for ParkPe (VoucherX). When set, ParkPe buy-voucher uses this brand to issue vouchers.",
+    )
+
+    # ============================================================================
+    # INSTANTPAY API
+    # ============================================================================
+    INSTANTPAY_CLIENT_ID: Optional[SecretStr] = Field(default=None, description="Instantpay API Client Id")
+    INSTANTPAY_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Instantpay API Client Secret")
+    INSTANTPAY_ENCRYPTION_KEY: Optional[SecretStr] = Field(default=None, description="Instantpay API Encryption Key")
+    INSTANTPAY_ENVIRONMENT: Literal["SANDBOX", "PRODUCTION"] = Field(
+        default="SANDBOX", description="Instantpay environment: SANDBOX or PRODUCTION"
+    )
+    INSTANTPAY_BASE_URL: Optional[str] = Field(
+        default=None,
+        description="Instantpay API base URL (e.g. https://api.instantpay.in). Defaults by environment if not set.",
+    )
+
+    # ============================================================================
+    # AWS S3 (optional for local/dev; required when using S3 storage)
+    # ============================================================================
+    S3_ACCESS_KEY: Optional[SecretStr] = Field(default=None)
+    S3_SECRET_KEY: Optional[SecretStr] = Field(default=None)
     S3_BUCKET: str = Field(default="payswap-documents")
     S3_REGION: str = Field(default="ap-south-1")
     S3_ENDPOINT_URL: Optional[str] = Field(default=None)
@@ -114,9 +260,20 @@ class PayswapConfig(BaseSettings):
     # ============================================================================
     # CORS
     # ============================================================================
-    CORS_ALLOWED_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000")
+    CORS_ALLOWED_ORIGINS: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:4200,http://127.0.0.1:4200,http://localhost:4201,http://127.0.0.1:4201,http://localhost:4202,http://127.0.0.1:4202"
+    )
     CORS_ALLOW_CREDENTIALS: bool = Field(default=True)
-    
+
+    # API Explorer: optional default API key to pre-fill header inputs (e.g. key you use for testing)
+    EXPLORER_DEFAULT_API_KEY: Optional[str] = Field(default=None, description="Pre-fill API Key / Authorization in API Explorer")
+    # API Explorer: optional extra headers (JSON) to auto-include on every request.
+    # Example: {"X-Security-Key":"...","X-Client-Id":"..."}
+    EXPLORER_DEFAULT_HEADERS: Optional[str] = Field(
+        default=None,
+        description="JSON object of extra headers to auto-include in API Explorer requests",
+    )
+
     # ============================================================================
     # SOCIAL AUTHENTICATION (OAuth)
     # ============================================================================
@@ -182,6 +339,20 @@ class PayswapConfig(BaseSettings):
     def get_smtp_password(self) -> str:
         return self.SMTP_PASSWORD.get_secret_value()
 
+    def get_parkpe_smtp_password(self) -> str:
+        """Parkpe SMTP password for voucher emails. Returns empty string if not configured."""
+        if self.SMTP_PASSWORD_Parkpe is None:
+            return ""
+        return self.SMTP_PASSWORD_Parkpe.get_secret_value()
+
+    def is_parkpe_smtp_configured(self) -> bool:
+        """True if Parkpe SMTP is configured (host, user, password)."""
+        return bool(
+            self.SMTP_HOST_Parkpe
+            and self.SMTP_USER_Parkpe
+            and self.SMTP_PASSWORD_Parkpe
+        )
+
     def get_kaleyra_api_key(self) -> str:
         return self.KALEYRA_API_KEY.get_secret_value()
     
@@ -196,15 +367,47 @@ class PayswapConfig(BaseSettings):
     
     def get_invincible_ocean_api_secret(self) -> str:
         return self.INVINCIBLE_OCEAN_API_SECRET.get_secret_value() if self.INVINCIBLE_OCEAN_API_SECRET else ""
+    
+    def get_leegality_auth_token(self) -> str:
+        return self.LEGALITY_AUTH_TOKEN.get_secret_value() if self.LEGALITY_AUTH_TOKEN else ""
+    
+    def get_leegality_private_salt(self) -> str:
+        return self.LEGALITY_PRIVATE_SALT.get_secret_value() if self.LEGALITY_PRIVATE_SALT else ""
+    
+    def get_cashfree_pg_client_id(self) -> str:
+        return self.CASHFREE_PG_CLIENT_ID.get_secret_value() if self.CASHFREE_PG_CLIENT_ID else ""
+    
+    def get_cashfree_pg_client_secret(self) -> str:
+        return self.CASHFREE_PG_CLIENT_SECRET.get_secret_value() if self.CASHFREE_PG_CLIENT_SECRET else ""
+    
+    def get_cashfree_pg_partner_key(self) -> str:
+        return self.CASHFREE_PG_PARTNER_KEY.get_secret_value() if self.CASHFREE_PG_PARTNER_KEY else ""
+    
+    def get_cashfree_pg_client_signature(self) -> str:
+        return self.CASHFREE_PG_CLIENT_SIGNATURE.get_secret_value() if self.CASHFREE_PG_CLIENT_SIGNATURE else ""
 
     def get_s3_access_key(self) -> str:
-        return self.S3_ACCESS_KEY.get_secret_value()
+        return self.S3_ACCESS_KEY.get_secret_value() if self.S3_ACCESS_KEY else ""
 
     def get_s3_secret_key(self) -> str:
-        return self.S3_SECRET_KEY.get_secret_value()
+        return self.S3_SECRET_KEY.get_secret_value() if self.S3_SECRET_KEY else ""
 
     def get_sentry_dsn(self) -> str:
         return self.SENTRY_DSN.get_secret_value() if self.SENTRY_DSN else ""
+
+    def get_instantpay_client_id(self) -> str:
+        return self.INSTANTPAY_CLIENT_ID.get_secret_value() if self.INSTANTPAY_CLIENT_ID else ""
+
+    def get_instantpay_client_secret(self) -> str:
+        return self.INSTANTPAY_CLIENT_SECRET.get_secret_value() if self.INSTANTPAY_CLIENT_SECRET else ""
+
+    def get_instantpay_encryption_key(self) -> str:
+        return self.INSTANTPAY_ENCRYPTION_KEY.get_secret_value() if self.INSTANTPAY_ENCRYPTION_KEY else ""
+
+    def is_instantpay_configured(self) -> bool:
+        return bool(
+            self.INSTANTPAY_CLIENT_ID and self.INSTANTPAY_CLIENT_SECRET and self.INSTANTPAY_ENCRYPTION_KEY
+        )
 
     # ============================================================================
     # CONFIG GENERATORS
@@ -212,7 +415,17 @@ class PayswapConfig(BaseSettings):
     def get_database_config(self) -> dict:
         """Generate Django database configuration."""
         import dj_database_url
-        return dj_database_url.parse(str(self.DATABASE_URL))
+        config = dj_database_url.parse(str(self.DATABASE_URL))
+        
+        # Phase 3.1: Add connection pooling for better performance
+        config.setdefault('CONN_MAX_AGE', 600)  # 10 minutes connection pooling
+        config.setdefault('OPTIONS', {})
+        config['OPTIONS'].setdefault('connect_timeout', 10)
+        # Add statement timeout (30 seconds) - only for PostgreSQL
+        if 'postgresql' in str(self.DATABASE_URL).lower() or 'postgres' in str(self.DATABASE_URL).lower():
+            config['OPTIONS'].setdefault('options', '-c statement_timeout=30000')
+        
+        return config
 
     def get_redis_config(self) -> dict:
         """Generate Redis cache configuration."""
@@ -256,6 +469,18 @@ class PayswapConfig(BaseSettings):
             "DEFAULT_FROM_EMAIL": self.SMTP_DEFAULT_FROM,
         }
 
+    def get_email_config_parkpe(self) -> dict:
+        """Generate Parkpe email configuration for voucher system."""
+        return {
+            "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "EMAIL_HOST": self.SMTP_HOST_Parkpe or "",
+            "EMAIL_PORT": self.SMTP_PORT_Parkpe or 587,
+            "EMAIL_USE_TLS": self.SMTP_USE_TLS_Parkpe,
+            "EMAIL_HOST_USER": self.SMTP_USER_Parkpe or "",
+            "EMAIL_HOST_PASSWORD": self.get_parkpe_smtp_password(),
+            "DEFAULT_FROM_EMAIL": self.SMTP_DEFAULT_FROM_Parkpe or (self.SMTP_USER_Parkpe or ""),
+        }
+
     def get_s3_config(self) -> dict:
         """Generate S3 storage configuration."""
         config = {
@@ -280,3 +505,19 @@ def get_settings() -> PayswapConfig:
 
 # Convenience instance
 payswap_config = get_settings()
+
+
+def _secret_str_value(val: Any) -> Optional[str]:
+    if val is None:
+        return None
+    if hasattr(val, "get_secret_value"):
+        return val.get_secret_value()
+    return str(val)
+
+
+def get_cashfree_pg_credentials() -> Tuple[Optional[str], Optional[str]]:
+    """Return (client_id, client_secret) for Cashfree PG from .env (single default account)."""
+    cid = _secret_str_value(getattr(payswap_config, "CASHFREE_PG_CLIENT_ID", None))
+    csec = _secret_str_value(getattr(payswap_config, "CASHFREE_PG_CLIENT_SECRET", None))
+    return (cid, csec)
+

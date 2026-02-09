@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "PARKPE",
+    "title": "Smart Parking & Payments"
+  },
+  "common": {
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Sign Out",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "noData": "No data available"
+  },
+  "auth": {
+    "welcomeBack": "Welcome Back",
+    "signInToAccount": "Sign in to your account",
+    "email": "Email",
+    "password": "Password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot Password?",
+    "dontHaveAccount": "Don't have an account?",
+    "alreadyHaveAccount": "Already have an account?",
+    "createAccount": "Create Account",
+    "fullName": "Full Name",
+    "phone": "Phone Number",
+    "confirmPassword": "Confirm Password",
+    "acceptTerms": "I agree to the Terms of Service and Privacy Policy"
+  },
+  "dashboard": {
+    "welcome": "Welcome back",
+    "overview": "Here's your overview",
+    "totalSpend": "Total Spend (This Month)",
+    "pendingChallans": "Pending Challans",
+    "fastagBalance": "FASTag Balance",
+    "activeBookings": "Active Bookings",
+    "quickActions": "Quick Actions"
+  },
+  "parking": {
+    "title": "Parking",
+    "findParking": "Find parking near you",
+    "selectSlot": "Select Parking Slot",
+    "bookParking": "Book Parking",
+    "confirmBooking": "Confirm Booking",
+    "vehicleNumber": "Vehicle Number",
+    "availableSlots": "Available Slots"
+  },
+  "payment": {
+    "selectMethod": "Select Payment Method",
+    "proceedToPay": "Proceed to Payment",
+    "paymentSuccess": "Payment Successful!",
+    "paymentFailed": "Payment Failed",
+    "transactionHistory": "Transaction History",
+    "downloadReceipt": "Download Receipt"
+  }
+}

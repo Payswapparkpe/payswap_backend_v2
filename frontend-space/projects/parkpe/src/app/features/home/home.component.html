@@ -1,0 +1,413 @@
+<div class="landing min-h-screen">
+  <!-- Hero -->
+  <section class="hero">
+    <header class="hero-header" [class.scrolled]="scrolled()">
+      <nav class="hero-nav">
+        <a routerLink="/" class="logo-wrap">
+          <img class="logo-img" src="assets/parkpe-logo.svg" alt="ParkPe" />
+        </a>
+        <div class="nav-links">
+          <a href="#product">Product</a>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#about">About</a>
+          <a href="#contact">Contact</a>
+        </div>
+        <div class="nav-actions">
+          <button type="button" class="btn btn-outline nav-signin" (click)="navigateToLogin()">Sign in</button>
+          <button type="button" class="btn btn-primary" (click)="navigateToRegister()">Create account</button>
+          <button type="button" class="menu-btn" (click)="toggleMobileMenu()" aria-label="Menu">
+            <span class="material-icons">{{ mobileMenuOpen() ? 'close' : 'menu' }}</span>
+          </button>
+        </div>
+      </nav>
+      @if (mobileMenuOpen()) {
+        <div class="mobile-menu">
+          <a href="#product" (click)="toggleMobileMenu()">Product</a>
+          <a href="#how-it-works" (click)="toggleMobileMenu()">How It Works</a>
+          <a href="#about" (click)="toggleMobileMenu()">About</a>
+          <a href="#contact" (click)="toggleMobileMenu()">Contact</a>
+          <button type="button" class="btn btn-primary full" (click)="navigateToRegister(); toggleMobileMenu()">Create account</button>
+          <button type="button" class="btn btn-outline full" (click)="navigateToLogin(); toggleMobileMenu()">Sign in</button>
+        </div>
+      }
+    </header>
+
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="hero-content">
+      <div class="hero-grid">
+        <div class="hero-left">
+          <a [href]="connectUrl" target="_blank" rel="noopener noreferrer" class="trust-badge">
+            <span class="material-icons">auto_awesome</span>
+            <span>ParkPe Connect is Now Live</span>
+          </a>
+          <h1 class="hero-headline">Parking, FASTag, Challans — made effortless.</h1>
+          <p class="hero-desc">
+            ParkPe brings everyday vehicle services into one clean app. Scan QR to contact owners privately, pay bills,
+            book parking, and track every transaction.
+          </p>
+          <div class="hero-ctas">
+            <button type="button" class="btn btn-primary btn-lg" (click)="navigateToRegister()">
+              Get Started
+              <span class="material-icons">arrow_forward</span>
+            </button>
+            <button type="button" class="btn btn-outline btn-lg" (click)="navigateToLogin()">I already have an account</button>
+          </div>
+          <div class="hero-stats">
+            <div class="stat"><span class="stat-value">OTP</span><span class="stat-label">Verified users</span></div>
+            <div class="stat"><span class="stat-value">100%</span><span class="stat-label">Privacy-first</span></div>
+            <div class="stat"><span class="stat-value">Fast</span><span class="stat-label">In-app support</span></div>
+            <div class="stat"><span class="stat-value">Live</span><span class="stat-label">ParkPe Connect</span></div>
+          </div>
+        </div>
+
+        <div class="hero-right" aria-hidden="true">
+          <div class="preview-card">
+            <div class="preview-head">
+              <div class="preview-brand">
+                <img class="preview-logo-img" src="assets/parkpe-logo.svg" alt="" />
+                <span class="preview-name">ParkPe</span>
+              </div>
+              <span class="preview-pill">Live</span>
+            </div>
+            <div class="preview-grid">
+              <div class="preview-item"><span class="material-icons">toll</span><span>FASTag</span></div>
+              <div class="preview-item"><span class="material-icons">gavel</span><span>Challans</span></div>
+              <div class="preview-item"><span class="material-icons">local_parking</span><span>Parking</span></div>
+              <div class="preview-item"><span class="material-icons">qr_code_2</span><span>Connect</span></div>
+              <div class="preview-item"><span class="material-icons">receipt_long</span><span>Pay Bills</span></div>
+              <div class="preview-item"><span class="material-icons">history</span><span>History</span></div>
+            </div>
+            <div class="preview-foot">
+              <span class="material-icons">lock</span>
+              <span>OTP verified • No phone number sharing</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem Statement -->
+  <section class="section section-muted section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill">Current Challenges</span>
+        <h2 class="section-title">Parking and Vehicle Communication is Broken</h2>
+        <p class="section-desc">Urban mobility faces critical challenges that affect millions of vehicle owners daily</p>
+      </div>
+      <div class="grid grid-4">
+        @for (p of problems; track p.title) {
+          <div class="card">
+            <div class="card-icon"><span class="material-icons">{{ p.icon }}</span></div>
+            <p class="card-text">{{ p.title }}</p>
+          </div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Ecosystem -->
+  <section class="section section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-muted">Complete Ecosystem</span>
+        <h2 class="section-title">One Platform. Multiple Mobility Solutions.</h2>
+        <p class="section-desc">Building a comprehensive smart mobility ecosystem for modern cities</p>
+      </div>
+      <div class="grid grid-4">
+        @for (e of ecosystem; track e.title) {
+          @if (e.route) {
+            <a [routerLink]="e.route" class="card ecosystem-card-link">
+              <span class="card-badge" [class.live]="e.status === 'Live'">{{ e.status }}</span>
+              <div class="card-icon"><span class="material-icons">{{ e.icon }}</span></div>
+              <h3 class="card-title">{{ e.title }}</h3>
+              <p class="card-desc">{{ e.description }}</p>
+            </a>
+          } @else if (e.href) {
+            <a [href]="e.href" target="_blank" rel="noopener noreferrer" class="card ecosystem-card-link">
+              <span class="card-badge" [class.live]="e.status === 'Live'">{{ e.status }}</span>
+              <div class="card-icon"><span class="material-icons">{{ e.icon }}</span></div>
+              <h3 class="card-title">{{ e.title }}</h3>
+              <p class="card-desc">{{ e.description }}</p>
+            </a>
+          } @else {
+            <div class="card">
+              <span class="card-badge" [class.live]="e.status === 'Live'">{{ e.status }}</span>
+              <div class="card-icon"><span class="material-icons">{{ e.icon }}</span></div>
+              <h3 class="card-title">{{ e.title }}</h3>
+              <p class="card-desc">{{ e.description }}</p>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Product -->
+  <section id="product" class="section section-muted section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-success">Featured Product - Now Live</span>
+        <h2 class="section-title">ParkPe Connect – Scan QR. Contact Securely.</h2>
+        <p class="section-desc wide">ParkPe Connect is a QR sticker-based solution that allows anyone to contact a vehicle owner without revealing phone numbers. The system is privacy-first, OTP verified, and designed to prevent spam.</p>
+      </div>
+      <div class="grid grid-3">
+        @for (f of featuredProductFeatures; track f.title) {
+          <div class="card">
+            <div class="card-icon"><span class="material-icons">{{ f.icon }}</span></div>
+            <h3 class="card-title">{{ f.title }}</h3>
+            <p class="card-desc">{{ f.description }}</p>
+          </div>
+        }
+      </div>
+      <div class="section-cta">
+        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Get Started <span class="material-icons">arrow_forward</span></button>
+        <a href="#how-it-works" class="btn btn-outline btn-lg">How It Works</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="section section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-muted">Simple Process</span>
+        <h2 class="section-title">How ParkPe Connect Works</h2>
+        <p class="section-desc">Get started in minutes with our simple 6-step process</p>
+      </div>
+      <div class="grid grid-3 steps">
+        @for (s of howItWorksSteps; track s.number) {
+          <div class="card">
+            <div class="step-top">
+              <div class="card-icon"><span class="material-icons">{{ s.icon }}</span></div>
+              <span class="step-num">{{ s.number }}</span>
+            </div>
+            <h3 class="card-title">{{ s.title }}</h3>
+            <p class="card-desc">{{ s.description }}</p>
+          </div>
+        }
+      </div>
+      <div class="section-cta">
+        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Get Started Now</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Who It's For -->
+  <section class="section section-muted section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill">For Everyone</span>
+        <h2 class="section-title">Who ParkPe is For</h2>
+        <p class="section-desc">Designed for all types of vehicle owners and parking stakeholders</p>
+      </div>
+      <div class="grid grid-3">
+        @for (w of whoItsFor; track w.title) {
+          <div class="card">
+            <div class="card-icon"><span class="material-icons">{{ w.icon }}</span></div>
+            <h3 class="card-title">{{ w.title }}</h3>
+            <p class="card-desc">{{ w.description }}</p>
+          </div>
+        }
+      </div>
+      <div class="cta-box">
+        <h3>Join thousands of users already using ParkPe Connect</h3>
+        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Register Your Vehicle Now</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Coming Soon -->
+  <section class="section section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-muted">Coming Soon</span>
+        <h2 class="section-title">More Smart Mobility Services Coming Soon</h2>
+        <p class="section-desc">Building the future of urban mobility with innovative solutions</p>
+      </div>
+      <div class="grid grid-3">
+        @for (c of comingSoonServices; track c.title) {
+          <div class="card">
+            <span class="card-badge">Coming Soon</span>
+            <div class="card-icon"><span class="material-icons">{{ c.icon }}</span></div>
+            <h3 class="card-title">{{ c.title }}</h3>
+            <p class="card-desc">{{ c.description }}</p>
+          </div>
+        }
+      </div>
+      <div class="notify-box">
+        <h3>Get Notified When We Launch</h3>
+        <p>Be the first to know when new services go live</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why ParkPe -->
+  <section id="about" class="section section-muted section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill">Why Choose Us</span>
+        <h2 class="section-title">Why ParkPe</h2>
+        <p class="section-desc">Trusted by thousands for secure, reliable, and innovative mobility solutions</p>
+      </div>
+      <div class="reasons">
+        @for (r of whyParkPeReasons; track r.title) {
+          <div class="card card-row">
+            <div class="card-icon"><span class="material-icons">{{ r.icon }}</span></div>
+            <div>
+              <h3 class="card-title">{{ r.title }}</h3>
+              <p class="card-desc">{{ r.description }}</p>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="stats-card">
+        <h3>Trusted by Vehicle Owners Across India</h3>
+        <div class="stats-row">
+          <div><span class="stat-big">100%</span><span class="stat-label">Secure</span></div>
+          <div><span class="stat-big">24/7</span><span class="stat-label">Support</span></div>
+          <div><span class="stat-big">OTP</span><span class="stat-label">Verified</span></div>
+          <div><span class="stat-big">Fast</span><span class="stat-label">Setup</span></div>
+        </div>
+      </div>
+      <div class="about-box">
+        <h3>About ParkPe</h3>
+        <p>ParkPe is a brand owned and operated by <strong>PaySwap Fintech Private Limited</strong>, a leading fintech company committed to transforming urban mobility and digital payment solutions in India.</p>
+        <p class="links">
+          <span>Official Website:</span>
+          <a [href]="parkpeUrl" target="_blank" rel="noopener noreferrer">parkpe.in</a>
+          <span>|</span>
+          <span>Parent Company:</span>
+          <a [href]="payswapUrl" target="_blank" rel="noopener noreferrer">payswap.in</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section id="contact" class="section section-reveal">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-muted">Get In Touch</span>
+        <h2 class="section-title">Get in Touch with ParkPe</h2>
+        <p class="section-desc">Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+      </div>
+      <div class="contact-grid">
+        <div class="contact-info">
+          <div class="card">
+            <h3>Contact Information</h3>
+            <div class="contact-item">
+              <span class="material-icons">mail</span>
+              <div><span class="label">Email</span><span>support&#64;parkpe.in</span></div>
+            </div>
+            <div class="contact-item">
+              <span class="material-icons">chat</span>
+              <div><span class="label">Support Hours</span><span>24/7 Available</span></div>
+            </div>
+          </div>
+          <div class="contact-note">
+            <h3>Quick Response</h3>
+            <p>We typically respond within 24 hours during business days.</p>
+          </div>
+        </div>
+        <form class="contact-form card" (ngSubmit)="submitContact()" #form="ngForm">
+          <label>
+            <span>Name *</span>
+            <input type="text" name="name" [(ngModel)]="contactForm.name" required placeholder="Enter your name" />
+          </label>
+          <label>
+            <span>Mobile Number *</span>
+            <input type="tel" name="mobile" [(ngModel)]="contactForm.mobile" required placeholder="+91 XXXXX XXXXX" />
+          </label>
+          <label>
+            <span>Email *</span>
+            <input type="email" name="email" [(ngModel)]="contactForm.email" required placeholder="your.email@example.com" />
+          </label>
+          <label>
+            <span>User Type *</span>
+            <select name="userType" [(ngModel)]="contactForm.userType" required>
+              <option value="">Select user type</option>
+              <option value="vehicle-owner">Vehicle Owner</option>
+              <option value="parking-operator">Parking Operator</option>
+              <option value="municipality">Municipality</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            <span>Message *</span>
+            <textarea name="message" [(ngModel)]="contactForm.message" required rows="4" placeholder="Tell us how we can help you..."></textarea>
+          </label>
+          <button type="submit" class="btn btn-primary full" [disabled]="contactSubmitting">
+            <span class="material-icons">send</span> Submit
+          </button>
+          @if (contactSubmitStatus === 'success') {
+            <p class="form-success"><span class="material-icons">check_circle</span> Thank you for contacting ParkPe! We will get back to you soon.</p>
+          }
+          @if (contactSubmitStatus === 'error') {
+            <p class="form-error"><span class="material-icons">cancel</span> {{ contactErrorMessage }}</p>
+          }
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="logo-wrap">
+            <img class="logo-img" src="assets/parkpe-logo.svg" alt="ParkPe" />
+          </div>
+          <p>Transforming urban parking and vehicle services with smart, privacy-first solutions for modern cities.</p>
+          <div class="social">
+            <a href="#" aria-label="Twitter"><span class="material-icons">tag</span></a>
+            <a href="#" aria-label="LinkedIn"><span class="material-icons">work</span></a>
+            <a href="#" aria-label="Instagram"><span class="material-icons">camera_alt</span></a>
+            <a href="#" aria-label="Facebook"><span class="material-icons">facebook</span></a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h3>Products</h3>
+          <a routerLink="/connect">ParkPe Connect <span class="badge live">Live</span></a>
+          <a href="#">Smart Parking <span class="badge">Soon</span></a>
+          <a href="#">FASTag Services <span class="badge">Soon</span></a>
+          <a href="#">EV Charging <span class="badge">Soon</span></a>
+        </div>
+        <div class="footer-col">
+          <h3>Company</h3>
+          <a href="#about">About ParkPe</a>
+          <a href="#how-it-works">How It Works</a>
+          <a routerLink="/">Privacy Policy</a>
+          <a routerLink="/">Terms of Service</a>
+          <a routerLink="/">Careers</a>
+          <a routerLink="/">Refunds & Cancellations</a>
+        </div>
+        <div class="footer-col">
+          <h3>Contact Us</h3>
+          <div class="footer-contact">
+            <span class="material-icons">mail</span>
+            <div><span class="label">Email</span><a href="mailto:support@parkpe.in">support&#64;parkpe.in</a></div>
+          </div>
+          <div class="footer-contact">
+            <span class="material-icons">place</span>
+            <div><span class="label">Website</span><a [href]="parkpeUrl" target="_blank" rel="noopener noreferrer">parkpe.in</a></div>
+          </div>
+          <div class="footer-contact">
+            <span class="material-icons">place</span>
+            <div><span class="label">Parent Company</span><a [href]="payswapUrl" target="_blank" rel="noopener noreferrer">PaySwap Fintech Pvt Ltd</a></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; {{ currentYear }} ParkPe. All rights reserved.</p>
+        <div>
+          <a routerLink="/">Privacy</a>
+          <a routerLink="/">Terms</a>
+          <a routerLink="/">Refunds</a>
+          <a href="#">Cookies</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>

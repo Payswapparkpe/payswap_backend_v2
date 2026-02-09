@@ -1,0 +1,21 @@
+{
+  "name": "PARKPE - Smart Parking & Payments",
+  "short_name": "PARKPE",
+  "description": "Smart parking, payments & vehicle services platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#004aad",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/parkpe-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["finance", "utilities", "transportation"],
+  "lang": "en-IN",
+  "dir": "ltr"
+}

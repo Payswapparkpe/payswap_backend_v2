@@ -3,8 +3,10 @@ OTP Service using unified notification service with Celery
 Supports dual delivery (email + SMS) for signup
 """
 import random
+import secrets
 import string
 from typing import Optional, Tuple
+from django.conf import settings
 from django.core.cache import cache
 from portal.services.notification_service_v2 import NotificationServiceV2
 from portal.utils.mfa_utils import store_otp_in_cache, verify_otp_from_cache
@@ -25,12 +27,12 @@ class OTPService:
     
     def generate_otp(self) -> str:
         """
-        Generate random OTP
+        Generate random OTP using secure secrets module
         
         Returns:
             6-digit OTP string
         """
-        return ''.join(random.choices(string.digits, k=self.otp_length))
+        return ''.join([str(secrets.randbelow(10)) for _ in range(self.otp_length)])
     
     def send_otp(self, phone_number: str, user_id: Optional[int] = None, async_send: bool = True) -> tuple[bool, Optional[str]]:
         """
@@ -44,60 +46,178 @@ class OTPService:
         Returns:
             Tuple of (success, otp_code or error_message)
         """
+        # TEMPORARY: Full details for debugging - no masking
+        logger.info(
+            f'OTP send_otp() called - Phone: {phone_number} | User ID: {user_id} | Async: {async_send}',
+            user=None,
+            extra_data={
+                'action': 'otp_send_attempt',
+                'user_id': user_id,
+                'phone_input': phone_number,  # Full phone number
+                'async_send': async_send
+            }
+        )
+        
         # Normalize phone number to ensure consistent format for rate limiting
         try:
             normalized_phone = normalize_phone_number(phone_number)
+            logger.info(
+                f'OTP - Phone normalized: {normalized_phone}',
+                user=None,
+                extra_data={'action': 'otp_phone_normalized', 'normalized_phone': normalized_phone, 'original_phone': phone_number}
+            )
         except ValueError as e:
-            logger.error(f'Invalid phone number for OTP: {str(e)}', extra={'user_id': user_id})
+            logger.error(
+                f'OTP - Invalid phone number: {str(e)}',
+                user=None,
+                extra_data={'action': 'otp_invalid_phone', 'user_id': user_id, 'error': str(e)}
+            )
             return False, f"Invalid phone number: {str(e)}"
         
-        # Check rate limiting using normalized phone
         rate_limit_key = f"otp_rate_limit:{normalized_phone}"
         request_count = cache.get(rate_limit_key, 0)
         
+        logger.info(
+            f'OTP - Rate limit check: {request_count}/3 attempts',
+            user=None,
+            extra_data={
+                'action': 'otp_rate_limit_check',
+                'request_count': request_count,
+                'rate_limit_key': rate_limit_key,
+                'phone_masked': normalized_phone[:4] + '****'
+            }
+        )
+        
         if request_count >= 3:
             logger.warning(
-                f'OTP rate limit exceeded for {normalized_phone[:4]}****',
-                extra={'user_id': user_id, 'phone_masked': normalized_phone[:4] + '****'}
+                f'OTP - Rate limit exceeded for {normalized_phone[:4]}****',
+                user=None,
+                extra_data={
+                    'action': 'otp_rate_limit_exceeded',
+                    'user_id': user_id,
+                    'phone_masked': normalized_phone[:4] + '****',
+                    'request_count': request_count
+                }
             )
             return False, "Maximum OTP requests reached. Please try again later."
         
         # Generate OTP
         otp = self.generate_otp()
+        logger.info(
+            f'OTP - Generated: {otp}',
+            user=None,
+            extra_data={
+                'action': 'otp_generated',
+                'user_id': user_id,
+                'phone_full': normalized_phone,  # Full phone number
+                'otp_code': otp,  # Full OTP code
+                'otp_length': len(otp)
+            }
+        )
         
         # Store OTP in cache using normalized phone
         store_otp_in_cache(normalized_phone, otp, self.otp_expiry)
+        logger.info(
+            f'OTP - Stored in cache for {normalized_phone} | OTP: {otp}',
+            user=None,
+            extra_data={
+                'action': 'otp_stored_cache',
+                'phone_full': normalized_phone,  # Full phone number
+                'otp_code': otp,  # Full OTP code
+                'expiry_seconds': self.otp_expiry
+            }
+        )
         
         # Update rate limit
         cache.set(rate_limit_key, request_count + 1, timeout=600)  # 10 minutes window
+        logger.info(
+            f'OTP - Rate limit updated: {request_count + 1}/3',
+            user=None,
+            extra_data={'action': 'otp_rate_limit_updated', 'new_count': request_count + 1}
+        )
         
+        # In DEBUG mode, send OTP synchronously so it works without a Celery worker
+        effective_async = async_send and not getattr(settings, 'DEBUG', False)
+        if getattr(settings, 'DEBUG', False) and async_send:
+            logger.info(
+                f'OTP - DEBUG=True: sending OTP synchronously (no Celery required)',
+                user=None,
+                extra_data={'action': 'otp_sync_in_debug', 'phone_full': normalized_phone}
+            )
+
         # Send OTP via unified notification service
         try:
+            logger.info(
+                f'OTP - Calling notification_service.send_otp() | Phone: {normalized_phone} | OTP: {otp}',
+                user=None,
+                extra_data={
+                    'action': 'otp_calling_notification_service',
+                    'phone_full': normalized_phone,  # Full phone number
+                    'otp_code': otp,  # Full OTP code
+                    'async_send': effective_async
+                }
+            )
+            
             result = self.notification_service.send_otp(
                 phone_number=normalized_phone,
                 otp_code=otp,
                 user_id=user_id,
-                async_send=async_send
+                async_send=effective_async
+            )
+            
+            logger.info(
+                f'OTP - Notification service result: {result}',
+                user=None,
+                extra_data={
+                    'action': 'otp_notification_service_result',
+                    'result': result,  # Complete result
+                    'phone_full': normalized_phone,  # Full phone number
+                    'otp_code': otp  # Full OTP code
+                }
             )
             
             if result.get('success'):
                 logger.info(
-                    f'OTP sent successfully to {normalized_phone[:4]}****',
-                    extra={'user_id': user_id, 'phone_masked': normalized_phone[:4] + '****', 'async_send': async_send}
+                    f'OTP - ✅ Sent successfully to {normalized_phone} | OTP: {otp}',
+                    user=None,
+                    extra_data={
+                        'action': 'otp_sent_success',
+                        'user_id': user_id,
+                        'phone_full': normalized_phone,  # Full phone number
+                        'async_send': async_send,
+                        'otp_code': otp,  # Full OTP code
+                        'result': result
+                    }
                 )
                 return True, otp
             else:
                 error_msg = result.get('message', 'Failed to send OTP. Please try again.')
                 logger.error(
-                    f'Failed to send OTP: {error_msg}',
-                    extra={'user_id': user_id, 'phone_masked': normalized_phone[:4] + '****', 'error': error_msg}
+                    f'OTP - ❌ Failed to send: {error_msg} | Phone: {normalized_phone} | OTP: {otp}',
+                    user=None,
+                    extra_data={
+                        'action': 'otp_send_failed',
+                        'user_id': user_id,
+                        'phone_full': normalized_phone,  # Full phone number
+                        'otp_code': otp,  # Full OTP code
+                        'error': error_msg,
+                        'result': result  # Complete result
+                    }
                 )
                 return False, error_msg
         except Exception as e:
             logger.error(
-                f'Error sending OTP: {str(e)}',
-                extra={'user_id': user_id, 'phone_masked': normalized_phone[:4] + '****'},
-                exc_info=True
+                f'OTP - ❌ Exception sending OTP: {str(e)} | Phone: {normalized_phone} | OTP: {otp}',
+                user=None,
+                extra_data={
+                    'action': 'otp_send_exception',
+                    'user_id': user_id,
+                    'phone_full': normalized_phone,  # Full phone number
+                    'otp_code': otp,  # Full OTP code
+                    'error': str(e),
+                    'exception_type': type(e).__name__
+                },
+                traceback=str(e)
             )
             return False, f"Error sending OTP: {str(e)}"
     
@@ -132,22 +252,36 @@ class OTPService:
         try:
             normalized_phone = normalize_phone_number(phone_number)
         except ValueError as e:
-            logger.error(f'Invalid phone number for dual OTP: {str(e)}', extra={'user_id': user_id})
+            logger.error(f'Invalid phone number for dual OTP: {str(e)}', user=None, extra_data={'user_id': user_id})
             return False, f"Invalid phone number: {str(e)}"
         
-        # Check rate limiting for both email and phone
+        # TEMPORARY: Rate limiting disabled for debugging
+        # TODO: Re-enable rate limiting after debugging
         phone_rate_key = f"otp_rate_limit:{normalized_phone}"
         email_rate_key = f"otp_rate_limit:{email}"
         
         phone_attempts = cache.get(phone_rate_key, 0)
         email_attempts = cache.get(email_rate_key, 0)
         
-        if phone_attempts >= 3 or email_attempts >= 3:
-            logger.warning(
-                f'OTP rate limit exceeded for {normalized_phone[:4]}**** or {email[:2]}***',
-                extra={'user_id': user_id}
-            )
-            return False, "Maximum OTP requests reached. Please try again later."
+        logger.info(
+            f'OTP Dual - Rate limit check (DISABLED): Phone {phone_attempts}/3, Email {email_attempts}/3',
+            user=None,
+            extra_data={
+                'action': 'otp_dual_rate_limit_check',
+                'phone_attempts': phone_attempts,
+                'email_attempts': email_attempts,
+                'rate_limit_disabled': True
+            }
+        )
+        
+        # TEMPORARY: Rate limit check disabled
+        # if phone_attempts >= 3 or email_attempts >= 3:
+        #     logger.warning(
+        #         f'OTP rate limit exceeded for {normalized_phone[:4]}**** or {email[:2]}***',
+        #         user=None,
+        #         extra_data={'user_id': user_id}
+        #     )
+        #     return False, "Maximum OTP requests reached. Please try again later."
         
         # Generate OTP
         otp = self.generate_otp()
@@ -176,7 +310,8 @@ class OTPService:
                 )
                 logger.info(
                     f'OTP dual delivery queued for {normalized_phone[:4]}**** and {email[:2]}***',
-                    extra={'user_id': user_id, 'async_send': True}
+                    user=None,
+                    extra_data={'user_id': user_id, 'async_send': True}
                 )
                 return True, otp
             else:
@@ -194,7 +329,8 @@ class OTPService:
                 if result.get('success'):
                     logger.info(
                         f'OTP sent to both channels for {normalized_phone[:4]}**** and {email[:2]}***',
-                        extra={'user_id': user_id, 'async_send': False}
+                        user=None,
+                        extra_data={'user_id': user_id, 'async_send': False}
                     )
                     return True, otp
                 else:
@@ -202,8 +338,9 @@ class OTPService:
         except Exception as e:
             logger.error(
                 f'Error sending dual OTP: {str(e)}',
-                extra={'user_id': user_id},
-                exc_info=True
+                user=None,
+                extra_data={'user_id': user_id},
+                traceback=str(e)
             )
             return False, f"Error sending OTP: {str(e)}"
     

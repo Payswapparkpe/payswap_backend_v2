@@ -1,0 +1,85 @@
+{
+  "info": {
+    "name": "Euronet BBPS (Bharat Connect) - EnService API",
+    "description": "UAT: Single endpoint EnService. Fill request body per Euronet API spec. Test each API until responses are correct, then integrate in code.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://epayuat.eftapme.com/ENServiceAES256/API" },
+    { "key": "merchantCode", "value": "PAY" },
+    { "key": "username", "value": "PAY_01" },
+    { "key": "password", "value": "PAY_01" },
+    { "key": "storeCode", "value": "PAY_01" },
+    { "key": "channelCode", "value": "INT" },
+    { "key": "agentId", "value": "EU01EU02000000000001" },
+    { "key": "salt", "value": "Os3dcl82" },
+    { "key": "encryptionKey", "value": "abcd12345678901*" }
+  ],
+  "item": [
+    {
+      "name": "1. Balance Enquiry",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceType\": \"BALANCE_ENQUIRY\",\n  \"merchantCode\": \"{{merchantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"storeCode\": \"{{storeCode}}\",\n  \"channelCode\": \"{{channelCode}}\",\n  \"agentId\": \"{{agentId}}\",\n  \"salt\": \"{{salt}}\"\n}"
+        },
+        "url": "{{baseUrl}}/EnService",
+        "description": "Adjust body per Euronet API spec. Add hash/checksum if required."
+      }
+    },
+    {
+      "name": "2. Get Billers / Operators",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceType\": \"GET_BILLERS\",\n  \"merchantCode\": \"{{merchantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"storeCode\": \"{{storeCode}}\",\n  \"channelCode\": \"{{channelCode}}\",\n  \"agentId\": \"{{agentId}}\",\n  \"salt\": \"{{salt}}\"\n}"
+        },
+        "url": "{{baseUrl}}/EnService",
+        "description": "Get list of BBPS billers/operators. Update serviceType and fields per API doc."
+      }
+    },
+    {
+      "name": "3. Fetch Bill",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceType\": \"FETCH_BILL\",\n  \"merchantCode\": \"{{merchantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"storeCode\": \"{{storeCode}}\",\n  \"channelCode\": \"{{channelCode}}\",\n  \"agentId\": \"{{agentId}}\",\n  \"salt\": \"{{salt}}\",\n  \"billerId\": \"BILLER_ID_FROM_BILLERS_LIST\",\n  \"consumerId\": \"CONSUMER_ACCOUNT_NUMBER\"\n}"
+        },
+        "url": "{{baseUrl}}/EnService",
+        "description": "Fetch bill details. Replace billerId and consumerId with real values. Add hash if required."
+      }
+    },
+    {
+      "name": "4. Pay Bill",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceType\": \"PAY_BILL\",\n  \"merchantCode\": \"{{merchantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"storeCode\": \"{{storeCode}}\",\n  \"channelCode\": \"{{channelCode}}\",\n  \"agentId\": \"{{agentId}}\",\n  \"salt\": \"{{salt}}\",\n  \"billerId\": \"BILLER_ID\",\n  \"consumerId\": \"CONSUMER_ID\",\n  \"amount\": \"100.00\",\n  \"refId\": \"UNIQUE_REF_123\"\n}"
+        },
+        "url": "{{baseUrl}}/EnService",
+        "description": "Pay bill. Adjust fields and hash per API spec."
+      }
+    },
+    {
+      "name": "5. Transaction Status",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serviceType\": \"TRANSACTION_STATUS\",\n  \"merchantCode\": \"{{merchantCode}}\",\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\",\n  \"storeCode\": \"{{storeCode}}\",\n  \"channelCode\": \"{{channelCode}}\",\n  \"agentId\": \"{{agentId}}\",\n  \"salt\": \"{{salt}}\",\n  \"refId\": \"REF_ID_FROM_PAY_BILL\"\n}"
+        },
+        "url": "{{baseUrl}}/EnService",
+        "description": "Check payment status by refId. Update field names per API doc."
+      }
+    }
+  ]
+}

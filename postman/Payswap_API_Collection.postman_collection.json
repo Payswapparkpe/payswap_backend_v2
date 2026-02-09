@@ -1,0 +1,583 @@
+{
+  "info": {
+    "name": "Payswap - All APIs",
+    "description": "Payswap Portal, API v2, Euronet BBPS, Mobikwik BBPS. Variables: base_url, service_id, api_key, csrftoken. Portal: login at signin first.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "service_id", "value": "1" },
+    { "key": "vendor_euronet", "value": "euronet" },
+    { "key": "vendor_mobikwik", "value": "mobikwik" },
+    { "key": "api_key", "value": "" },
+    { "key": "csrftoken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Portal - Auth",
+      "item": [
+        {
+          "name": "Login (get session)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
+              { "key": "X-CSRFToken", "value": "{{csrftoken}}" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username", "value": "" },
+                { "key": "password", "value": "" },
+                { "key": "csrfmiddlewaretoken", "value": "{{csrftoken}}" }
+              ]
+            },
+            "url": { "raw": "{{base_url}}/signin/" },
+            "description": "Login as admin/super. First GET {{base_url}}/signin/ in browser, copy csrftoken from cookie or page, set in collection variable. Then run this with username/password. Postman will store session cookie for subsequent Portal requests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Portal - BBPS Test (Euronet)",
+      "item": [
+        {
+          "name": "1. Balance Enquiry",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/balance/?vendor={{vendor_euronet}}" }
+          }
+        },
+        {
+          "name": "2. Get Billers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/billers/?vendor={{vendor_euronet}}&category=" }
+          }
+        },
+        {
+          "name": "3. Operators (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/operators/?vendor={{vendor_euronet}}&category=" }
+          }
+        },
+        {
+          "name": "4. Fetch Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRFToken", "value": "{{csrftoken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"BILLER_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"subscriber_id\": \"\",\n  \"vendor\": \"euronet\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/fetch-bill/" }
+          }
+        },
+        {
+          "name": "5. Pay Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRFToken", "value": "{{csrftoken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"BILLER_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"amount\": \"100.00\",\n  \"ref_id\": \"EUR_REF_123\",\n  \"subscriber_id\": \"\",\n  \"vendor\": \"euronet\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/pay-bill/" }
+          }
+        },
+        {
+          "name": "6. Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/status/?ref_id=REF_ID&vendor={{vendor_euronet}}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Portal - BBPS Test (Mobikwik)",
+      "item": [
+        {
+          "name": "1. Balance Enquiry",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/balance/?vendor={{vendor_mobikwik}}" }
+          }
+        },
+        {
+          "name": "2. Get Billers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/billers/?vendor={{vendor_mobikwik}}" }
+          }
+        },
+        {
+          "name": "3. Operators (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/operators/?vendor={{vendor_mobikwik}}" }
+          }
+        },
+        {
+          "name": "4. Fetch Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRFToken", "value": "{{csrftoken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"OP_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"vendor\": \"mobikwik\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/fetch-bill/" }
+          }
+        },
+        {
+          "name": "5. Pay Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRFToken", "value": "{{csrftoken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"OP_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"amount\": \"100\",\n  \"ref_id\": \"BBPS_REF_123\",\n  \"vendor\": \"mobikwik\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/pay-bill/" }
+          }
+        },
+        {
+          "name": "6. Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}/bbps-test/status/?ref_id=REF_ID&vendor={{vendor_mobikwik}}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - BBPS",
+      "item": [
+        {
+          "name": "Operators",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v2/bbps/operators/?category=ELECTRICITY&vendor=euronet" }
+          }
+        },
+        {
+          "name": "Fetch Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"BILLER_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"vendor\": \"euronet\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/bbps/bill/fetch/" }
+          }
+        },
+        {
+          "name": "Pay Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operator_id\": \"BILLER_ID\",\n  \"customer_id\": \"CONSUMER_ID\",\n  \"amount\": \"100.00\",\n  \"ref_id\": \"UNIQUE_REF\",\n  \"vendor\": \"euronet\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/bbps/bill/pay/" }
+          }
+        },
+        {
+          "name": "Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v2/bbps/bill/status/REF_ID/?vendor=euronet" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - KYC",
+      "item": [
+        {
+          "name": "PAN Verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pan_number\": \"AAAAA0000A\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/kyc/pan/verify/" }
+          }
+        },
+        {
+          "name": "Verification Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Api-Key {{api_key}}" }],
+            "url": { "raw": "{{base_url}}/api/v2/kyc/verifications/VERIFICATION_ID/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - Payments",
+      "item": [
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"currency\": \"INR\",\n  \"order_id\": \"ORD_123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/payments/initiate/" }
+          }
+        },
+        {
+          "name": "Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Api-Key {{api_key}}" }],
+            "url": { "raw": "{{base_url}}/api/v2/payments/PAYMENT_ID/status/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - SMS",
+      "item": [
+        {
+          "name": "Send SMS",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"9999999999\",\n  \"message\": \"Test message\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/sms/send/" }
+          }
+        },
+        {
+          "name": "OTP Send",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"9999999999\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/sms/otp/send/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - AEPS",
+      "item": [
+        {
+          "name": "Balance Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/api/v2/aeps/balance/" }
+          }
+        },
+        {
+          "name": "Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Api-Key {{api_key}}" }],
+            "url": { "raw": "{{base_url}}/api/v2/aeps/status/REF_ID/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - DMT (PayPoint)",
+      "item": [
+        {
+          "name": "Register Sender",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile_number\": \"9876543210\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"pincode\": \"400001\",\n  \"state\": \"Maharashtra\",\n  \"address\": \"\",\n  \"date_of_birth\": \"\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/dmt/register-sender/" }
+          }
+        },
+        {
+          "name": "Add Beneficiary",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_mobile\": \"9876543210\",\n  \"beneficiary_name\": \"Jane Doe\",\n  \"account_number\": \"123456789012\",\n  \"ifsc\": \"HDFC0001234\",\n  \"mobile_number\": \"\",\n  \"bank_name\": \"\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/dmt/add-beneficiary/" }
+          }
+        },
+        {
+          "name": "Remit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_mobile\": \"9876543210\",\n  \"beneficiary_id\": \"BENEFICIARY_ID\",\n  \"amount\": \"1000\",\n  \"client_ref_id\": \"\",\n  \"remarks\": \"\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/dmt/remit/" }
+          }
+        },
+        {
+          "name": "Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Api-Key {{api_key}}" }],
+            "url": { "raw": "{{base_url}}/api/v2/dmt/status/REF_ID/" }
+          }
+        },
+        {
+          "name": "Get Beneficiaries",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_mobile\": \"9876543210\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/dmt/beneficiaries/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API v2 - Vouchers",
+      "item": [
+        {
+          "name": "Issue Voucher",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Api-Key {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_identifier\": \"A1B2C3\",\n  \"amount\": \"500.00\",\n  \"email\": \"recipient@example.com\",\n  \"mobile_number\": \"\",\n  \"client_id\": null,\n  \"metadata\": {}\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v2/vouchers/issue/" },
+            "description": "Single voucher. Brand: api_identifier (6-char, recommended) ya brand_id ya brand_code. email required."
+          }
+        },
+        {
+          "name": "Voucher Balance",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Api-Key {{api_key}}" }],
+            "url": { "raw": "{{base_url}}/api/v2/vouchers/VOUCHER_CODE/balance/" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Euronet EnService (External UAT)",
+      "item": [
+        {
+          "name": "1. Balance Enquiry",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceType\": \"BALANCE_ENQUIRY\",\n  \"merchantCode\": \"PAY\",\n  \"username\": \"PAY_01\",\n  \"password\": \"PAY_01\",\n  \"storeCode\": \"PAY_01\",\n  \"channelCode\": \"INT\",\n  \"agentId\": \"EU01EU02000000000001\",\n  \"salt\": \"Os3dcl82\"\n}"
+            },
+            "url": { "raw": "https://epayuat.eftapme.com/ENServiceAES256/API/EnService" }
+          }
+        },
+        {
+          "name": "2. Get Billers",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceType\": \"GET_BILLERS\",\n  \"merchantCode\": \"PAY\",\n  \"username\": \"PAY_01\",\n  \"password\": \"PAY_01\",\n  \"storeCode\": \"PAY_01\",\n  \"channelCode\": \"INT\",\n  \"agentId\": \"EU01EU02000000000001\",\n  \"salt\": \"Os3dcl82\"\n}"
+            },
+            "url": { "raw": "https://epayuat.eftapme.com/ENServiceAES256/API/EnService" }
+          }
+        },
+        {
+          "name": "3. Fetch Bill",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceType\": \"FETCH_BILL\",\n  \"merchantCode\": \"PAY\",\n  \"username\": \"PAY_01\",\n  \"password\": \"PAY_01\",\n  \"storeCode\": \"PAY_01\",\n  \"channelCode\": \"INT\",\n  \"agentId\": \"EU01EU02000000000001\",\n  \"salt\": \"Os3dcl82\",\n  \"billerId\": \"BILLER_ID\",\n  \"consumerId\": \"CONSUMER_ID\"\n}"
+            },
+            "url": { "raw": "https://epayuat.eftapme.com/ENServiceAES256/API/EnService" }
+          }
+        },
+        {
+          "name": "4. Pay Bill",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceType\": \"PAY_BILL\",\n  \"merchantCode\": \"PAY\",\n  \"username\": \"PAY_01\",\n  \"password\": \"PAY_01\",\n  \"storeCode\": \"PAY_01\",\n  \"channelCode\": \"INT\",\n  \"agentId\": \"EU01EU02000000000001\",\n  \"salt\": \"Os3dcl82\",\n  \"billerId\": \"BILLER_ID\",\n  \"consumerId\": \"CONSUMER_ID\",\n  \"amount\": \"100.00\",\n  \"refId\": \"UNIQUE_REF_123\"\n}"
+            },
+            "url": { "raw": "https://epayuat.eftapme.com/ENServiceAES256/API/EnService" }
+          }
+        },
+        {
+          "name": "5. Transaction Status",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceType\": \"TRANSACTION_STATUS\",\n  \"merchantCode\": \"PAY\",\n  \"username\": \"PAY_01\",\n  \"password\": \"PAY_01\",\n  \"storeCode\": \"PAY_01\",\n  \"channelCode\": \"INT\",\n  \"agentId\": \"EU01EU02000000000001\",\n  \"salt\": \"Os3dcl82\",\n  \"refId\": \"REF_ID\"\n}"
+            },
+            "url": { "raw": "https://epayuat.eftapme.com/ENServiceAES256/API/EnService" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mobikwik BBPS (External UAT)",
+      "item": [
+        {
+          "name": "Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"YOUR_CLIENT_ID\",\n  \"clientSecret\": \"YOUR_CLIENT_SECRET\"\n}"
+            },
+            "url": { "raw": "https://alpha3.mobikwik.com/recharge/v1/verify/retailer/" }
+          }
+        },
+        {
+          "name": "Balance Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "{{mobikwik_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerBalance" }
+          }
+        },
+        {
+          "name": "View Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "{{mobikwik_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cn\": \"CONSUMER_ID\",\n  \"op\": 123,\n  \"cir\": \"\",\n  \"adParams\": {}\n}"
+            },
+            "url": { "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerViewbill" }
+          }
+        },
+        {
+          "name": "Recharge / Pay",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "{{mobikwik_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operatorId\": 123,\n  \"customerId\": \"CONSUMER_ID\",\n  \"amount\": \"100\",\n  \"refId\": \"REF_123\"\n}"
+            },
+            "url": { "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerPayment" }
+          }
+        },
+        {
+          "name": "Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "{{mobikwik_token}}" }],
+            "url": { "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerStatus?refId=REF_ID" }
+          }
+        }
+      ]
+    }
+  ]
+}

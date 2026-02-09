@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}VoucherX - Balance Check{% endblock %}
+
+{% block content %}
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'voucherx_dashboard' %}" class="text-gray-500 hover:text-gray-700">
+            <i class="ti ti-arrow-left text-xl"></i>
+        </a>
+        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <i class="ti ti-wallet text-xl text-white"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Balance Check</h1>
+            <p class="page-description-enterprise">Check balance with voucher code and PIN</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Form -->
+    <div class="card-enterprise">
+        <div class="card-enterprise-header">
+            <div class="flex items-center gap-2">
+                <i class="ti ti-search text-xl text-indigo-600"></i>
+                <h3 class="card-enterprise-title">Balance Check</h3>
+            </div>
+        </div>
+        <form method="post" action="{% url 'voucherx_balance' %}" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label for="voucher_code" class="block text-sm font-medium text-gray-700 mb-1">Voucher Code</label>
+                <input type="text" id="voucher_code" name="voucher_code" required
+                       placeholder="XXXX-XXXX-XXXX-XXXX or 16 digits"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       value="{{ result.voucher_code_display|default:'' }}"
+                       maxlength="19" autocomplete="off">
+            </div>
+            <div>
+                <label for="pin" class="block text-sm font-medium text-gray-700 mb-1">
+                    PIN (4 digits){% if not pin_required %} <span class="text-gray-500 font-normal">(optional for admin)</span>{% endif %}
+                </label>
+                <input type="password" id="pin" name="pin" {% if pin_required %}required{% endif %}
+                       placeholder="****" maxlength="4" pattern="[0-9]{4}"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       autocomplete="off">
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="include_transactions" name="include_transactions"
+                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                <label for="include_transactions" class="text-sm text-gray-600">Include recent transactions</label>
+            </div>
+            <button type="submit" class="btn-enterprise-primary w-full">
+                <i class="ti ti-wallet mr-2"></i>
+                Check Balance
+            </button>
+        </form>
+    </div>
+
+    <!-- Result -->
+    <div class="card-enterprise">
+        <div class="card-enterprise-header">
+            <div class="flex items-center gap-2">
+                <i class="ti ti-report-money text-xl text-green-600"></i>
+                <h3 class="card-enterprise-title">Result</h3>
+            </div>
+        </div>
+        {% if result %}
+        <div class="space-y-4">
+            <div class="p-4 bg-green-50 border border-green-200 rounded-xl">
+                <p class="text-sm text-gray-600">Current Balance</p>
+                <p class="text-2xl font-bold text-green-700">₹{{ result.current_balance }}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-gray-500">Voucher Code</p>
+                    <p class="font-mono font-medium">{{ result.voucher_code_display|default:result.reference_number }}</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-gray-500">Reference</p>
+                    <p class="font-medium">{{ result.reference_number }}</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-gray-500">Original Amount</p>
+                    <p class="font-medium">₹{{ result.original_amount }}</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-gray-500">Status</p>
+                    <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium
+                        {% if result.status == 'ACTIVE' %}bg-green-100 text-green-800
+                        {% elif result.status == 'PARTIALLY_REDEEMED' %}bg-amber-100 text-amber-800
+                        {% elif result.status == 'FULLY_REDEEMED' %}bg-gray-100 text-gray-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ result.status }}
+                    </span>
+                </div>
+            </div>
+            {% if result.issued_at %}
+            <div class="text-xs text-gray-500">
+                Issued: {{ result.issued_at|slice:":10" }}
+                {% if result.last_transaction_at %} • Last txn: {{ result.last_transaction_at|slice:":10" }}{% endif %}
+            </div>
+            {% endif %}
+            {% if result.recent_transactions %}
+            <div class="border-t pt-4 mt-4">
+                <p class="text-sm font-medium text-gray-700 mb-2">Recent Redemptions</p>
+                <ul class="space-y-2">
+                    {% for txn in result.recent_transactions %}
+                    <li class="flex justify-between text-sm">
+                        <span>₹{{ txn.amount }} • {{ txn.timestamp|slice:":16" }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="text-center py-12 text-gray-500">
+            <i class="ti ti-wallet-off text-4xl mb-2"></i>
+            <p>Enter voucher code and PIN to check balance.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

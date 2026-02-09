@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Processing Batch - {{ batch.batch_reference }}{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center animate-pulse">
+            <i class="ti ti-loader-2 text-xl text-blue-600 animate-spin"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Processing Batch</h1>
+            <p class="page-description-enterprise">Reference: {{ batch.batch_reference }}</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline" id="back-btn" style="pointer-events: none; opacity: 0.5;">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/batches/" class="btn-enterprise-outline" id="back-btn" style="pointer-events: none; opacity: 0.5;">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Batches
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Processing Overlay -->
+<div id="processing-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display: none;">
+    <div class="bg-white rounded-xl p-8 max-w-md mx-4">
+        <div class="text-center">
+            <i class="ti ti-loader-2 text-5xl text-blue-600 animate-spin mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing in Progress</h3>
+            <p class="text-gray-600">Please wait while vouchers are being created. Do not close this page.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Status Card -->
+<div class="card-enterprise mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <i class="ti ti-loader-2 text-xl text-blue-600 animate-spin" id="status-icon"></i>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900" id="status-text">Processing...</h2>
+                <p class="text-sm text-gray-600" id="status-subtext">Creating vouchers</p>
+            </div>
+        </div>
+        <div class="text-right">
+            <p class="text-sm text-gray-600">Elapsed Time</p>
+            <p class="text-lg font-semibold text-gray-900" id="elapsed-time">{{ elapsed_time|default:"0s" }}</p>
+        </div>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Progress</span>
+            <span class="text-sm font-semibold text-gray-900">
+                <span id="processed-count">{{ batch.processed_vouchers }}</span> / <span id="total-count">{{ batch.total_vouchers }}</span>
+            </span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+            <div class="bg-blue-600 h-3 rounded-full transition-all duration-500" id="progress-bar" style="width: {{ progress_percent }}%"></div>
+        </div>
+        <p class="text-xs text-gray-500 mt-1 text-center" id="progress-percent">{{ progress_percent }}%</p>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <!-- Successful -->
+    <div class="card-enterprise" style="border-left-color: #10b981;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">Successful</p>
+                <p class="text-3xl font-bold text-emerald-600" id="successful-count">{{ batch.successful_vouchers }}</p>
+            </div>
+            <div class="text-emerald-600">
+                <i class="ti ti-check text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Failed -->
+    <div class="card-enterprise" style="border-left-color: #ef4444;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">Failed</p>
+                <p class="text-3xl font-bold text-red-600" id="failed-count">{{ batch.failed_vouchers }}</p>
+            </div>
+            <div class="text-red-600">
+                <i class="ti ti-x text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pending -->
+    <div class="card-enterprise" style="border-left-color: #6366f1;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">Pending</p>
+                <p class="text-3xl font-bold text-indigo-600" id="pending-count">{{ batch.total_vouchers|add:"-"|add:batch.processed_vouchers }}</p>
+            </div>
+            <div class="text-indigo-600">
+                <i class="ti ti-clock text-2xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Individual Voucher Progress -->
+<div class="card-enterprise mb-6">
+    <div class="card-enterprise-header">
+        <div class="flex items-center gap-2">
+            <i class="ti ti-list-numbers text-xl text-indigo-600"></i>
+            <h3 class="card-enterprise-title">Voucher Progress</h3>
+        </div>
+        <p class="text-sm text-gray-600" id="estimated-time">
+            <span id="estimated-time-label">Estimated time remaining:</span> 
+            <span id="estimated-time-value" class="font-semibold text-indigo-600">Calculating...</span>
+        </p>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3" id="voucher-progress-grid">
+        <!-- Voucher cards will be dynamically inserted here -->
+    </div>
+</div>
+
+<!-- Recent Vouchers -->
+<div class="card-enterprise mb-6">
+    <div class="card-enterprise-header">
+        <div class="flex items-center gap-2">
+            <i class="ti ti-gift text-xl text-purple-600"></i>
+            <h3 class="card-enterprise-title">Recent Vouchers</h3>
+        </div>
+        <p class="text-sm text-gray-600">Last 20 created vouchers</p>
+    </div>
+    <div class="table-enterprise">
+        <table class="w-full" id="vouchers-table">
+            <thead>
+                <tr>
+                    <th>Voucher Code</th>
+                    <th>Reference</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody id="vouchers-tbody">
+                {% for voucher in recent_vouchers %}
+                <tr>
+                    <td class="font-mono font-semibold text-gray-900">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</td>
+                    <td class="text-gray-600">{{ voucher.reference_number }}</td>
+                    <td class="text-gray-900">₹{{ voucher.original_amount }}</td>
+                    <td>
+                        {% if voucher.status == 'ACTIVE' %}
+                        <span class="badge-enterprise badge-enterprise-success">Active</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ voucher.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">
+                        {% if voucher.issued_at %}
+                        <span class="time-ago" data-time="{{ voucher.issued_at|date:'c' }}">{{ voucher.issued_at|timesince }} ago</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-8 text-gray-500">No vouchers created yet</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Batch Information -->
+<div class="card-enterprise">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Batch Information</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Brand</p>
+            <p class="font-semibold text-gray-900">{{ batch.brand.brand_name }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Client</p>
+            <p class="font-semibold text-gray-900">{{ batch.client.client_name|default:"Payswap (Default)" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Issuance Method</p>
+            <p class="font-semibold text-gray-900">{{ batch.get_issuance_method_display }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Started At</p>
+            <p class="font-semibold text-gray-900" id="started-at">
+                {% if batch.started_at %}
+                {{ batch.started_at|date:"M d, Y H:i:s" }}
+                {% else %}
+                -
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const batchId = {{ batch.id }};
+    const statusUrl = `/vouchers/batches/${batchId}/processing/status/`;
+    let pollInterval;
+    let isComplete = {{ is_complete|yesno:"true,false" }};
+    
+    // Lock UI
+    function lockUI() {
+        document.getElementById('back-btn').style.pointerEvents = 'none';
+        document.getElementById('back-btn').style.opacity = '0.5';
+        // Prevent navigation
+        window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+    
+    function unlockUI() {
+        document.getElementById('back-btn').style.pointerEvents = 'auto';
+        document.getElementById('back-btn').style.opacity = '1';
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+    
+    function handleBeforeUnload(e) {
+        if (!isComplete) {
+            e.preventDefault();
+            e.returnValue = 'Processing is in progress. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    }
+    
+    // Update UI with status data
+    function updateStatus(data) {
+        // Update status
+        const statusText = document.getElementById('status-text');
+        const statusSubtext = document.getElementById('status-subtext');
+        const statusIcon = document.getElementById('status-icon');
+        
+        if (data.is_complete) {
+            isComplete = true;
+            statusText.textContent = data.status_display;
+            statusSubtext.textContent = data.status === 'COMPLETED' ? 'Processing completed' : 'Processing failed';
+            statusIcon.className = data.status === 'COMPLETED' 
+                ? 'ti ti-check text-xl text-green-600' 
+                : 'ti ti-x text-xl text-red-600';
+            statusIcon.classList.remove('animate-spin');
+            unlockUI();
+            
+            // Stop polling
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            
+            // Redirect after 3 seconds
+            setTimeout(() => {
+                window.location.href = `/vouchers/batches/${batchId}/?from=voucherx`;
+            }, 3000);
+        } else {
+            statusText.textContent = 'Processing...';
+            statusSubtext.textContent = 'Creating vouchers';
+        }
+        
+        // Update progress
+        document.getElementById('processed-count').textContent = data.processed_vouchers;
+        document.getElementById('total-count').textContent = data.total_vouchers;
+        document.getElementById('progress-percent').textContent = data.progress_percent + '%';
+        document.getElementById('progress-bar').style.width = data.progress_percent + '%';
+        
+        // Update statistics
+        document.getElementById('successful-count').textContent = data.successful_vouchers;
+        document.getElementById('failed-count').textContent = data.failed_vouchers;
+        const pending = data.total_vouchers - data.processed_vouchers;
+        document.getElementById('pending-count').textContent = pending > 0 ? pending : 0;
+        
+        // Update elapsed time
+        if (data.elapsed_time) {
+            document.getElementById('elapsed-time').textContent = data.elapsed_time;
+        }
+        
+        // Update vouchers table
+        const tbody = document.getElementById('vouchers-tbody');
+        if (data.recent_vouchers && data.recent_vouchers.length > 0) {
+            tbody.innerHTML = data.recent_vouchers.map(voucher => {
+                const code = voucher.voucher_code || '****-****-****-****';
+                const statusBadge = voucher.status === 'ACTIVE' 
+                    ? '<span class="badge-enterprise badge-enterprise-success">Active</span>'
+                    : '<span class="badge-enterprise badge-enterprise-gray">' + (voucher.status || 'Pending') + '</span>';
+                const issuedAt = voucher.issued_at ? new Date(voucher.issued_at).toLocaleString() : '-';
+                
+                return `
+                    <tr>
+                        <td class="font-mono font-semibold text-gray-900">${code}</td>
+                        <td class="text-gray-600">${voucher.reference_number || '-'}</td>
+                        <td class="text-gray-900">₹${voucher.amount}</td>
+                        <td>${statusBadge}</td>
+                        <td class="text-gray-600">${issuedAt}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
+    
+    // Update individual voucher progress cards
+    function updateVoucherProgress(data) {
+        const grid = document.getElementById('voucher-progress-grid');
+        if (!grid) return;
+        
+        const progressList = data.voucher_progress || [];
+        
+        // Update estimated time
+        const timeValueEl = document.getElementById('estimated-time-value');
+        if (timeValueEl) {
+            if (data.estimated_time_remaining) {
+                timeValueEl.textContent = data.estimated_time_remaining;
+            } else if (data.is_complete) {
+                timeValueEl.textContent = 'Completed';
+            } else {
+                timeValueEl.textContent = 'Calculating...';
+            }
+        }
+        
+        // Generate voucher cards
+        if (progressList.length > 0) {
+            grid.innerHTML = progressList.map(v => {
+                const statusConfig = {
+                    'pending': {
+                        class: 'bg-gray-50 border-gray-300',
+                        icon: 'ti-clock text-gray-500',
+                        text: 'Pending'
+                    },
+                    'processing': {
+                        class: 'bg-blue-50 border-blue-500',
+                        icon: 'ti-loader-2 text-blue-600 animate-spin',
+                        text: 'Processing...'
+                    },
+                    'completed': {
+                        class: 'bg-green-50 border-green-500',
+                        icon: 'ti-check text-green-600',
+                        text: 'Completed'
+                    },
+                    'failed': {
+                        class: 'bg-red-50 border-red-500',
+                        icon: 'ti-x text-red-600',
+                        text: 'Failed'
+                    }
+                };
+                
+                const config = statusConfig[v.status] || statusConfig['pending'];
+                
+                return `
+                    <div class="border-2 rounded-lg p-3 ${config.class} transition-all duration-300">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-gray-900 text-sm">#${v.index}</span>
+                            <i class="${config.icon} text-lg"></i>
+                        </div>
+                        <p class="text-xs text-gray-600 mb-1">${config.text}</p>
+                        ${v.voucher_code ? `<p class="text-xs font-mono text-gray-700 truncate" title="${v.voucher_code}">${v.voucher_code}</p>` : ''}
+                        ${v.error ? `<p class="text-xs text-red-600 mt-1 truncate" title="${v.error}">${v.error.substring(0, 25)}${v.error.length > 25 ? '...' : ''}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+        } else {
+            // Show placeholder cards if no progress data yet
+            grid.innerHTML = Array.from({length: data.total_vouchers || 0}, (_, i) => `
+                <div class="border-2 rounded-lg p-3 bg-gray-50 border-gray-300">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-gray-900 text-sm">#${i + 1}</span>
+                        <i class="ti-clock text-gray-500 text-lg"></i>
+                    </div>
+                    <p class="text-xs text-gray-600">Pending</p>
+                </div>
+            `).join('');
+        }
+    }
+    
+    // Poll for status updates
+    function pollStatus() {
+        fetch(statusUrl)
+            .then(response => response.json())
+            .then(data => {
+                // Debug logging
+                if (pollCount < 5 || pollCount % 10 === 0) {
+                    console.log('Poll #' + pollCount + ':', {
+                        status: data.status,
+                        processed: data.processed_vouchers + '/' + data.total_vouchers,
+                        current_index: data.current_processing_index,
+                        progress_count: data.voucher_progress ? data.voucher_progress.length : 0
+                    });
+                }
+                updateStatus(data);
+                updateVoucherProgress(data);
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+            });
+    }
+    
+    // Initialize voucher progress on page load
+    function initializeVoucherProgress() {
+        const grid = document.getElementById('voucher-progress-grid');
+        const totalVouchers = {{ batch.total_vouchers }};
+        if (grid && totalVouchers > 0) {
+            // Show placeholder cards initially
+            grid.innerHTML = Array.from({length: totalVouchers}, (_, i) => `
+                <div class="border-2 rounded-lg p-3 bg-gray-50 border-gray-300">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-gray-900 text-sm">#${i + 1}</span>
+                        <i class="ti-clock text-gray-500 text-lg"></i>
+                    </div>
+                    <p class="text-xs text-gray-600">Pending</p>
+                </div>
+            `).join('');
+        }
+    }
+    
+    // Start polling with faster initial interval for immediate feedback
+    let pollCount = 0;
+    const fastPollInterval = 1000; // 1 second for first 10 polls
+    const normalPollInterval = 2000; // 2 seconds after
+    
+    function startPolling() {
+        pollInterval = setInterval(() => {
+            pollStatus();
+            pollCount++;
+            // Switch to normal polling after 10 fast polls
+            if (pollCount >= 10 && pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = setInterval(pollStatus, normalPollInterval);
+            }
+        }, fastPollInterval);
+        pollStatus(); // Initial poll
+    }
+    
+    if (!isComplete) {
+        lockUI();
+        initializeVoucherProgress();
+        startPolling();
+    } else {
+        unlockUI();
+        // Still show progress even if complete
+        initializeVoucherProgress();
+        pollStatus();
+    }
+})();
+</script>
+{% endblock %}

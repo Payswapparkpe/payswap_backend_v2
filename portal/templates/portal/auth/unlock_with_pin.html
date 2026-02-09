@@ -1,0 +1,180 @@
+{% extends "auth_base.html" %}
+{% load static %}
+
+{% block title %}Unlock with PIN - Payswap{% endblock %}
+
+{% block auth_content %}
+<div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100">
+    <!-- Modal-style card -->
+    <div class="relative w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl shadow-slate-200/50 ring-1 ring-slate-200/60 overflow-hidden">
+        <!-- Top-right close -->
+        <a href="{% url 'signin' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}" class="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200 z-10" aria-label="Close and sign in with password">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </a>
+
+        <div class="p-8 pt-10">
+            <!-- Logo -->
+            <div class="text-center mb-5">
+                <a href="/" class="inline-block">
+                    <img src="{% static 'portal/images/small-logo.png' %}" alt="Payswap" class="h-9 w-auto mx-auto">
+                </a>
+            </div>
+
+            <!-- Greeting -->
+            <h1 class="text-2xl font-bold text-slate-800 text-center mb-2">Hey {{ greeting_name|default:"there" }}!</h1>
+            <p class="text-sm text-slate-500 text-center mb-6 max-w-xs mx-auto">Your screen was locked due to inactivity to protect your account.</p>
+
+            <!-- Watch-style countdown timer -->
+            <div class="mb-6" x-data="countdown({{ remaining_seconds|default:1800 }})" x-init="start()">
+                <div class="relative rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/50 ring-1 ring-slate-200/80 overflow-hidden p-5">
+                    <!-- Decorative corner -->
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#0066CC]/5 to-transparent rounded-bl-full"></div>
+                    <div class="relative flex flex-col items-center gap-3">
+                        <div class="text-4xl font-bold tabular-nums text-slate-800 tracking-tight" x-text="display"></div>
+                        <!-- Progress bar -->
+                        <div class="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden">
+                            <div class="h-full rounded-full bg-gradient-to-r from-[#0066CC] to-[#0088FF] transition-all duration-1000 ease-linear" :style="'width:' + percent + '%'"></div>
+                        </div>
+                        <p class="text-xs text-slate-500 text-center">Enter your PIN before time runs out</p>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'unlock_with_pin' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}" x-data="pinUnlock()" @submit="setPinHidden()">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <!-- Label -->
+                <label class="block text-sm font-medium text-slate-600 mb-3">Enter your 4-digit PIN</label>
+
+                <!-- Four PIN boxes -->
+                <div class="flex justify-center gap-3 mb-6" x-init="$nextTick(() => $el.querySelector('input') && $el.querySelector('input').focus())">
+                    <template x-for="i in indices" :key="i">
+                        <input
+                            type="password"
+                            inputmode="numeric"
+                            pattern="[0-9]"
+                            maxlength="1"
+                            autocomplete="off"
+                            :data-index="i"
+                            x-model="digits[i]"
+                            @input="onDigitInput(i, $event)"
+                            @keydown="onKeyDown(i, $event)"
+                            @paste="onPaste($event)"
+                            class="w-14 h-14 text-center text-2xl font-bold border-2 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2 focus:border-[#0066CC]"
+                            :class="digits[i] ? 'border-[#0066CC] bg-blue-50/50 text-slate-800' : 'border-slate-200 text-slate-800 hover:border-slate-300'"
+                        >
+                    </template>
+                </div>
+                <input type="hidden" name="pin" id="pin-hidden" value="">
+
+                <!-- Unlock button -->
+                <button
+                    type="submit"
+                    class="w-full py-3.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white font-semibold text-base shadow-lg shadow-[#0066CC]/25 hover:shadow-[#0066CC]/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0066CC] focus:ring-offset-2"
+                >
+                    Unlock
+                </button>
+
+                <!-- OR separator -->
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-200"></div>
+                    </div>
+                    <div class="relative flex justify-center">
+                        <span class="px-3 bg-white text-sm text-slate-400 font-medium">OR</span>
+                    </div>
+                </div>
+
+                <!-- Unlock using Password -->
+                <a href="{% url 'signin' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}" class="block text-center text-sm font-medium text-slate-600 hover:text-[#0066CC] transition-colors">
+                    Unlock using Password
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var unlockPath = '/auth/unlock-with-pin/';
+        if (typeof window === 'undefined' || !window.history || window.history.pushState === undefined) return;
+        if (window.location.pathname.indexOf(unlockPath) !== 0) return;
+        var baseUrl = window.location.pathname + window.location.search;
+        function pushUnlockState() {
+            window.history.pushState({ unlock: true }, '', baseUrl);
+        }
+        pushUnlockState();
+        window.addEventListener('popstate', function() {
+            if (window.location.pathname.indexOf(unlockPath) === 0) {
+                pushUnlockState();
+            }
+        });
+    })();
+    document.addEventListener('alpine:init', function() {
+        Alpine.data('countdown', function(initialSeconds) {
+            var total = Math.max(0, parseInt(initialSeconds, 10) || 1800);
+            return {
+                total: total,
+                seconds: total,
+                display: '29:00',
+                percent: 100,
+                timerId: null,
+                start() {
+                    var self = this;
+                    this.updateDisplay();
+                    this.timerId = setInterval(function() {
+                        self.seconds--;
+                        self.updateDisplay();
+                        if (self.seconds <= 0) {
+                            clearInterval(self.timerId);
+                            window.location.href = '{% url "unlock_expired" %}';
+                        }
+                    }, 1000);
+                },
+                updateDisplay() {
+                    var m = Math.floor(this.seconds / 60);
+                    var s = this.seconds % 60;
+                    this.display = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+                    this.percent = this.total > 0 ? Math.max(0, (this.seconds / this.total) * 100) : 0;
+                }
+            };
+        });
+        Alpine.data('pinUnlock', function() {
+            return {
+                digits: ['', '', '', ''],
+                indices: [0, 1, 2, 3],
+                setPinHidden() {
+                    var pin = this.digits.join('');
+                    document.getElementById('pin-hidden').value = pin;
+                },
+                onDigitInput(i, e) {
+                    var v = (e.target.value || '').replace(/\D/g, '').slice(-1);
+                    this.digits[i] = v;
+                    if (v && i < 3) {
+                        var next = e.target.closest('form').querySelector('input[data-index="' + (i + 1) + '"]');
+                        if (next) next.focus();
+                    }
+                },
+                onKeyDown(i, e) {
+                    if (e.key === 'Backspace' && !this.digits[i] && i > 0) {
+                        this.digits[i - 1] = '';
+                        var prev = e.target.closest('form').querySelector('input[data-index="' + (i - 1) + '"]');
+                        if (prev) prev.focus();
+                    }
+                },
+                onPaste(e) {
+                    e.preventDefault();
+                    var pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 4).split('');
+                    for (var j = 0; j < 4; j++) this.digits[j] = pasted[j] || '';
+                    var form = e.target.closest('form');
+                    var idx = Math.min(pasted.length, 3);
+                    var next = form.querySelector('input[data-index="' + idx + '"]');
+                    if (next) next.focus();
+                }
+            };
+        });
+    });
+    </script>
+{% endblock %}

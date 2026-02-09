@@ -9,8 +9,24 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+from datetime import timedelta
 from pathlib import Path
+import sys
+
+from corsheaders.defaults import default_headers as cors_default_headers
 from core.config import payswap_config
+
+# Suppress urllib3 InsecureRequestWarning when Cashfree sandbox is used (SDK may skip verify)
+try:
+    env = getattr(payswap_config, "CASHFREE_PG_ENVIRONMENT", "SANDBOX") or "SANDBOX"
+    if str(env).upper() == "SANDBOX":
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+
+# Detect test run (pytest or manage.py test) so we can adjust settings for migrations
+RUNNING_TESTS = 'test' in sys.argv or (len(sys.argv) > 0 and 'pytest' in sys.argv[0])
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,7 +36,9 @@ AUTH_USER_MODEL = 'portal.User'
 
 SECRET_KEY = payswap_config.get_secret_key()
 DEBUG = payswap_config.DEBUG
-ALLOWED_HOSTS = payswap_config.allowed_hosts_list
+ALLOWED_HOSTS = list(payswap_config.allowed_hosts_list)
+if 'testserver' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('testserver')  # Django test client / management command tests
 
 # Application definition
 
@@ -38,6 +56,9 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_beat",
     "django_celery_results",
+    "django_filters",
+    # Audit history (must be after auth so AUTH_USER_MODEL is available)
+    "simple_history",
     # Django Allauth for social authentication
     "allauth",
     "allauth.account",
@@ -48,6 +69,7 @@ INSTALLED_APPS = [
     # Local apps (portal must come after django.contrib.auth to override createsuperuser)
     "api",
     "portal.apps.PortalConfig",  # Use explicit app config to ensure command override
+    "api_management.apps.ApiManagementConfig",
 ]
 
 MIDDLEWARE = [
@@ -55,12 +77,18 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    "core.csrf_middleware.CSRFExemptAPIMiddleware",  # CSRF for portal; exempt /api/ for Angular/API clients
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "simple_history.middleware.HistoryRequestMiddleware",  # User attribution for django-simple-history (after auth)
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
     "api.middleware.request_id_middleware.RequestIDMiddleware",  # Request ID extraction
+    "api_management.middleware.APILoggingMiddleware",  # API request/response logging (APILog)
+    "api.v2.middleware.APIKeyIPWhitelistMiddleware",  # IP whitelisting for API keys
+    "api.v2.middleware.APIKeyUsageLoggingMiddleware",  # API usage logging
+    "portal.middleware.RequestLoggingMiddleware",  # Request logging - captures all requests
     "portal.middleware.ProfileCompletionMiddleware",  # Profile completion enforcement
     "portal.middleware.MFARequiredMiddleware",  # MFA enforcement
+    "portal.middleware.SessionLockMiddleware",  # Redirect expired session to PIN unlock when applicable
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -81,6 +109,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "portal.context_processors.voucherx_context",
             ],
         },
     },
@@ -142,8 +171,15 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ============================================================================
-# LOGGING CONFIGURATION
+# LOGGING CONFIGURATION (FILE-SYSTEM ONLY FOR APPLICATION LOGS)
+# Application logs go to files; logs must never affect DB transactions.
+# No secrets in logs (PIN, OTP, API keys, tokens). Log reference_id, entity_id, user_id, action.
 # ============================================================================
+def _log_dir():
+    d = BASE_DIR / 'logs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -170,39 +206,87 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
+        'app_file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'portal.log',
-            'maxBytes': 1024 * 1024 * 10,  # 10 MB
+            'filename': _log_dir() / 'app.log',
+            'maxBytes': 1024 * 1024 * 10,
+            'backupCount': 5,
+            'formatter': 'json',
+        },
+        'finance_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': _log_dir() / 'finance.log',
+            'maxBytes': 1024 * 1024 * 10,
+            'backupCount': 5,
+            'formatter': 'json',
+        },
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': _log_dir() / 'security.log',
+            'maxBytes': 1024 * 1024 * 10,
+            'backupCount': 5,
+            'formatter': 'json',
+        },
+        'audit_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': _log_dir() / 'audit.log',
+            'maxBytes': 1024 * 1024 * 10,
+            'backupCount': 5,
+            'formatter': 'json',
+        },
+        'email_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': _log_dir() / 'email.log',
+            'maxBytes': 1024 * 1024 * 10,
             'backupCount': 5,
             'formatter': 'json',
         },
         'error_file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'portal_errors.log',
-            'maxBytes': 1024 * 1024 * 10,  # 10 MB
+            'filename': _log_dir() / 'error.log',
+            'maxBytes': 1024 * 1024 * 10,
             'backupCount': 5,
             'formatter': 'json',
             'level': 'ERROR',
         },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'app_file'],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'app_file'],
             'level': 'INFO',
             'propagate': False,
         },
         'portal': {
-            'handlers': ['console', 'file', 'error_file'],
+            'handlers': ['console', 'app_file', 'error_file'],
             'level': payswap_config.LOG_LEVEL,
             'propagate': False,
         },
         'portal.tasks': {
-            'handlers': ['console', 'file', 'error_file'],
+            'handlers': ['console', 'app_file', 'error_file'],
+            'level': payswap_config.LOG_LEVEL,
+            'propagate': False,
+        },
+        'portal.finance': {
+            'handlers': ['console', 'finance_file', 'error_file'],
+            'level': payswap_config.LOG_LEVEL,
+            'propagate': False,
+        },
+        'portal.security': {
+            'handlers': ['console', 'security_file', 'error_file'],
+            'level': payswap_config.LOG_LEVEL,
+            'propagate': False,
+        },
+        'portal.audit': {
+            'handlers': ['console', 'audit_file', 'error_file'],
+            'level': payswap_config.LOG_LEVEL,
+            'propagate': False,
+        },
+        'portal.email': {
+            'handlers': ['console', 'email_file', 'error_file'],
             'level': payswap_config.LOG_LEVEL,
             'propagate': False,
         },
@@ -219,8 +303,16 @@ EMAIL_HOST_PASSWORD = payswap_config.get_smtp_password()
 DEFAULT_FROM_EMAIL = payswap_config.SMTP_DEFAULT_FROM
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = payswap_config.cors_allowed_origins_list
+# In development, allow any origin so Angular (any port) can call /api/auth/login without "Http failure 0"
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = []  # ignored when ALLOW_ALL_ORIGINS is True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = payswap_config.cors_allowed_origins_list
 CORS_ALLOW_CREDENTIALS = payswap_config.CORS_ALLOW_CREDENTIALS
+# Allow X-App header for Parkpe BBPS (product toggle: parkpe/payswap)
+CORS_ALLOW_HEADERS = list(cors_default_headers) + ["x-app"]
 
 # Cache configuration (Redis)
 CACHES = payswap_config.get_redis_config()
@@ -265,6 +357,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -279,11 +372,23 @@ REST_FRAMEWORK = {
         "user": "1000/hour",
     },
     "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
+    "EXCEPTION_HANDLER": "api_management.exceptions.api_management_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# Simple JWT (access + refresh for API consumers)
+# Payload: only user_id (and standard exp, iat, jti, token_type) – no sensitive PII in token
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_ACCESS_TOKEN_LIFETIME),
+    "REFRESH_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_REFRESH_TOKEN_LIFETIME),
+    "SIGNING_KEY": payswap_config.get_jwt_signing_key(),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
 }
 
 # API Documentation
@@ -292,17 +397,19 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Payswap API Documentation",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/",
 }
 
-# Session Authentication Settings
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+# Session Authentication Settings (web UI + Django Admin; does NOT affect API key auth)
+# Fintech policy: 5-minute inactivity timeout. User stays logged in while active; logged out after 5 min idle.
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_NAME = 'payswap_sessionid'
-SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_COOKIE_AGE = 300  # 5 minutes (inactivity-based: expiry refreshes on every request)
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session expiry on any authenticated request → inactivity-based timeout
 SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # CSRF Settings
@@ -332,7 +439,9 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*']  # Required fields
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle email verification ourselves
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'
-ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
+# During tests, allauth's 0006_emailaddress_lower can run before portal.0004 in some
+# migration orders; skip User email lowercasing in that migration to avoid FieldError.
+ACCOUNT_USER_MODEL_EMAIL_FIELD = None if RUNNING_TESTS else 'email'
 ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_LOGOUT_ON_GET = False
 
@@ -408,8 +517,21 @@ SECURE_HSTS_PRELOAD = True if not DEBUG else False
 # Test Runner
 TEST_RUNNER = 'core.test_runner.CustomTestRunner'
 
+# ---------------------------------------------------------------------------
+# django-simple-history (audit trail)
+# Compatible: Django >= 4.2 / 5.x / 6.x, Python >= 3.10
+# Middleware order: HistoryRequestMiddleware must be AFTER AuthenticationMiddleware
+# ---------------------------------------------------------------------------
+SIMPLE_HISTORY_REVERT_DISABLED = True  # RBI-style: no revert from admin; audit log is immutable
+SIMPLE_HISTORY_HISTORY_ID_USE_UUID = False  # Use integer history_id (default) for indexing
+SIMPLE_HISTORY_DATE_INDEX = True  # Index history_date for as_of() and time-range queries (default)
+SIMPLE_HISTORY_ENABLED = True  # Set False to disable history recording (e.g. migrations, bulk scripts)
+
 # Sentry settings
-if payswap_config.SENTRY_ENABLED:
+# Temporarily disabled due to version conflict with cashfree_pg
+# cashfree_pg requires sentry-sdk<1.33.0 which has Django signals compatibility issues
+# TODO: Re-enable when cashfree_pg updates or we find a workaround
+if False and payswap_config.SENTRY_ENABLED:
     sentry_dsn = payswap_config.get_sentry_dsn()
     if sentry_dsn and sentry_dsn.strip():
         import sentry_sdk

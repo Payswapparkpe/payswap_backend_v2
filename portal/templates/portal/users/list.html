@@ -1,52 +1,75 @@
 {% extends "base.html" %}
 {% load static %}
+{% load portal_tags %}
 
 {% block page_title %}Users{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-gray-900">Users</h2>
-        {% if user|has_permission:'portal.add_user' %}
-        <a href="/users/create/" class="btn btn-primary text-white">Create User</a>
-        {% endif %}
-    </div>
-    
-    <div class="card">
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead>
-                    <tr class="border-b border-gray-200">
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Username</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Email</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Role</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
-                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user_item in users %}
-                    <tr class="border-b border-gray-100 hover:bg-gray-50">
-                        <td class="py-3 px-4 text-sm font-semibold text-gray-900">{{ user_item.username }}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">{{ user_item.email|default:"-" }}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">{{ user_item.get_role_code_display }}</td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-1 rounded text-xs font-semibold {% if user_item.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-                                {% if user_item.is_active %}Active{% else %}Inactive{% endif %}
-                            </span>
-                        </td>
-                        <td class="py-3 px-4">
-                            <a href="/users/{{ user_item.id }}/" class="text-[#0066CC] hover:underline text-sm">View</a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="py-8 text-center text-gray-600">No users found</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <i class="ti ti-users text-xl text-indigo-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Users</h1>
+            <p class="page-description-enterprise">Manage user accounts and permissions across the platform</p>
         </div>
     </div>
+    {% if user|has_permission:'portal.add_user' %}
+    <a href="/users/create/" class="btn-enterprise-primary">
+        <i class="ti ti-plus mr-2"></i>
+        Create User
+    </a>
+    {% endif %}
+</div>
+
+<!-- Enterprise Data Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user_item in users %}
+            <tr>
+                <td class="font-semibold text-gray-900">{{ user_item.username }}</td>
+                <td class="text-gray-600">{{ user_item.email|default:"-" }}</td>
+                <td>
+                    <span class="badge-enterprise badge-enterprise-gray">{{ user_item.get_role_code_display }}</span>
+                </td>
+                <td>
+                    {% if user_item.is_active %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-danger">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    <a href="/users/{{ user_item.id }}/" class="btn-action">
+                        <i class="ti ti-eye"></i>
+                        View
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-users-off text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No users found</p>
+                        <p class="text-sm text-gray-500">Get started by creating your first user account</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}

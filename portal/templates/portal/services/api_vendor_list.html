@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}API Vendors{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-8rem)] min-h-[500px]">
+    <!-- Header + Tabs -->
+    <div class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-orange-500 flex items-center justify-center">
+                <i class="ti ti-api text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold text-gray-900">API Vendors</h1>
+                <p class="text-xs text-gray-500">Portal collections & Postman sync</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="button" id="tab-portal" class="tab-btn px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-100 text-orange-700 border border-orange-200">Portal Vendors</button>
+            <button type="button" id="tab-postman" class="tab-btn px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-transparent">Postman</button>
+            <a href="{% url 'services_list' %}" class="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 ml-2">
+                <i class="ti ti-server"></i> Services
+            </a>
+        </div>
+    </div>
+
+    <div class="flex flex-1 min-h-0">
+        <!-- Left: Portal collections (default) -->
+        <div id="panel-portal" class="panel flex flex-1 min-h-0">
+            <div class="w-64 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col overflow-hidden">
+                <div class="px-3 py-2 border-b border-gray-200 bg-white">
+                    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Collections</span>
+                </div>
+                <div class="flex-1 overflow-y-auto py-1">
+                    {% for v in vendors %}
+                    <a href="{% url 'api_vendor_detail' vendor_code=v.code %}" class="flex items-center gap-2 px-3 py-2 mx-1 rounded-md hover:bg-gray-200">
+                        <i class="ti ti-folder text-gray-500 shrink-0"></i>
+                        <span class="text-sm font-medium text-gray-900 truncate">{{ v.name }}</span>
+                        <span class="ml-auto text-xs text-gray-400 shrink-0">{{ v.apis.count }}</span>
+                    </a>
+                    {% empty %}
+                    <div class="px-3 py-6 text-center text-sm text-gray-500">No collections. Run <code class="text-xs bg-gray-200 px-1 rounded">seed_vendor_apis</code>.</div>
+                    {% endfor %}
+                </div>
+                <div class="p-2 border-t border-gray-200 text-center text-xs text-gray-400">
+                    {{ total_vendors|default:0 }} vendors · {{ total_apis|default:0 }} APIs
+                </div>
+            </div>
+            <div class="flex-1 flex flex-col overflow-hidden bg-white">
+                <div class="p-6 overflow-y-auto">
+                    <p class="text-gray-500 text-sm mb-4">Select a collection from the sidebar to view its APIs (Postman-style).</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {% for v in vendors %}
+                        <a href="{% url 'api_vendor_detail' vendor_code=v.code %}" class="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 transition-colors">
+                            <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                                <i class="ti ti-folder text-orange-600"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-medium text-gray-900 truncate">{{ v.name }}</p>
+                                <p class="text-xs text-gray-500 font-mono">{{ v.code }} · {{ v.apis.count }} APIs</p>
+                            </div>
+                            <i class="ti ti-chevron-right text-gray-400 ml-auto shrink-0"></i>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Postman panel: Sync + Collections + Request builder -->
+        <div id="panel-postman" class="panel hidden flex-1 min-h-0 flex flex-col bg-[#1e1e1e] text-gray-200">
+            <div class="flex flex-1 min-h-0">
+                <div class="w-72 shrink-0 border-r border-gray-700 bg-[#252526] flex flex-col overflow-hidden">
+                    <div class="px-3 py-2 border-b border-gray-700">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Postman Sync</span>
+                    </div>
+                    <div class="p-3 space-y-2 border-b border-gray-700">
+                        <input type="password" id="postman-api-key" value="{{ default_postman_key|default:''|escape }}" placeholder="Postman API Key" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-300 placeholder-gray-500 focus:ring-1 focus:ring-orange-500" autocomplete="off" />
+                        <label class="flex items-center gap-2 text-xs text-gray-400">
+                            <input type="checkbox" id="postman-save-key" class="rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500" />
+                            Save key for next time
+                        </label>
+                        <button type="button" id="postman-sync-btn" class="w-full px-3 py-2 rounded bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center justify-center gap-2">
+                            <i class="ti ti-refresh"></i> Sync from Postman
+                        </button>
+                        {% if has_postman_key %}
+                        <p class="text-[10px] text-emerald-500">API key saved. Click Sync to refresh from Postman.</p>
+                        {% else %}
+                        <p class="text-[10px] text-gray-500">Get API key: Postman → Settings → API Keys. Changes in Postman appear here after Sync.</p>
+                        {% endif %}
+                    </div>
+                    <div class="px-3 py-2 border-b border-gray-700">
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Collections</span>
+                    </div>
+                    <div id="postman-collections-list" class="flex-1 overflow-y-auto py-1">
+                        <p class="px-3 py-4 text-xs text-gray-500">Sync to load Postman collections.</p>
+                    </div>
+                </div>
+                <div class="flex-1 flex flex-col overflow-hidden bg-[#1e1e1e]">
+                    <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-700 bg-[#252526] shrink-0">
+                        <select id="postman-req-method" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:ring-1 focus:ring-orange-500">
+                            <option value="GET">GET</option>
+                            <option value="POST" selected>POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                        <input type="text" id="postman-req-url" placeholder="URL (from Postman or edit)" class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm font-mono text-gray-300 placeholder-gray-500 focus:ring-1 focus:ring-orange-500" />
+                        <button type="button" id="postman-req-send" class="shrink-0 px-4 py-2 rounded bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium flex items-center gap-2">
+                            <i class="ti ti-send"></i> Send
+                        </button>
+                    </div>
+                    <div class="border-b border-gray-700 shrink-0">
+                        <div class="flex gap-4 px-4">
+                            <button type="button" class="postman-req-tab py-3 text-sm border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="headers">Headers</button>
+                            <button type="button" class="postman-req-tab py-3 text-sm border-b-2 border-orange-500 text-orange-400" data-tab="body">Body</button>
+                        </div>
+                    </div>
+                    <div id="postman-tab-headers" class="postman-req-tab-content hidden p-4 overflow-auto">
+                        <div class="space-y-2">
+                            <div class="flex gap-2">
+                                <input type="text" id="postman-h1-key" placeholder="Header" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs font-mono text-gray-300" />
+                                <input type="text" id="postman-h1-value" placeholder="Value" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs font-mono text-gray-300" />
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="postman-h2-key" placeholder="Header" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs font-mono text-gray-300" />
+                                <input type="text" id="postman-h2-value" placeholder="Value" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs font-mono text-gray-300" />
+                            </div>
+                        </div>
+                    </div>
+                    <div id="postman-tab-body" class="postman-req-tab-content flex-1 flex flex-col overflow-hidden p-0">
+                        <textarea id="postman-req-body" class="w-full flex-1 min-h-[100px] p-4 bg-[#1e1e1e] border-0 text-sm font-mono text-gray-300 resize-none focus:ring-0 focus:outline-none" placeholder='{}' spellcheck="false"></textarea>
+                    </div>
+                    <div class="border-t border-gray-700 shrink-0" style="height: 240px;">
+                        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-[#252526]">
+                            <span class="text-xs font-medium text-gray-500 uppercase">Response</span>
+                            <span id="postman-resp-status" class="text-xs text-gray-400">—</span>
+                            <span id="postman-resp-time" class="text-xs text-gray-400">—</span>
+                        </div>
+                        <pre id="postman-resp-body" class="flex-1 p-4 overflow-auto text-xs font-mono text-gray-400 bg-[#1e1e1e] m-0 h-[180px]">Select a request and click Send. Same-origin URLs work; external URLs may be blocked by CORS.</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+    // Tabs: Portal | Postman
+    document.getElementById('tab-portal').addEventListener('click', function() {
+        document.getElementById('panel-portal').classList.remove('hidden');
+        document.getElementById('panel-postman').classList.add('hidden');
+        document.getElementById('tab-portal').classList.add('bg-orange-100', 'text-orange-700', 'border-orange-200');
+        document.getElementById('tab-portal').classList.remove('border-transparent');
+        document.getElementById('tab-postman').classList.remove('bg-orange-100', 'text-orange-700', 'border-orange-200');
+        document.getElementById('tab-postman').classList.add('border-transparent', 'text-gray-600');
+    });
+    document.getElementById('tab-postman').addEventListener('click', function() {
+        document.getElementById('panel-portal').classList.add('hidden');
+        document.getElementById('panel-postman').classList.remove('hidden');
+        document.getElementById('tab-postman').classList.add('bg-orange-100', 'text-orange-700', 'border-orange-200');
+        document.getElementById('tab-postman').classList.remove('border-transparent', 'text-gray-600');
+        document.getElementById('tab-portal').classList.remove('bg-orange-100', 'text-orange-700', 'border-orange-200');
+        document.getElementById('tab-portal').classList.add('border-transparent');
+    });
+
+    // Postman Sync
+    let postmanCollections = [];
+    document.getElementById('postman-sync-btn').addEventListener('click', function() {
+        var key = document.getElementById('postman-api-key').value.trim();
+        var saveKey = document.getElementById('postman-save-key').checked;
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Syncing...';
+        fetch('{% url "postman_sync" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ api_key: key || undefined, save_key: saveKey }),
+            credentials: 'include'
+        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+        .then(function(o) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-refresh"></i> Sync from Postman';
+            if (!o.ok) {
+                document.getElementById('postman-collections-list').innerHTML = '<p class="px-3 py-4 text-xs text-red-400">' + (o.data.error || 'Sync failed') + '</p>';
+                return;
+            }
+            postmanCollections = o.data.collections || [];
+            renderPostmanCollections();
+        }).catch(function(e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-refresh"></i> Sync from Postman';
+            document.getElementById('postman-collections-list').innerHTML = '<p class="px-3 py-4 text-xs text-red-400">' + e.message + '</p>';
+        });
+    });
+
+    function renderPostmanCollections() {
+        var html = '';
+        postmanCollections.forEach(function(coll, ci) {
+            html += '<div class="postman-coll mb-1" data-coll-index="' + ci + '">';
+            html += '<button type="button" class="postman-coll-btn w-full flex items-center gap-2 px-3 py-2 mx-1 rounded hover:bg-gray-700 text-left">';
+            html += '<i class="ti ti-chevron-right text-gray-500 text-xs coll-chevron shrink-0"></i>';
+            html += '<i class="ti ti-folder text-gray-500 shrink-0"></i>';
+            html += '<span class="text-sm text-gray-200 truncate flex-1">' + (coll.name || 'Unnamed') + '</span>';
+            html += '<span class="text-xs text-gray-500 shrink-0">' + (coll.requests && coll.requests.length) + '</span></button>';
+            html += '<div class="postman-requests hidden pl-2">';
+            (coll.requests || []).forEach(function(req, ri) {
+                var method = (req.method || 'GET').toUpperCase();
+                var methodClass = method === 'GET' ? 'bg-emerald-600/80' : method === 'POST' ? 'bg-amber-600/80' : 'bg-gray-600';
+                html += '<button type="button" class="postman-req-btn w-full flex items-center gap-2 px-3 py-1.5 mx-1 rounded hover:bg-gray-700 text-left" data-coll-index="' + ci + '" data-req-index="' + ri + '">';
+                html += '<span class="shrink-0 w-10 text-center py-0.5 rounded text-[10px] font-semibold ' + methodClass + ' text-white">' + method + '</span>';
+                html += '<span class="text-xs text-gray-300 truncate">' + (req.name || 'Request') + '</span></button>';
+            });
+            html += '</div></div>';
+        });
+        if (!html) html = '<p class="px-3 py-4 text-xs text-gray-500">No collections in your Postman.</p>';
+        document.getElementById('postman-collections-list').innerHTML = html;
+
+        document.querySelectorAll('.postman-coll-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var coll = this.closest('.postman-coll');
+                var requests = coll.querySelector('.postman-requests');
+                var chevron = coll.querySelector('.coll-chevron');
+                requests.classList.toggle('hidden');
+                chevron.classList.toggle('ti-chevron-right');
+                chevron.classList.toggle('ti-chevron-down');
+            });
+        });
+        document.querySelectorAll('.postman-req-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var ci = parseInt(btn.dataset.collIndex, 10);
+                var ri = parseInt(btn.dataset.reqIndex, 10);
+                var coll = postmanCollections[ci];
+                var req = coll && coll.requests && coll.requests[ri];
+                if (!req) return;
+                document.getElementById('postman-req-method').value = (req.method || 'GET').toUpperCase();
+                document.getElementById('postman-req-url').value = req.url || '';
+                document.getElementById('postman-req-body').value = req.body || '{}';
+                var headers = req.headers || [];
+                document.getElementById('postman-h1-key').value = headers[0] ? headers[0].key : '';
+                document.getElementById('postman-h1-value').value = headers[0] ? headers[0].value : '';
+                document.getElementById('postman-h2-key').value = headers[1] ? headers[1].key : '';
+                document.getElementById('postman-h2-value').value = headers[1] ? headers[1].value : '';
+                document.querySelectorAll('.postman-req-btn').forEach(function(b) { b.classList.remove('bg-gray-700'); });
+                btn.classList.add('bg-gray-700');
+            });
+        });
+    }
+
+    // Postman request tabs
+    document.querySelectorAll('.postman-req-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var tab = this.dataset.tab;
+            document.querySelectorAll('.postman-req-tab').forEach(function(b) {
+                b.classList.remove('border-orange-500', 'text-orange-400');
+                b.classList.add('border-transparent', 'text-gray-400');
+            });
+            this.classList.add('border-orange-500', 'text-orange-400');
+            document.querySelectorAll('.postman-req-tab-content').forEach(function(c) { c.classList.add('hidden'); });
+            var el = document.getElementById('postman-tab-' + tab);
+            if (el) el.classList.remove('hidden');
+        });
+    });
+
+    // Postman Send
+    document.getElementById('postman-req-send').addEventListener('click', function() {
+        var url = document.getElementById('postman-req-url').value.trim();
+        if (!url) {
+            document.getElementById('postman-resp-body').textContent = 'Enter a URL.';
+            return;
+        }
+        if (url.indexOf('/') === 0) url = window.location.origin + url;
+        else if (url.indexOf('http') !== 0) url = 'https://' + url;
+        var method = document.getElementById('postman-req-method').value;
+        var bodyRaw = document.getElementById('postman-req-body').value.trim();
+        var headers = { 'Content-Type': 'application/json' };
+        var h1k = document.getElementById('postman-h1-key').value.trim();
+        var h1v = document.getElementById('postman-h1-value').value.trim();
+        var h2k = document.getElementById('postman-h2-key').value.trim();
+        var h2v = document.getElementById('postman-h2-value').value.trim();
+        if (h1k) headers[h1k] = h1v;
+        if (h2k) headers[h2k] = h2v;
+        var opts = { method: method, headers: headers, credentials: 'include' };
+        if (method !== 'GET' && bodyRaw) {
+            try { JSON.parse(bodyRaw); opts.body = bodyRaw; } catch (e) {
+                document.getElementById('postman-resp-body').textContent = 'Invalid JSON in body: ' + e.message;
+                return;
+            }
+        }
+        document.getElementById('postman-resp-status').textContent = 'Loading...';
+        document.getElementById('postman-resp-time').textContent = '';
+        document.getElementById('postman-resp-body').textContent = 'Sending...';
+        var start = performance.now();
+        fetch(url, opts).then(function(res) {
+            var elapsed = Math.round(performance.now() - start);
+            document.getElementById('postman-resp-time').textContent = elapsed + ' ms';
+            document.getElementById('postman-resp-status').textContent = res.status + ' ' + res.statusText;
+            var ct = res.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') !== -1) return res.json().then(function(data) { return { json: data }; });
+            return res.text().then(function(t) { return { text: t }; });
+        }).then(function(data) {
+            if (data && data.json !== undefined) document.getElementById('postman-resp-body').textContent = JSON.stringify(data.json, null, 2);
+            else if (data && data.text !== undefined) document.getElementById('postman-resp-body').textContent = data.text || '(empty)';
+        }).catch(function(err) {
+            document.getElementById('postman-resp-status').textContent = 'Error';
+            document.getElementById('postman-resp-body').textContent = err.message + '\n\nFor external URLs, CORS may block. Use same-origin URLs or Postman app for external.';
+        });
+    });
+})();
+</script>
+<form id="csrf-form" style="display:none">{% csrf_token %}</form>
+{% endblock %}

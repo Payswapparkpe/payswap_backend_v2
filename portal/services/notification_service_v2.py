@@ -12,6 +12,7 @@ from portal.tasks.notification_tasks import (
 )
 from portal.utils.phone_utils import normalize_phone_number
 from portal.utils.logging_helper import get_logger
+import traceback
 
 logger = get_logger('portal.services.notifications')
 
@@ -79,7 +80,7 @@ class NotificationServiceV2:
                 'message': str(e)
             }
         except Exception as e:
-            logger.error(f'Error queuing SMS: {str(e)}', extra={'user_id': user_id}, exc_info=True)
+            logger.error(f'Error queuing SMS: {str(e)}', extra_data={'user_id': user_id}, traceback=traceback.format_exc())
             return {
                 'success': False,
                 'error': 'queue_error',
@@ -94,11 +95,13 @@ class NotificationServiceV2:
         context: Optional[Dict[str, Any]] = None,
         plain_message: Optional[str] = None,
         user_id: Optional[int] = None,
-        async_send: bool = True
+        async_send: bool = True,
+        use_parkpe: bool = False,
     ) -> Dict[str, Any]:
         """
-        Send email notification
-        
+        Send email notification.
+        use_parkpe=True uses Parkpe SMTP (voucher system; Zoho etc.).
+
         Args:
             to_email: Recipient email address
             subject: Email subject
@@ -107,11 +110,13 @@ class NotificationServiceV2:
             plain_message: Optional plain text message (if no template)
             user_id: Optional user ID for logging
             async_send: Whether to send asynchronously (default: True)
-        
+            use_parkpe: Use Parkpe SMTP for voucher emails (default: False)
+
         Returns:
             Dict with task ID (if async_send) or result (if sync)
         """
         try:
+            extra = {'has_template': template_name is not None, 'use_parkpe': use_parkpe}
             if async_send:
                 # Send asynchronously via Celery
                 task = send_email_task.delay(
@@ -121,7 +126,8 @@ class NotificationServiceV2:
                     context=context or {},
                     plain_message=plain_message,
                     user_id=user_id,
-                    extra_context={'has_template': template_name is not None}
+                    extra_context=extra,
+                    use_parkpe=use_parkpe,
                 )
                 return {
                     'success': True,
@@ -138,12 +144,13 @@ class NotificationServiceV2:
                     context=context or {},
                     plain_message=plain_message,
                     user_id=user_id,
-                    extra_context={'has_template': template_name is not None}
+                    extra_context=extra,
+                    use_parkpe=use_parkpe,
                 )
                 return result
                 
         except Exception as e:
-            logger.error(f'Error queuing email: {str(e)}', extra={'user_id': user_id}, exc_info=True)
+            logger.error(f'Error queuing email: {str(e)}', extra_data={'user_id': user_id}, traceback=traceback.format_exc())
             return {
                 'success': False,
                 'error': 'queue_error',
@@ -205,7 +212,7 @@ class NotificationServiceV2:
                 'message': str(e)
             }
         except Exception as e:
-            logger.error(f'Error queuing OTP: {str(e)}', extra={'user_id': user_id}, exc_info=True)
+            logger.error(f'Error queuing OTP: {str(e)}', extra_data={'user_id': user_id}, traceback=traceback.format_exc())
             return {
                 'success': False,
                 'error': 'queue_error',

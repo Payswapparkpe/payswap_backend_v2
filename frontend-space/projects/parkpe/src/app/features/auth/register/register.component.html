@@ -1,0 +1,194 @@
+<div class="auth-shell">
+  <div class="auth-grid">
+    <!-- Brand / Value prop -->
+    <aside class="brand-panel">
+      <a routerLink="/home" class="brand">
+        <img class="brand-logo-img" src="assets/parkpe-logo.svg" alt="ParkPe" />
+      </a>
+
+      <h1 class="brand-title">Create your account.</h1>
+      <p class="brand-subtitle">
+        Get access to ParkPe Connect, vehicle services, receipts and transaction history — in one clean dashboard.
+      </p>
+
+      <div class="brand-badges" role="list">
+        <div class="badge" role="listitem"><span class="material-icons">verified_user</span> Secure</div>
+        <div class="badge" role="listitem"><span class="material-icons">lock</span> Privacy-first</div>
+        <div class="badge" role="listitem"><span class="material-icons">bolt</span> Fast setup</div>
+      </div>
+
+      <div class="brand-features">
+        <div class="feature">
+          <span class="material-icons">qr_code_2</span>
+          <div>
+            <div class="feature-title">ParkPe Connect</div>
+            <div class="feature-desc">Scan QR to contact owners without sharing numbers.</div>
+          </div>
+        </div>
+        <div class="feature">
+          <span class="material-icons">receipt_long</span>
+          <div>
+            <div class="feature-title">Receipts & history</div>
+            <div class="feature-desc">Track transactions and download receipts anytime.</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="brand-footnote">
+        Already have an account? <a routerLink="/auth/login">Sign in</a>
+      </p>
+    </aside>
+
+    <!-- Register card -->
+    <section class="auth-panel">
+      <div class="auth-card card scale-in">
+        <div class="auth-header">
+          <h2 class="auth-title">Sign up</h2>
+          <p class="auth-subtitle">It takes less than a minute.</p>
+        </div>
+
+        <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form">
+          <div class="form-group">
+            <label for="name" class="form-label">Full name</label>
+            <input
+              id="name"
+              type="text"
+              formControlName="name"
+              class="form-control"
+              [class.error]="name?.invalid && name?.touched"
+              placeholder="Your name"
+              autocomplete="name"
+            />
+            @if (name?.invalid && name?.touched) {
+              <span class="error-message">Name is required</span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="email" class="form-label">Email</label>
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              class="form-control"
+              [class.error]="email?.invalid && email?.touched"
+              placeholder="you@example.com"
+              autocomplete="email"
+            />
+            @if (email?.invalid && email?.touched) {
+              <span class="error-message">
+                @if (email?.errors?.['required']) { Email is required }
+                @if (email?.errors?.['email']) { Please enter a valid email }
+              </span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="phone" class="form-label">Phone</label>
+            <input
+              id="phone"
+              type="tel"
+              inputmode="numeric"
+              formControlName="phone"
+              class="form-control"
+              [class.error]="phone?.invalid && phone?.touched"
+              placeholder="10-digit mobile number"
+              autocomplete="tel"
+            />
+            @if (phone?.invalid && phone?.touched) {
+              <span class="error-message">Phone is required</span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <div class="password-input">
+              <input
+                id="password"
+                [type]="showPassword ? 'text' : 'password'"
+                formControlName="password"
+                class="form-control"
+                [class.error]="password?.invalid && password?.touched"
+                placeholder="Create a password"
+                autocomplete="new-password"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                (click)="togglePasswordVisibility()"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              >
+                <span class="material-icons">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+            @if (password?.invalid && password?.touched) {
+              <span class="error-message">Password must be at least 6 characters</span>
+            }
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword" class="form-label">Confirm password</label>
+            <div class="password-input">
+              <input
+                id="confirmPassword"
+                [type]="showConfirmPassword ? 'text' : 'password'"
+                formControlName="confirmPassword"
+                class="form-control"
+                [class.error]="(confirmPassword?.touched && registerForm.errors?.['passwordsMismatch'])"
+                placeholder="Re-enter your password"
+                autocomplete="new-password"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                (click)="toggleConfirmPasswordVisibility()"
+                [attr.aria-label]="showConfirmPassword ? 'Hide password' : 'Show password'"
+              >
+                <span class="material-icons">{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+            @if (confirmPassword?.touched && registerForm.errors?.['passwordsMismatch']) {
+              <span class="error-message">Passwords do not match</span>
+            }
+          </div>
+
+          <div class="form-group-checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" formControlName="acceptTerms" />
+              <span>
+                I agree to the
+                <a href="#" class="auth-link">Terms</a>
+                and
+                <a href="#" class="auth-link">Privacy Policy</a>
+              </span>
+            </label>
+            @if (acceptTerms?.invalid && acceptTerms?.touched) {
+              <span class="error-message">Please accept the terms to continue</span>
+            }
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+            @if (loading) {
+              <span class="spinner"></span>
+              <span>Creating account...</span>
+            } @else {
+              <span>Create account</span>
+              <span class="material-icons">arrow_forward</span>
+            }
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <p>
+            Already have an account?
+            <a routerLink="/auth/login" class="auth-link">Sign in</a>
+          </p>
+          <p class="back-home">
+            <a routerLink="/home" class="auth-link">← Back to home</a>
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+

@@ -1,0 +1,44 @@
+{
+  "electricity": [
+    {
+      "id": "op_elec_001",
+      "name": "BESCOM - Bangalore Electricity",
+      "code": "BESCOM",
+      "category": "electricity",
+      "logo": "/assets/images/operators/bescom.png",
+      "parameters": [
+        {
+          "name": "consumerId",
+          "label": "Consumer ID",
+          "type": "text",
+          "required": true,
+          "maxLength": 12,
+          "placeholder": "Enter your 12-digit consumer ID"
+        }
+      ],
+      "paymentModes": ["card", "netbanking", "upi"],
+      "minAmount": 100,
+      "maxAmount": 50000
+    }
+  ],
+  "water": [
+    {
+      "id": "op_water_001",
+      "name": "BWSSB - Bangalore Water Supply",
+      "code": "BWSSB",
+      "category": "water",
+      "parameters": [
+        {
+          "name": "connectionId",
+          "label": "Connection ID",
+          "type": "text",
+          "required": true,
+          "maxLength": 10
+        }
+      ],
+      "paymentModes": ["card", "netbanking", "upi"],
+      "minAmount": 50,
+      "maxAmount": 10000
+    }
+  ]
+}

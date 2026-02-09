@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Bulk Voucher Issuance{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="ti ti-upload text-xl text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Bulk Voucher Issuance</h1>
+            <p class="page-description-enterprise">Upload file or manually create multiple vouchers</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="/vouchers/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Vouchers
+    </a>
+    {% endif %}
+</div>
+
+<!-- Method Tabs -->
+<div class="card-enterprise mb-6">
+    <div class="flex gap-2 border-b">
+        <button type="button" onclick="showMethod('file')" id="tab-file" class="px-6 py-3 font-semibold text-gray-700 border-b-2 border-blue-600">
+            <i class="ti ti-upload mr-2"></i>
+            File Upload
+        </button>
+        <button type="button" onclick="showMethod('manual')" id="tab-manual" class="px-6 py-3 font-semibold text-gray-500 hover:text-gray-700">
+            <i class="ti ti-forms mr-2"></i>
+            Manual Bulk
+        </button>
+    </div>
+</div>
+
+<!-- File Upload Form -->
+<div id="method-file" class="method-panel">
+    <div class="card-enterprise max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Upload File</h2>
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            <input type="hidden" name="issuance_method" value="FILE_UPLOAD">
+            
+            <div>
+                <label class="form-label-enterprise">Brand <span class="text-red-500">*</span></label>
+                <select name="brand_id" required class="form-select-enterprise" id="file-brand-select" onchange="loadClientsForFile(this.value)">
+                    <option value="">Select a brand</option>
+                    {% for brand in brands %}
+                    <option value="{{ brand.id }}" {% if selected_brand_id == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }} ({{ brand.brand_code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Client</label>
+                <select name="client_id" class="form-select-enterprise" id="file-client-select">
+                    <option value="">Default (Payswap)</option>
+                    {% for client in clients %}
+                    <option value="{{ client.id }}">{{ client.client_name }}{% if client.is_default %} (Default){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Leave empty to use default Payswap client</p>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">CSV/Excel File <span class="text-red-500">*</span></label>
+                <input type="file" name="file" accept=".csv,.xlsx,.xls" required class="form-input-enterprise">
+                <p class="text-xs text-gray-500 mt-1">Maximum file size: 10MB. Supported formats: CSV, Excel (.xlsx, .xls)</p>
+            </div>
+            
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                    <i class="ti ti-info-circle text-blue-600 mt-0.5"></i>
+                    <div>
+                        <p class="text-sm font-semibold text-blue-900 mb-2">File Format Requirements</p>
+                        <ul class="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                            <li>Required columns: <code class="bg-blue-100 px-1 rounded">amount</code></li>
+                            <li>Optional columns: <code class="bg-blue-100 px-1 rounded">mobile_number</code></li>
+                            <li>Maximum 10,000 vouchers per batch</li>
+                            <li>Amount must be greater than 0</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-4 pt-4">
+                <button type="submit" class="btn-enterprise-primary">
+                    <i class="ti ti-upload mr-2"></i>
+                    Upload and Process
+                </button>
+                <a href="/vouchers/" class="btn-enterprise-outline">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Manual Bulk Form -->
+<div id="method-manual" class="method-panel hidden">
+    <div class="card-enterprise max-w-3xl mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Manual Bulk Issuance</h2>
+        <form method="post" class="space-y-6" id="manual-bulk-form">
+            {% csrf_token %}
+            <input type="hidden" name="issuance_method" value="MANUAL_BULK">
+            <input type="hidden" name="denomination_count" id="denomination_count" value="1">
+            
+            <div>
+                <label class="form-label-enterprise">Brand <span class="text-red-500">*</span></label>
+                <select name="brand_id" required class="form-select-enterprise" id="manual-brand-select" onchange="loadClientsForManual(this.value)">
+                    <option value="">Select a brand</option>
+                    {% for brand in brands %}
+                    <option value="{{ brand.id }}" {% if selected_brand_id == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }} ({{ brand.brand_code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Client</label>
+                <select name="client_id" class="form-select-enterprise" id="manual-client-select">
+                    <option value="">Default (Payswap)</option>
+                    {% for client in clients %}
+                    <option value="{{ client.id }}">{{ client.client_name }}{% if client.is_default %} (Default){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Leave empty to use default Payswap client</p>
+            </div>
+            
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <label class="form-label-enterprise mb-0">Denominations <span class="text-red-500">*</span></label>
+                    <button type="button" onclick="addDenominationRow()" class="btn-enterprise-secondary text-sm">
+                        <i class="ti ti-plus mr-1"></i>
+                        Add Denomination
+                    </button>
+                </div>
+                <div id="denominations-container" class="space-y-4">
+                    <div class="denomination-row grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg">
+                        <div>
+                            <label class="form-label-enterprise text-sm">Amount (INR) <span class="text-red-500">*</span></label>
+                            <input type="number" name="denomination_0_amount" step="0.01" min="0.01" required class="form-input-enterprise" placeholder="Enter amount">
+                        </div>
+                        <div>
+                            <label class="form-label-enterprise text-sm">Quantity <span class="text-red-500">*</span></label>
+                            <div class="flex gap-2">
+                                <input type="number" name="denomination_0_quantity" min="1" required class="form-input-enterprise" placeholder="Enter quantity">
+                                <button type="button" onclick="removeDenominationRow(this)" class="btn-enterprise-danger px-3">
+                                    <i class="ti ti-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-semibold text-gray-700">Total Vouchers:</span>
+                        <span class="text-lg font-bold text-gray-900" id="total-vouchers">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-4 pt-4">
+                <button type="submit" class="btn-enterprise-primary">
+                    <i class="ti ti-check mr-2"></i>
+                    Create Batch
+                </button>
+                <a href="/vouchers/" class="btn-enterprise-outline">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Recent Batches -->
+{% if recent_batches %}
+<div class="card-enterprise">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Batches</h2>
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Batch Reference</th>
+                    <th>Brand</th>
+                    <th>Total Vouchers</th>
+                    <th>Processed</th>
+                    <th>Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for batch in recent_batches %}
+                <tr>
+                    <td class="font-semibold">
+                        <a href="{% url 'voucher_batch_detail' batch_id=batch.id %}{% if from_voucherx %}?from=voucherx{% endif %}" 
+                           class="text-indigo-600 hover:text-indigo-700 font-mono transition-colors">
+                            {{ batch.batch_reference }}
+                        </a>
+                    </td>
+                    <td class="text-gray-600">{{ batch.brand.brand_name }}</td>
+                    <td class="text-gray-600">{{ batch.total_vouchers }}</td>
+                    <td class="text-gray-600">{{ batch.processed_vouchers }}/{{ batch.total_vouchers }}</td>
+                    <td>
+                        {% if batch.status == 'COMPLETED' %}
+                        <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                        {% elif batch.status == 'PROCESSING' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Processing</span>
+                        {% elif batch.status == 'FAILED' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">
+                        <a href="/vouchers/issue/bulk/{{ batch.id }}/status/" class="btn-action">
+                            <i class="ti ti-eye"></i>
+                            View
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+let denominationCounter = 1;
+
+function showMethod(method) {
+    document.getElementById('method-file').classList.toggle('hidden', method !== 'file');
+    document.getElementById('method-manual').classList.toggle('hidden', method !== 'manual');
+    
+    document.getElementById('tab-file').classList.toggle('border-blue-600', method === 'file');
+    document.getElementById('tab-file').classList.toggle('text-gray-700', method === 'file');
+    document.getElementById('tab-file').classList.toggle('text-gray-500', method !== 'file');
+    
+    document.getElementById('tab-manual').classList.toggle('border-blue-600', method === 'manual');
+    document.getElementById('tab-manual').classList.toggle('text-gray-700', method === 'manual');
+    document.getElementById('tab-manual').classList.toggle('text-gray-500', method !== 'manual');
+}
+
+function addDenominationRow() {
+    const container = document.getElementById('denominations-container');
+    const row = document.createElement('div');
+    row.className = 'denomination-row grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg';
+    row.innerHTML = `
+        <div>
+            <label class="form-label-enterprise text-sm">Amount (INR) <span class="text-red-500">*</span></label>
+            <input type="number" name="denomination_${denominationCounter}_amount" step="0.01" min="0.01" required class="form-input-enterprise" placeholder="Enter amount" onchange="updateTotal()">
+        </div>
+        <div>
+            <label class="form-label-enterprise text-sm">Quantity <span class="text-red-500">*</span></label>
+            <div class="flex gap-2">
+                <input type="number" name="denomination_${denominationCounter}_quantity" min="1" required class="form-input-enterprise" placeholder="Enter quantity" onchange="updateTotal()">
+                <button type="button" onclick="removeDenominationRow(this)" class="btn-enterprise-danger px-3">
+                    <i class="ti ti-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    container.appendChild(row);
+    denominationCounter++;
+    document.getElementById('denomination_count').value = denominationCounter;
+    updateTotal();
+}
+
+function removeDenominationRow(button) {
+    const rows = document.querySelectorAll('.denomination-row');
+    if (rows.length > 1) {
+        button.closest('.denomination-row').remove();
+        updateTotal();
+    }
+}
+
+function updateTotal() {
+    let total = 0;
+    document.querySelectorAll('.denomination-row').forEach(row => {
+        const quantity = parseInt(row.querySelector('input[name$="_quantity"]').value) || 0;
+        total += quantity;
+    });
+    document.getElementById('total-vouchers').textContent = total;
+}
+
+function loadClientsForFile(brandId) {
+    loadClients(brandId, 'file-client-select');
+}
+
+function loadClientsForManual(brandId) {
+    loadClients(brandId, 'manual-client-select');
+}
+
+function loadClients(brandId, selectId) {
+    if (!brandId) {
+        document.getElementById(selectId).innerHTML = '<option value="">Default (Payswap)</option>';
+        return;
+    }
+    
+    fetch(`/vouchers/clients/?brand_id=${brandId}&format=json`)
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">Default (Payswap)</option>';
+            if (data.clients) {
+                data.clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.client_name + (client.is_default ? ' (Default)' : '');
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading clients:', error);
+        });
+}
+
+// Initialize total on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateTotal();
+    document.querySelectorAll('input[name$="_quantity"], input[name$="_amount"]').forEach(input => {
+        input.addEventListener('change', updateTotal);
+    });
+});
+</script>
+{% endblock %}

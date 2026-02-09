@@ -17,7 +17,8 @@ from portal.models import (
 from portal.services.partner_accounting_service import PartnerAccountingService
 from portal.utils.logging_helper import get_logger
 
-logger = get_logger('portal.services.approval')
+# Audit logger: writes to logs/audit.log (approval execution, overrides; file-system only)
+logger = get_logger('portal.audit')
 
 
 # Action types that require approval (must match ApprovalRequest.ACTION_TYPE_CHOICES)
@@ -181,15 +182,16 @@ def _execute_refund(req: ApprovalRequest, approved_by: User) -> Dict[str, Any]:
 
 
 def _execute_voucher_status_override(req: ApprovalRequest, approved_by: User) -> Dict[str, Any]:
-    """Override voucher status (e.g. BLOCKED, EXPIRED) for audit/reversal."""
+    """Override voucher status (e.g. BLOCKED, EXPIRED) for audit/reversal. Lock row, validate, then update."""
     voucher_id = req.payload.get('voucher_id') or req.entity_id
-    voucher = GiftVoucher.objects.get(id=int(voucher_id))
     new_status = req.payload.get('new_status')
     if not new_status or new_status not in dict(GiftVoucher.STATUS_CHOICES):
         raise ValueError(f"payload.new_status must be one of: {list(dict(GiftVoucher.STATUS_CHOICES).keys())}")
-    old_status = voucher.status
-    voucher.status = new_status
-    voucher.save(update_fields=['status'])
+    with transaction.atomic():
+        voucher = GiftVoucher.objects.select_for_update().get(id=int(voucher_id))
+        old_status = voucher.status
+        voucher.status = new_status
+        voucher.save(update_fields=['status'])
     return {'voucher_id': voucher.id, 'old_status': old_status, 'new_status': new_status}
 
 

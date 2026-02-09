@@ -1,0 +1,41 @@
+{
+  "id": "challan_001",
+  "challanNumber": "CHN202400123",
+  "vehicleNumber": "KA01AB1234",
+  "vehicleOwnerName": "John Doe",
+  "offence": "Over Speeding",
+  "offenceCode": "OS001",
+  "offenceDate": "2024-01-25T14:30:00Z",
+  "location": "MG Road, Bangalore",
+  "state": "Karnataka",
+  "amount": 1000,
+  "penaltyAmount": 200,
+  "totalAmount": 1200,
+  "currency": "INR",
+  "dueDate": "2024-02-25T23:59:59Z",
+  "status": "pending",
+  "issuingAuthority": "Bangalore Traffic Police",
+  "officerName": "Inspector Rajesh Kumar",
+  "additionalDetails": [
+    {
+      "label": "Speed Limit",
+      "value": "60 km/h"
+    },
+    {
+      "label": "Recorded Speed",
+      "value": "85 km/h"
+    },
+    {
+      "label": "Camera Number",
+      "value": "CAM-MG-001"
+    },
+    {
+      "label": "Section",
+      "value": "Section 183 of Motor Vehicles Act"
+    }
+  ],
+  "images": [
+    "/assets/images/challans/photo1.jpg"
+  ],
+  "paymentDeadline": "2024-02-25T23:59:59Z"
+}

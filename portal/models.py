@@ -4,12 +4,16 @@ Portal Models - User Management, KYC, Wallet
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group, Permission, UserManager as BaseUserManager
+from simple_history.models import HistoricalRecords
 from django.core.validators import RegexValidator
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from portal.utils.user_utils import generate_username, get_role_prefix, is_mfa_required_role
 from portal.utils.encryption import encrypt_data, decrypt_data
 from portal.utils.validators import validate_phone_number, validate_pan_number, validate_aadhaar_number
+from portal.utils.logging_helper import get_logger
+
+logger = get_logger('portal.models')
 
 
 class UserManager(BaseUserManager):
@@ -277,7 +281,13 @@ class Profile(models.Model):
         if self.encrypted_banking_details:
             try:
                 return json.loads(decrypt_data(self.encrypted_banking_details))
-            except Exception:
+            except (ValueError, TypeError, json.JSONDecodeError) as e:
+                logger.warning(
+                    'Failed to decrypt banking details for profile pk=%s: %s',
+                    self.pk,
+                    e,
+                    exc_info=True
+                )
                 return {}
         return {}
     
@@ -406,6 +416,14 @@ class Profile(models.Model):
         null=True,
         blank=True,
         related_name='updated_profiles'
+    )
+    
+    # Postman sync: API key for fetching collections from Postman (Postman → Portal sync)
+    postman_api_key = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Postman API key for syncing collections to this portal (optional)"
     )
     
     class Meta:
@@ -591,6 +609,31 @@ class User(AbstractUser):
     totp_secret = models.CharField(max_length=200, blank=True, null=True)  # Encrypted TOTP secret (Fernet encryption produces ~140 chars)
     
     # ============================================================================
+    # SESSION LOCK / PIN UNLOCK (Secondary re-unlock only; OTP/2FA is primary auth)
+    # ============================================================================
+    pin_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        help_text='Hashed 4-digit PIN (Django make_password). Never store plaintext.'
+    )
+    pin_set_at = models.DateTimeField(null=True, blank=True, help_text='When PIN was last set')
+    pin_failed_attempts = models.IntegerField(
+        default=0,
+        help_text='Consecutive failed PIN attempts; lock after 5'
+    )
+    pin_locked_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='PIN unlock blocked until this time (30 min after 5 failures)'
+    )
+    last_full_auth_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Last successful OTP/2FA login; PIN unlock allowed only within window (e.g. 24h)'
+    )
+    
+    # ============================================================================
     # ACCOUNT STATUS
     # ============================================================================
     # is_active, is_staff, is_superuser are inherited from AbstractUser
@@ -753,7 +796,13 @@ class User(AbstractUser):
         if self.totp_secret:
             try:
                 return decrypt_data(self.totp_secret)
-            except Exception:
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    'Failed to decrypt TOTP secret for user pk=%s: %s',
+                    self.pk,
+                    e,
+                    exc_info=True
+                )
                 return ""
         return ""
     
@@ -852,6 +901,12 @@ class KYC(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_kyc'
         verbose_name = 'KYC'
@@ -920,7 +975,13 @@ class Wallet(models.Model):
         verbose_name = 'Wallet'
         verbose_name_plural = 'Wallets'
         ordering = ['-created_at']
-    
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(balance__gte=0),
+                name='portal_wallet_balance_non_negative',
+            ),
+        ]
+
     def __str__(self):
         return f"Wallet for {self.user.username} - {self.balance} {self.currency}"
     
@@ -929,7 +990,13 @@ class Wallet(models.Model):
         if self.encrypted_seed_phrase:
             try:
                 return decrypt_data(self.encrypted_seed_phrase)
-            except Exception:
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    'Failed to decrypt seed phrase for wallet pk=%s: %s',
+                    self.pk,
+                    e,
+                    exc_info=True
+                )
                 return ""
         return ""
     
@@ -939,6 +1006,12 @@ class Wallet(models.Model):
             self.encrypted_seed_phrase = encrypt_data(seed_phrase)
         else:
             self.encrypted_seed_phrase = None
+
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at', 'encrypted_seed_phrase'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
 
 
 class WalletTransaction(models.Model):
@@ -1005,6 +1078,190 @@ class WalletTransaction(models.Model):
     def __str__(self):
         return f"{self.transaction_type} {self.amount} - {self.wallet.user.username}"
 
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'encrypted_details'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
+
+# =============================================================================
+# PARKPE VOUCHER (no wallet in ParkPe – customer pays via PG or voucher balance)
+# =============================================================================
+
+class ParkPeVoucherBalance(models.Model):
+    """
+    ParkPe user's voucher balance. One row per user.
+    Credits when user buys voucher via PG; debits when user pays with voucher (e.g. BBPS).
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='parkpe_voucher_balance',
+    )
+    balance = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        default=0,
+        help_text='Available voucher balance in INR',
+    )
+    currency = models.CharField(max_length=3, default='INR')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_parkpe_voucher_balance'
+        verbose_name = 'ParkPe Voucher Balance'
+        verbose_name_plural = 'ParkPe Voucher Balances'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(balance__gte=0),
+                name='parkpe_voucher_balance_non_negative',
+            ),
+        ]
+
+    def __str__(self):
+        return f"ParkPe voucher {self.user.username}: {self.balance} {self.currency}"
+
+
+class ParkPeVoucherTransaction(models.Model):
+    """Audit trail for ParkPe voucher credit/debit."""
+    CREDIT = 'credit'
+    DEBIT = 'debit'
+    TYPE_CHOICES = [(CREDIT, 'Credit'), (DEBIT, 'Debit')]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='parkpe_voucher_transactions',
+    )
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    transaction_type = models.CharField(max_length=10, choices=TYPE_CHOICES, db_index=True)
+    balance_after = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    reference_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    service_code = models.CharField(max_length=50, blank=True, null=True, help_text='e.g. BBPS, voucher_purchase')
+    description = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'portal_parkpe_voucher_transaction'
+        verbose_name = 'ParkPe Voucher Transaction'
+        verbose_name_plural = 'ParkPe Voucher Transactions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_type} {self.amount} – user {self.user_id}"
+
+
+class ParkPeServiceConfig(models.Model):
+    """
+    Per-service config for ParkPe: which services allow voucher and/or PG.
+    service_code e.g. 'BBPS', 'voucher_purchase' (purchase flow is not a biller service).
+    """
+    service_code = models.CharField(max_length=50, unique=True, db_index=True)
+    voucher_allowed = models.BooleanField(default=True, help_text='User can pay with voucher balance')
+    pg_allowed = models.BooleanField(default=True, help_text='User can pay with PG (Razorpay/Cashfree)')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_parkpe_service_config'
+        verbose_name = 'ParkPe Service Config'
+        verbose_name_plural = 'ParkPe Service Configs'
+
+    def __str__(self):
+        return f"{self.service_code} (voucher={self.voucher_allowed}, pg={self.pg_allowed})"
+
+
+class ParkPePaymentGatewayConfig(models.Model):
+    """
+    Which PG is enabled for ParkPe and for which use (voucher purchase vs specific service).
+    service_code null = used for voucher purchase (create-order). Non-null = for that service's PG pay.
+    """
+    RAZORPAY = 'razorpay'
+    CASHFREE = 'cashfree'
+    GATEWAY_CHOICES = [(RAZORPAY, 'Razorpay'), (CASHFREE, 'Cashfree')]
+
+    gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, db_index=True)
+    enabled = models.BooleanField(default=True)
+    service_code = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        db_index=True,
+        help_text='Empty = voucher purchase; e.g. BBPS = PG for BBPS pay',
+    )
+    merchant_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Merchant identifier (e.g. MCH_001). Isse pata chalega ki is gateway+service ke liye kaun sa merchant account use ho raha hai.',
+    )
+    credential_key = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Razorpay: Key ID. Cashfree: App ID (x-client-id). Optional if using single merchant from .env (RAZORPAY_KEY_ID / CASHFREE_PG_CLIENT_ID).',
+    )
+    is_default_for_voucher_purchase = models.BooleanField(
+        default=False,
+        help_text='Use this config when creating voucher purchase orders (service_code empty)',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_parkpe_payment_gateway_config'
+        verbose_name = 'ParkPe Payment Gateway Config'
+        verbose_name_plural = 'ParkPe Payment Gateway Configs'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['gateway', 'service_code'],
+                name='parkpe_pg_config_gateway_service_unique',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.gateway} service={self.service_code or 'voucher_purchase'}"
+
+
+class ParkPePaymentOrder(models.Model):
+    """Pending PG order for ParkPe (e.g. voucher purchase). Verified orders get voucher credit."""
+    PENDING = 'pending'
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+    STATUS_CHOICES = [(PENDING, 'Pending'), (COMPLETED, 'Completed'), (FAILED, 'Failed')]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='parkpe_payment_orders',
+    )
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    gateway = models.CharField(max_length=20, db_index=True)
+    order_id = models.CharField(max_length=255, db_index=True, help_text='PG order id (e.g. Razorpay order_id)')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING, db_index=True)
+    reference_id = models.CharField(max_length=255, blank=True, null=True, help_text='PG payment_id after verify')
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_parkpe_payment_order'
+        verbose_name = 'ParkPe Payment Order'
+        verbose_name_plural = 'ParkPe Payment Orders'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"ParkPe order {self.order_id} {self.status}"
+
 
 class UserPermission(models.Model):
     """Custom user permission assignments"""
@@ -1031,6 +1288,13 @@ class UserPermission(models.Model):
     
     granted_at = models.DateTimeField(auto_now_add=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='revoked_user_permissions'
+    )
     is_active = models.BooleanField(default=True)
     
     class Meta:
@@ -1044,12 +1308,10 @@ class UserPermission(models.Model):
         return f"{self.user.username} - {self.permission}"
     
     def revoke(self, revoked_by: User = None) -> None:
-        """Revoke permission"""
+        """Revoke permission and record who revoked it for auditability."""
         self.is_active = False
         self.revoked_at = timezone.now()
-        if revoked_by:
-            # Could store revoked_by if needed
-            pass
+        self.revoked_by = revoked_by
         self.save()
 
 
@@ -1069,6 +1331,7 @@ class LogEntry(models.Model):
     
     CATEGORY_CHOICES = [
         ('api', 'API'),
+        ('api_explorer', 'API Explorer Tests'),
         ('auth', 'Authentication'),
         ('payment', 'Payment'),
         ('notification', 'Notification'),
@@ -1176,6 +1439,52 @@ class LogEntry(models.Model):
         self.resolved_at = None
         self.resolved_by = None
         self.save(update_fields=['resolved', 'resolved_at', 'resolved_by'])
+
+
+class EmailQueue(models.Model):
+    """
+    Durable email queue: source of truth for outbound emails.
+    Never send email directly from request/transaction; always enqueue here.
+    Survives Celery crashes; resend_pending_emails recovers without Celery.
+    """
+    STATUS_PENDING = 'PENDING'
+    STATUS_SENT = 'SENT'
+    STATUS_FAILED = 'FAILED'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SENT, 'Sent'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    to_email = models.EmailField()
+    subject = models.CharField(max_length=512)
+    body_html = models.TextField(blank=True, null=True)
+    body_text = models.TextField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    retry_count = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True, null=True)
+    # Related entity: voucher_id, order_id, etc. (JSON: {"type": "voucher", "voucher_id": 123})
+    related_entity = models.JSONField(blank=True, null=True)
+    use_parkpe_smtp = models.BooleanField(default=False, help_text='Use Parkpe SMTP (voucher emails)')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'portal_email_queue'
+        verbose_name = 'Email Queue'
+        verbose_name_plural = 'Email Queue'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'EmailQueue(id={self.id}, to={self.to_email[:8]}..., status={self.status})'
 
 
 class CashfreeAPILog(models.Model):
@@ -1327,6 +1636,15 @@ class Service(models.Model):
         help_text="Vendor service configurations - stores which services are enabled/disabled per vendor"
     )
     
+    # Category for flow-based orchestration (AEPS, DMT, BBPS, FASTAG, etc.)
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Service category for orchestration (AEPS, DMT, BBPS, etc.)"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1347,6 +1665,12 @@ class Service(models.Model):
         help_text="User who last updated this service"
     )
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at', 'api_key', 'api_secret'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_service'
         verbose_name = 'Service'
@@ -1365,6 +1689,99 @@ class Service(models.Model):
         if not self.code and self.name:
             self.code = self.name.upper().replace(' ', '_')
         super().save(*args, **kwargs)
+
+
+# ============================================================================
+# VENDOR-ORCHESTRATED SERVICE FLOW (First-class vendors, APIs, ordered steps)
+# ============================================================================
+
+class ApiVendor(models.Model):
+    """
+    API Vendor - first-class entity (PayPoint, Euronet, M2P, etc.).
+    Vendors provide APIs; services are orchestrated flows over vendor APIs.
+    """
+    name = models.CharField(max_length=100, help_text="Vendor name (e.g. PayPoint, Euronet)")
+    code = models.CharField(max_length=50, unique=True, db_index=True, help_text="Unique slug (e.g. paypoint, euronet)")
+    is_active = models.BooleanField(default=True, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_apivendor'
+        verbose_name = 'API Vendor'
+        verbose_name_plural = 'API Vendors'
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class VendorApi(models.Model):
+    """
+    One callable API capability provided by a vendor.
+    No business flow logic here; flow is defined by ServiceFlowStep.
+    """
+    API_TYPE_CHOICES = [
+        ('SETUP', 'Setup'),
+        ('VALIDATION', 'Validation'),
+        ('AUTH', 'Authentication'),
+        ('TRANSACTION', 'Transaction'),
+        ('2FA', 'Two Factor Auth'),
+        ('QUERY', 'Query'),
+    ]
+    vendor = models.ForeignKey(ApiVendor, on_delete=models.CASCADE, related_name='apis')
+    name = models.CharField(max_length=150, help_text="e.g. Add Agent, AEPS Balance Enquiry")
+    api_code = models.CharField(max_length=80, help_text="Unique per vendor (e.g. add_agent, balance_enquiry)")
+    api_type = models.CharField(max_length=20, choices=API_TYPE_CHOICES, default='TRANSACTION', db_index=True)
+    purpose = models.CharField(max_length=255, blank=True, null=True, help_text="API purpose / one-line description for orchestration")
+    endpoint_url = models.URLField(blank=True, null=True, help_text="Optional; actual call may be via registered handler")
+    http_method = models.CharField(max_length=10, default='POST', blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    timeout_seconds = models.PositiveIntegerField(default=30, blank=True)
+    retry_allowed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_vendorapi'
+        verbose_name = 'Vendor API'
+        verbose_name_plural = 'Vendor APIs'
+        unique_together = [['vendor', 'api_code']]
+        ordering = ['vendor', 'api_code']
+
+    def __str__(self):
+        return f"{self.vendor.code}:{self.api_code}"
+
+
+class ServiceFlowStep(models.Model):
+    """
+    One step in a service's execution flow. Order is defined by step_order.
+    Same VendorApi can appear in multiple services. Execution is data-driven.
+    """
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='flow_steps')
+    vendor = models.ForeignKey(ApiVendor, on_delete=models.PROTECT, related_name='flow_steps')
+    vendor_api = models.ForeignKey(VendorApi, on_delete=models.PROTECT, related_name='flow_steps')
+    step_order = models.PositiveIntegerField(help_text="Execution order; unique per service")
+    step_name = models.CharField(max_length=150, help_text="Display name (e.g. Add Agent, Check Authentication)")
+    is_mandatory = models.BooleanField(default=True)
+    halt_on_failure = models.BooleanField(default=True, help_text="Stop flow if this step fails")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_serviceflowstep'
+        verbose_name = 'Service Flow Step'
+        verbose_name_plural = 'Service Flow Steps'
+        unique_together = [['service', 'step_order']]
+        ordering = ['service', 'step_order']
+
+    def __str__(self):
+        return f"{self.service.code} #{self.step_order}: {self.step_name}"
+
+    def clean(self):
+        if self.vendor_id and self.vendor_api_id and self.vendor_api.vendor_id != self.vendor_id:
+            raise ValidationError("vendor_api must belong to the selected vendor.")
 
 
 class ServiceCost(models.Model):
@@ -1620,6 +2037,87 @@ class BBPSBillerCategory(models.Model):
     
     def __str__(self):
         return f"{self.category_name} ({self.category_code})"
+
+
+class BBPSOperator(models.Model):
+    """
+    BBPS operator/biller from Operators.xlsx – used by Mobikwik and Euronet.
+    Bharat Bill services use this list for categories, fetch bill, and pay.
+    """
+    # Identity (Biller ID is unique per operator)
+    biller_id = models.CharField(
+        max_length=100,
+        db_index=True,
+        unique=True,
+        help_text="Biller ID (from Operators.xlsx)"
+    )
+    # Mobikwik API expects 'op' as integer
+    op = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Mobikwik operator id (op) – numeric string or int"
+    )
+    name = models.CharField(max_length=255, help_text="Operator / Biller name")
+    category = models.CharField(
+        max_length=80,
+        db_index=True,
+        help_text="Category e.g. ELECTRICITY, WATER, DTH"
+    )
+    # View Bill / Fetch Bill
+    view_bill = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="ViewBill flag from sheet"
+    )
+    customer_label = models.CharField(
+        max_length=100,
+        default="Consumer ID",
+        help_text="Label for consumer/customer ID field (Name/cn in sheet)"
+    )
+    regex = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Validation regex for consumer ID"
+    )
+    # Additional params for bill fetch / pay (ad1–ad4, ad9)
+    ad1 = models.CharField(max_length=500, blank=True, null=True)
+    ad2 = models.CharField(max_length=500, blank=True, null=True)
+    ad3 = models.CharField(max_length=500, blank=True, null=True)
+    ad4 = models.CharField(max_length=500, blank=True, null=True)
+    ad9 = models.CharField(max_length=500, blank=True, null=True)
+    additional_params = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Additional Params for payment API (JSON or text)"
+    )
+    bbps_enabled = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="BBPS Enabled in sheet (True/1/Yes)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether operator is active in app"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_bbps_operator"
+        verbose_name = "BBPS Operator"
+        verbose_name_plural = "BBPS Operators"
+        ordering = ["category", "name"]
+        indexes = [
+            models.Index(fields=["category", "bbps_enabled", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.biller_id})"
 
 
 class RBIRuleConfiguration(models.Model):
@@ -1960,6 +2458,95 @@ class Ticket(models.Model):
         )
 
 
+# ---------------------------------------------------------------------------
+# ParkPe Connect – Vehicle & QR (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+class Vehicle(models.Model):
+    """
+    Vehicle registered by a user for ParkPe Connect.
+    One QR per vehicle; owner can be contacted via masked call/chat/ticket.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='connect_vehicles',
+        help_text='Owner of the vehicle',
+    )
+    registration_number = models.CharField(
+        max_length=32,
+        db_index=True,
+        help_text='Vehicle registration number',
+    )
+    brand = models.CharField(max_length=64, blank=True, default='')
+    model = models.CharField(max_length=64, blank=True, default='')
+    year = models.PositiveIntegerField(null=True, blank=True)
+    photo = models.ImageField(
+        upload_to='connect/vehicles/',
+        blank=True,
+        null=True,
+        help_text='Optional vehicle photo',
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text='Primary vehicle for this user',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'portal_connect_vehicle'
+        verbose_name = 'Connect Vehicle'
+        verbose_name_plural = 'Connect Vehicles'
+        ordering = ['-is_primary', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'registration_number'],
+                name='portal_connect_vehicle_user_reg_unique',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.registration_number} ({self.user_id})"
+
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            Vehicle.objects.filter(user=self.user).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
+class VehicleQRCode(models.Model):
+    """
+    Unique QR code for a Connect vehicle. One active QR per vehicle.
+    Scanner uses this code to resolve vehicle and show contact options.
+    """
+    vehicle = models.OneToOneField(
+        Vehicle,
+        on_delete=models.CASCADE,
+        related_name='qr_code',
+        help_text='Vehicle this QR belongs to',
+    )
+    code = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        help_text='Unique slug/code used in QR and URL',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'portal_connect_vehicle_qrcode'
+        verbose_name = 'Connect Vehicle QR Code'
+        verbose_name_plural = 'Connect Vehicle QR Codes'
+
+    def __str__(self):
+        return f"QR {self.code} ({self.vehicle_id})"
+
+
 class TicketNote(models.Model):
     """Ticket note model - Internal and customer-visible notes"""
     
@@ -2105,11 +2692,15 @@ class TicketAttachment(models.Model):
         if self.file:
             try:
                 self.file_size = self.file.size
-                # Try to detect file type
                 import mimetypes
                 self.file_type = mimetypes.guess_type(self.file.name)[0] or 'application/octet-stream'
-            except Exception:
-                pass
+            except (OSError, IOError, AttributeError, ValueError) as e:
+                logger.warning(
+                    'Could not extract file metadata for TicketAttachment (file=%s): %s',
+                    getattr(self.file, 'name', None),
+                    e,
+                    exc_info=True
+                )
         super().save(*args, **kwargs)
 
 
@@ -2464,7 +3055,13 @@ class GiftVoucherBrand(models.Model):
         if self.bank_account_number:
             try:
                 return decrypt_data(self.bank_account_number)
-            except Exception:
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    'Failed to decrypt bank account for record pk=%s: %s',
+                    self.pk,
+                    e,
+                    exc_info=True
+                )
                 return ""
         return ""
 
@@ -2742,6 +3339,25 @@ class GiftVoucher(models.Model):
             # Phase 2.2: Performance indexes
             models.Index(fields=['brand', 'status', '-issued_at'], name='gv_brand_status_issued_idx'),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(current_balance__gte=0),
+                name='portal_giftvoucher_current_balance_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(original_amount__gte=0),
+                name='portal_giftvoucher_original_amount_non_negative',
+            ),
+        ]
+
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=[
+            'issued_at', 'last_transaction_at',
+            'pin_hash', 'pin_history', 'voucher_code_hash',
+        ],
+        user_model=settings.AUTH_USER_MODEL,
+    )
     
     def __str__(self):
         return f"Voucher {self.voucher_code} - {self.brand.brand_name} - {self.current_balance} {self.currency}"
@@ -3309,6 +3925,12 @@ class ResellerPartner(models.Model):
         help_text="User who created this partner record"
     )
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_reseller_partner'
         verbose_name = 'Reseller Partner'
@@ -3334,6 +3956,58 @@ class ResellerPartner(models.Model):
     def can_issue_vouchers(self):
         """Check if partner can issue vouchers (approved and active)"""
         return self.status == 'ACTIVE' and self.onboarding_status == 'APPROVED'
+
+
+class PartnerVendorAssignment(models.Model):
+    """
+    Maps which vendors a partner can use for each service.
+    Admin assigns specific vendors to partners; requests are routed to assigned vendor.
+    """
+    partner = models.ForeignKey(
+        ResellerPartner,
+        on_delete=models.CASCADE,
+        related_name='vendor_assignments',
+        help_text="Reseller partner"
+    )
+    service_code = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="Service code: bbps, aeps, dmt, kyc, sms, payment, voucher"
+    )
+    vendor = models.ForeignKey(
+        ApiVendor,
+        on_delete=models.CASCADE,
+        related_name='partner_assignments',
+        help_text="API vendor assigned for this service"
+    )
+    is_primary = models.BooleanField(
+        default=True,
+        help_text="Primary vendor for this service (used when no vendor specified)"
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    priority = models.IntegerField(
+        default=1,
+        help_text="Order for fallback routing (lower = higher priority)"
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_partner_vendors',
+        help_text="Admin who made the assignment"
+    )
+
+    class Meta:
+        db_table = 'portal_partner_vendor_assignment'
+        verbose_name = 'Partner Vendor Assignment'
+        verbose_name_plural = 'Partner Vendor Assignments'
+        unique_together = [['partner', 'service_code', 'vendor']]
+        ordering = ['service_code', 'priority']
+
+    def __str__(self):
+        return f"{self.partner.company_name} - {self.service_code} -> {self.vendor.name}"
 
 
 class APIKey(models.Model):
@@ -3450,6 +4124,15 @@ class APIKey(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=[
+            'created_at', 'updated_at', 'last_used_at',
+            'api_key', 'api_secret', 'webhook_secret',
+        ],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_api_key'
         verbose_name = 'API Key'
@@ -3485,6 +4168,50 @@ class APIKey(models.Model):
         if not self.ip_whitelist:
             return True  # Empty whitelist = allow all
         return ip_address in self.ip_whitelist
+
+
+class InternalAPIKey(models.Model):
+    """
+    API keys for internal apps (Payswap, Parkpe).
+    Links an app to an APIKey; internal apps use same auth as partners.
+    """
+    app_name = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="App identifier: payswap, parkpe"
+    )
+    description = models.TextField(blank=True)
+    api_key = models.ForeignKey(
+        APIKey,
+        on_delete=models.CASCADE,
+        related_name='internal_app_bindings',
+        help_text="API key used by this app"
+    )
+    environment = models.CharField(
+        max_length=20,
+        default='production',
+        help_text="development, staging, production"
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_internal_api_keys',
+        help_text="User who last updated this record"
+    )
+
+    class Meta:
+        db_table = 'portal_internal_api_key'
+        verbose_name = 'Internal API Key'
+        verbose_name_plural = 'Internal API Keys'
+        ordering = ['app_name']
+
+    def __str__(self):
+        return f"{self.app_name} ({self.environment})"
 
 
 class APIKeyUsageLog(models.Model):
@@ -3602,6 +4329,14 @@ class ResellerPartnerPricing(models.Model):
         related_name='partner_pricing',
         help_text="Service this pricing applies to"
     )
+    vendor = models.ForeignKey(
+        ApiVendor,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='partner_pricing',
+        help_text="Vendor-specific pricing (null = default for service)"
+    )
     
     # Pricing Configuration
     pricing_type = models.CharField(
@@ -3689,15 +4424,30 @@ class ResellerPartnerPricing(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_reseller_partner_pricing'
         verbose_name = 'Reseller Partner Pricing'
         verbose_name_plural = 'Reseller Partner Pricing'
-        unique_together = [['partner', 'service']]
+        unique_together = [['partner', 'service', 'vendor']]
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['partner', 'service', 'is_active']),
             models.Index(fields=['is_active', 'effective_from']),
+            models.Index(fields=['partner', 'service', 'vendor']),
+        ]
+        constraints = [
+            # Only one default (vendor=null) pricing per partner+service
+            models.UniqueConstraint(
+                fields=['partner', 'service'],
+                condition=models.Q(vendor__isnull=True),
+                name='portal_reseller_partner_pricing_unique_default',
+            ),
         ]
     
     def __str__(self):
@@ -3925,6 +4675,12 @@ class ResellerPartnerTransaction(models.Model):
             )
         ]
 
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     def __str__(self):
         return f"{self.partner.company_name} - {self.transaction_type} - {self.amount} {self.currency}"
 
@@ -4058,6 +4814,12 @@ class ResellerPartnerSettlement(models.Model):
         help_text="User who processed this settlement"
     )
     
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['created_at', 'updated_at'],
+        user_model=settings.AUTH_USER_MODEL,
+    )
+
     class Meta:
         db_table = 'portal_reseller_partner_settlement'
         verbose_name = 'Reseller Partner Settlement'
@@ -4240,6 +5002,12 @@ class ApprovalRequest(models.Model):
         default=dict,
         blank=True,
         help_text="Result of execution (transaction_id, etc.) for audit"
+    )
+
+    history = HistoricalRecords(
+        inherit=False,
+        excluded_fields=['requested_at'],
+        user_model=settings.AUTH_USER_MODEL,
     )
 
     class Meta:

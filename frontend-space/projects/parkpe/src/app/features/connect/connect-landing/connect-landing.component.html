@@ -1,0 +1,90 @@
+<div class="connect-landing unified">
+  <!-- Main -->
+  <main class="connect-main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="container hero-content">
+        <span class="pill pill-success">Service</span>
+        <h1 class="hero-title">Secure Vehicle Communication</h1>
+        <p class="hero-desc">
+          Contact vehicle owners via QR code without sharing phone numbers. OTP verified and anti-spam.
+        </p>
+        <div class="hero-ctas">
+          <a routerLink="/connect/vehicles" class="btn btn-primary btn-lg">
+            My vehicles & QR
+          </a>
+          <a routerLink="/connect/scan" class="btn btn-outline btn-lg">
+            Scan a QR<br>to contact an owner
+          </a>
+        </div>
+        <p class="hero-features">Add vehicles · Get unique QR per vehicle · Scan to contact owners (call, chat, ticket)</p>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section section-muted">
+      <div class="container">
+        <div class="section-head">
+          <span class="pill pill-muted">Features</span>
+          <h2 class="section-title">Scan QR. Contact Securely.</h2>
+          <p class="section-desc">No phone numbers exposed. All communication is private and verified.</p>
+        </div>
+        <div class="grid grid-3">
+          @for (f of features; track f.title) {
+            <div class="card">
+              <div class="card-icon"><span class="material-icons">{{ f.icon }}</span></div>
+              <h3 class="card-title">{{ f.title }}</h3>
+              <p class="card-desc">{{ f.description }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <span class="pill">How it works</span>
+          <h2 class="section-title">Simple 5-step process</h2>
+        </div>
+        <div class="steps-list">
+          @for (s of steps; track s.num) {
+            <div class="card step-card">
+              <span class="step-num">{{ s.num }}</span>
+              <div>
+                <h3 class="step-title">{{ s.title }}</h3>
+                <p class="step-desc">{{ s.desc }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section section-muted">
+      <div class="container">
+        <div class="section-head">
+          <h2 class="section-title">Start now</h2>
+          <p class="section-desc">Use Connect within ParkPe to register a vehicle or scan to contact an owner.</p>
+        </div>
+        <div class="section-cta">
+          <a routerLink="/connect/vehicles" class="btn btn-primary btn-lg">My vehicles & QR</a>
+          <a routerLink="/connect/scan" class="btn btn-outline btn-lg">Scan a QR</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer (unified) -->
+  <footer class="connect-footer unified">
+    <div class="container">
+      <p>Secure Vehicle Communication – A service by <strong>ParkPe</strong> · Powered by Payswap Fintech Pvt Ltd.</p>
+      <a routerLink="/connect">Back to Connect</a>
+      <span class="footer-sep">·</span>
+      <a routerLink="/dashboard">Back to Dashboard</a>
+    </div>
+  </footer>
+</div>

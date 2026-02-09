@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ vendor.name }} - {{ service.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'service_detail' service_id=service.id %}" class="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back to {{ service.name }}</span>
+        </a>
+    </div>
+
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                <i class="ti {{ vendor.icon }} text-2xl text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="page-title-enterprise">{{ vendor.name }}</h1>
+                <p class="page-description-enterprise">{{ vendor.description }}</p>
+            </div>
+            <div>
+                {% if vendor.status == 'available' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif vendor.status == 'unavailable' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Unavailable</span>
+                {% else %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Info Card -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Vendor Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Vendor Name</p>
+                <p class="text-base font-semibold text-gray-900">{{ vendor.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Status</p>
+                <p class="text-base text-gray-900 capitalize">
+                    {% if vendor.status == 'available' %}Active{% else %}{{ vendor.status }}{% endif %}
+                </p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">Description</p>
+                <p class="text-base text-gray-900">{{ vendor.description }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Services Section -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Manage Services</h2>
+                <p class="text-sm text-gray-500 mt-1">Enable/disable and test Leegality document signing and stamp paper services</p>
+            </div>
+            <a href="{% url 'log_list' %}?category=leegality" class="btn-enterprise btn-enterprise-secondary">
+                <i class="ti ti-file-analytics"></i>
+                <span>View Logs</span>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for api in apis %}
+            <div class="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all {% if api.status == 'working' %}bg-green-50{% elif api.status == 'error' %}bg-red-50{% else %}bg-gray-50{% endif %}">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <i class="ti {{ api.icon }} text-lg text-indigo-600"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">{{ api.name }}</h3>
+                            <p class="text-xs text-gray-500">{{ api.description }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Indicator -->
+                <div class="flex items-center gap-2 mb-3">
+                    {% if api.status == 'working' %}
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                            <i class="ti ti-check-circle"></i>
+                            Working
+                        </span>
+                    {% elif api.status == 'error' %}
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700">
+                            <i class="ti ti-alert-circle"></i>
+                            Error
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500">
+                            <i class="ti ti-help-circle"></i>
+                            Unknown
+                        </span>
+                    {% endif %}
+                </div>
+
+                <!-- Toggle Switch for API -->
+                <div class="flex items-center justify-between mb-3">
+                    <label class="text-sm text-gray-700">Enable Service</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox"
+                               data-api-code="{{ api.code }}"
+                               data-vendor="{{ vendor.code }}"
+                               {% if api.enabled %}checked{% endif %}
+                               onchange="toggleService('{{ api.code }}', this.checked, '{{ vendor.code }}')"
+                               class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+
+                <!-- Test API Button -->
+                <button onclick="openTestModal('{{ api.code }}', '{{ vendor.code }}')"
+                        class="w-full btn-enterprise {% if api.enabled %}btn-enterprise-primary{% else %}btn-enterprise-secondary opacity-50{% endif %}"
+                        {% if not api.enabled %}disabled title="Enable service to test"{% endif %}>
+                    <i class="ti ti-test-pipe"></i>
+                    <span>Test API</span>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="card-enterprise">
+        <div class="flex items-center gap-3 flex-wrap">
+            <a href="{% url 'log_list' %}?category=leegality" class="btn-enterprise btn-enterprise-primary">
+                <i class="ti ti-file-analytics"></i>
+                <span>View API Logs</span>
+            </a>
+            <button onclick="testConnection('{{ vendor.code }}')" class="btn-enterprise btn-enterprise-secondary">
+                <i class="ti ti-check"></i>
+                <span>Test Connection</span>
+            </button>
+            {% if vendor.documentation_url %}
+            <a href="{{ vendor.documentation_url }}" target="_blank" class="btn-enterprise btn-enterprise-secondary">
+                <i class="ti ti-file-text"></i>
+                <span>View Documentation</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Test API Modal -->
+<div id="testModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xl font-semibold text-gray-900" id="modalTitle">Test API</h3>
+                <button onclick="closeTestModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="ti ti-x text-2xl"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-6">
+            <form id="testApiForm" onsubmit="testApi(event)">
+                {% csrf_token %}
+                <div id="formFields" class="space-y-4">
+                    <!-- Dynamic form fields will be inserted here -->
+                </div>
+                <div class="mt-6 flex items-center gap-3">
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary">
+                        <i class="ti ti-send"></i>
+                        <span>Test API</span>
+                    </button>
+                    <button type="button" onclick="closeTestModal()" class="btn-enterprise btn-enterprise-secondary">
+                        <span>Cancel</span>
+                    </button>
+                </div>
+            </form>
+            <div id="apiResponse" class="mt-6 hidden border rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 mb-3">Response:</h4>
+                <div class="bg-gray-50 rounded-lg p-4 mb-3">
+                    <pre id="responseContent" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+                </div>
+                <div id="logMessage" class="hidden"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// API Configurations for Leegality
+const apiConfigs = {
+    create_document: {
+        title: 'Create Document',
+        fields: [
+            { name: 'file', label: 'File (Base64 or URL)', type: 'textarea', placeholder: 'Base64 encoded file or file URL', required: true, rows: 4 },
+            { name: 'name', label: 'Document Name', type: 'text', placeholder: 'e.g., Agreement.pdf', required: true },
+            { name: 'invitations', label: 'Invitations (JSON)', type: 'textarea', placeholder: '[{"name": "John Doe", "email": "john@example.com", "phone": "+919876543210"}]', required: true, rows: 6 },
+            { name: 'workflow_id', label: 'Workflow ID (Optional)', type: 'text', placeholder: 'Workflow ID', required: false },
+            { name: 'template_id', label: 'Template ID (Optional)', type: 'text', placeholder: 'Template ID', required: false },
+            { name: 'custom_message', label: 'Custom Message (Optional)', type: 'textarea', placeholder: 'Custom message for signers', required: false, rows: 3 }
+        ]
+    },
+    get_document_status: {
+        title: 'Get Document Status',
+        fields: [
+            { name: 'document_id', label: 'Document ID', type: 'text', placeholder: 'Enter document ID', required: true }
+        ]
+    },
+    create_stamp_paper: {
+        title: 'Create Stamp Paper',
+        fields: [
+            { name: 'document_id', label: 'Document ID', type: 'text', placeholder: 'Enter document ID', required: true },
+            { name: 'stamp_details', label: 'Stamp Details (JSON)', type: 'textarea', placeholder: '{"groupName": "...", "stampValue": "...", "state": "..."}', required: true, rows: 8 }
+        ]
+    },
+    get_stamp_status: {
+        title: 'Get Stamp Status',
+        fields: [
+            { name: 'document_id', label: 'Document ID', type: 'text', placeholder: 'Enter document ID', required: true }
+        ]
+    },
+    download_document: {
+        title: 'Download Document',
+        fields: [
+            { name: 'document_id', label: 'Document ID', type: 'text', placeholder: 'Enter document ID', required: true }
+        ]
+    },
+    get_audit_trail: {
+        title: 'Get Audit Trail',
+        fields: [
+            { name: 'document_id', label: 'Document ID', type: 'text', placeholder: 'Enter document ID', required: true }
+        ]
+    }
+};
+
+function openTestModal(apiType, vendorCode = 'leegality') {
+    const config = apiConfigs[apiType];
+    if (!config) return;
+    
+    document.getElementById('modalTitle').textContent = config.title;
+    const formFields = document.getElementById('formFields');
+    formFields.innerHTML = '';
+    
+    document.getElementById('testApiForm').setAttribute('data-api-type', apiType);
+    document.getElementById('testApiForm').setAttribute('data-vendor-code', vendorCode);
+    
+    config.fields.forEach(field => {
+        const div = document.createElement('div');
+        let inputHTML = '';
+        
+        if (field.type === 'textarea') {
+            inputHTML = `
+                <textarea 
+                    name="${field.name}" 
+                    ${field.required ? 'required' : ''}
+                    placeholder="${field.placeholder || ''}"
+                    rows="${field.rows || 4}"
+                    class="input-enterprise w-full"
+                ></textarea>
+            `;
+        } else {
+            inputHTML = `
+                <input 
+                    type="${field.type || 'text'}" 
+                    name="${field.name}" 
+                    ${field.required ? 'required' : ''}
+                    placeholder="${field.placeholder || ''}"
+                    class="input-enterprise w-full"
+                >
+            `;
+        }
+        
+        div.innerHTML = `
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                ${field.label} ${field.required ? '<span class="text-red-600">*</span>' : ''}
+            </label>
+            ${inputHTML}
+        `;
+        formFields.appendChild(div);
+    });
+    
+    document.getElementById('testModal').classList.remove('hidden');
+    document.getElementById('apiResponse').classList.add('hidden');
+}
+
+function closeTestModal() {
+    document.getElementById('testModal').classList.add('hidden');
+    document.getElementById('testApiForm').reset();
+    document.getElementById('apiResponse').classList.add('hidden');
+}
+
+async function testApi(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const apiType = form.getAttribute('data-api-type');
+    const vendorCode = form.getAttribute('data-vendor-code');
+    const formData = new FormData(form);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+    
+    // Parse JSON fields
+    if (data.invitations) {
+        try {
+            data.invitations = JSON.parse(data.invitations);
+        } catch (e) {
+            alert('Invalid JSON in invitations field');
+            return;
+        }
+    }
+    if (data.stamp_details) {
+        try {
+            data.stamp_details = JSON.parse(data.stamp_details);
+        } catch (e) {
+            alert('Invalid JSON in stamp_details field');
+            return;
+        }
+    }
+    
+    const responseDiv = document.getElementById('apiResponse');
+    const responseContent = document.getElementById('responseContent');
+    
+    responseDiv.classList.remove('hidden');
+    responseContent.textContent = 'Testing API...';
+    
+    try {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`/services/{{ service.id }}/test-api/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                api_type: apiType,
+                vendor_code: vendorCode,
+                ...data
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            responseContent.textContent = JSON.stringify(result, null, 2);
+            responseContent.className = 'text-sm text-green-700 whitespace-pre-wrap';
+        } else {
+            responseContent.textContent = JSON.stringify(result, null, 2);
+            responseContent.className = 'text-sm text-red-700 whitespace-pre-wrap';
+        }
+    } catch (error) {
+        responseContent.textContent = `Error: ${error.message}`;
+        responseContent.className = 'text-sm text-red-700 whitespace-pre-wrap';
+    }
+}
+
+function toggleService(apiCode, enabled, vendorCode) {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch(`/services/{{ service.id }}/toggle-service/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({
+            vendor_code: vendorCode,
+            api_code: apiCode,
+            enabled: enabled
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Optionally show a success message
+        } else {
+            alert(`Failed to update service: ${result.message}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    });
+}
+
+function testConnection(vendorCode) {
+    alert('Connection test functionality will be implemented soon.');
+}
+</script>
+{% endblock %}

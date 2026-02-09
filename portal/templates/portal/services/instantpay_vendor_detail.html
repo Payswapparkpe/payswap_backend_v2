@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ vendor.name }} - {{ service.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'service_detail' service_id=service.id %}" class="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back to {{ service.name }}</span>
+        </a>
+    </div>
+
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg">
+                <i class="ti {{ vendor.icon }} text-2xl text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="page-title-enterprise">{{ vendor.name }}</h1>
+                <p class="page-description-enterprise">{{ vendor.description }}</p>
+            </div>
+            <div>
+                {% if vendor.status == 'available' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif vendor.status == 'unavailable' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Unavailable</span>
+                {% else %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Info Card -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Vendor Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Vendor Name</p>
+                <p class="text-base font-semibold text-gray-900">{{ vendor.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Status</p>
+                <p class="text-base text-gray-900 capitalize">
+                    {% if vendor.status == 'available' %}Active (configured){% else %}Pending – set INSTANTPAY_* in .env{% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Service</p>
+                <p class="text-base text-gray-900">{{ service.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Total APIs</p>
+                <p class="text-base text-gray-900">{{ apis|length }} APIs</p>
+            </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <p class="text-sm text-gray-600 mb-2">
+                Instantpay provides Identity verification, Banking, Payouts, AePS, Collect, Tax, AI/ML and more. Credentials (Client Id, Client Secret, Encryption Key) and Environment (SANDBOX/PRODUCTION) are configured in <code class="bg-gray-100 px-1 rounded">.env</code>. Docs: <a href="https://developers.instantpay.in/" target="_blank" rel="noopener" class="text-amber-600 hover:text-amber-800">developers.instantpay.in</a>.
+            </p>
+            {% if vendor.documentation_url %}
+            <a href="{{ vendor.documentation_url }}" target="_blank" rel="noopener" class="text-amber-600 hover:text-amber-800 text-sm">Documentation <i class="ti ti-external-link"></i></a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Test: GSTIN & PIN Code -->
+    {% if vendor.status == 'available' %}
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Test</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="font-medium text-gray-900 mb-2">GSTIN Verification</h3>
+                <form action="{% url 'instantpay_test_api' service_id=service.id %}" method="post" class="space-y-2" target="_blank">
+                    {% csrf_token %}
+                    <input type="hidden" name="api_code" value="gstin">
+                    <input type="text" name="gstin" placeholder="e.g. 27AABCU9603R1ZM" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" maxlength="15">
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary text-sm">
+                        <i class="ti ti-send"></i> Test GSTIN
+                    </button>
+                </form>
+            </div>
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="font-medium text-gray-900 mb-2">PIN Code Lookup</h3>
+                <form action="{% url 'instantpay_test_api' service_id=service.id %}" method="post" class="space-y-2" target="_blank">
+                    {% csrf_token %}
+                    <input type="hidden" name="api_code" value="pin_code_lookup">
+                    <input type="text" name="pincode" placeholder="e.g. 110001" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" maxlength="6">
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary text-sm">
+                        <i class="ti ti-send"></i> Test PIN Code
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- API Categories (service-wise) -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">APIs by Category</h2>
+        <p class="text-sm text-gray-500 mb-6">All Instantpay APIs grouped by service category (developers.instantpay.in).</p>
+        <div class="space-y-8">
+            {% for category in api_categories %}
+            <div>
+                <h3 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <i class="ti ti-folder text-amber-500"></i>
+                    {{ category.name }}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for api in category.apis %}
+                    <div class="p-4 border border-gray-200 rounded-lg hover:border-amber-300 hover:shadow-md transition-all">
+                        <div class="flex items-start gap-3 mb-2">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <i class="ti {{ api.icon }} text-amber-600"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h5 class="font-semibold text-gray-900">{{ api.name }}</h5>
+                                <p class="text-xs text-gray-500 mt-1">{{ api.method }}</p>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-600">{{ category.name }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

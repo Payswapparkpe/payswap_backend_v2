@@ -1,0 +1,38 @@
+<div class="connect-vehicles-list">
+  <div class="page-head">
+    <h1>My Vehicles</h1>
+    <a routerLink="/connect/vehicles/add" class="btn btn-primary">Add vehicle</a>
+  </div>
+
+  @if (loading()) {
+    <p class="loading">Loading…</p>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (vehicles().length === 0) {
+    <div class="empty">
+      <span class="material-icons">directions_car</span>
+      <p>No vehicles yet. Add your first vehicle to get a Connect QR.</p>
+      <a routerLink="/connect/vehicles/add" class="btn btn-primary">Add vehicle</a>
+    </div>
+  } @else {
+    <ul class="vehicle-list">
+      @for (v of vehicles(); track v.id) {
+        <li class="vehicle-card">
+          <div class="vehicle-info">
+            <span class="reg">{{ v.registration_number }}</span>
+            @if (v.is_primary) {
+              <span class="badge">Primary</span>
+            }
+            <span class="meta">{{ v.brand }} {{ v.model }} @if (v.year) { · {{ v.year }} }</span>
+          </div>
+          <div class="vehicle-actions">
+            <a [routerLink]="['/connect/vehicles', v.id]" class="btn btn-outline btn-sm">View & QR</a>
+            <a [routerLink]="['/connect/vehicles', v.id, 'edit']" class="btn btn-ghost btn-sm">Edit</a>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  <p class="back"><a routerLink="/connect">Back to Connect</a></p>
+</div>

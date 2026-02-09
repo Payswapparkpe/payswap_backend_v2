@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 1: Basic Information{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-user text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 1: Basic Information</h1>
+            <p class="page-description-enterprise">Enter your brand's basic contact information</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Brand Name <span class="text-red-500">*</span></label>
+                <input type="text" name="brand_name" value="{{ form.brand_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter brand name">
+                {% if form.brand_name.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.brand_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Person <span class="text-red-500">*</span></label>
+                <input type="text" name="contact_person" value="{{ form.contact_person.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter contact person name">
+                {% if form.contact_person.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.contact_person.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Email <span class="text-red-500">*</span></label>
+                <input type="email" name="contact_email" value="{{ form.contact_email.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter email address">
+                {% if form.contact_email.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.contact_email.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Phone <span class="text-red-500">*</span></label>
+                <input type="text" name="contact_phone" value="{{ form.contact_phone.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter phone number">
+                {% if form.contact_phone.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.contact_phone.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Business Address <span class="text-red-500">*</span></label>
+            <textarea name="address" rows="3" required class="form-textarea-enterprise" placeholder="Enter business address">{{ form.address.value|default:'' }}</textarea>
+            {% if form.address.errors %}
+            <p class="text-sm text-red-600 mt-1">{{ form.address.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Continue to Next Step
+            </button>
+            <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+                Save & Exit
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

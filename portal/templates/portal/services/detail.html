@@ -1,0 +1,748 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ service.name }} - Service Details{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'services_list' %}" class="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back to Services</span>
+        </a>
+    </div>
+
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <i class="ti ti-server text-xl text-indigo-600"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="page-title-enterprise">{{ service.name }}</h1>
+                <p class="page-description-enterprise">{{ service.description|default:"Service details and vendor integrations" }}</p>
+            </div>
+            <div>
+                {% if service.status == 'active' and service.is_enabled %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif service.status == 'pending' %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                {% elif service.status == 'maintenance' %}
+                    <span class="badge-enterprise badge-enterprise-warning">Maintenance</span>
+                {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray">Inactive</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Info Card -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Service Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Service Code</p>
+                <p class="text-base font-mono text-gray-900">{{ service.code }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Status</p>
+                <p class="text-base text-gray-900 capitalize">{{ service.status }}</p>
+            </div>
+            {% if service.api_provider %}
+            <div>
+                <p class="text-sm text-gray-500 mb-1">API Provider</p>
+                <p class="text-base text-gray-900">{{ service.api_provider }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <p class="text-sm text-gray-500 mb-1">KYC Required</p>
+                <p class="text-base text-gray-900">{% if service.requires_kyc %}Yes{% else %}No{% endif %}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Flow (Orchestration) – data-driven step order -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Service Flow (Orchestration)</h2>
+            {% if user.is_staff %}
+            <a href="/admin/portal/service/{{ service.id }}/change/#serviceflowstep_set-group" class="btn-enterprise btn-enterprise-secondary text-sm" target="_blank" rel="noopener">Edit flow in Admin</a>
+            {% endif %}
+        </div>
+        <p class="text-sm text-gray-500 mb-4">Execution order is defined by steps below. Backend runs steps in sequence (data-driven).</p>
+        {% if flow_steps %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-gray-600 border-b border-gray-200">
+                    <tr>
+                        <th class="py-2 pr-4 w-12">#</th>
+                        <th class="py-2 pr-4">Step Name</th>
+                        <th class="py-2 pr-4">Vendor</th>
+                        <th class="py-2 pr-4">Vendor API</th>
+                        <th class="py-2 pr-4">Type</th>
+                        <th class="py-2 pr-4">Mandatory</th>
+                        <th class="py-2 pr-4">Halt on failure</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for step in flow_steps %}
+                    <tr class="border-b border-gray-100">
+                        <td class="py-3 pr-4 font-mono font-medium text-gray-900">{{ step.step_order }}</td>
+                        <td class="py-3 pr-4 font-medium text-gray-900">{{ step.step_name }}</td>
+                        <td class="py-3 pr-4"><span class="font-mono text-gray-700">{{ step.vendor.code }}</span></td>
+                        <td class="py-3 pr-4 font-mono text-gray-700">{{ step.vendor_api.api_code }}</td>
+                        <td class="py-3 pr-4"><span class="badge-enterprise badge-enterprise-gray">{{ step.vendor_api.get_api_type_display }}</span></td>
+                        <td class="py-3 pr-4">{% if step.is_mandatory %}<span class="badge-enterprise badge-enterprise-success">Yes</span>{% else %}<span class="badge-enterprise badge-enterprise-gray">No</span>{% endif %}</td>
+                        <td class="py-3 pr-4">{% if step.halt_on_failure %}<span class="text-amber-600">Yes</span>{% else %}No{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="py-6 text-center text-gray-500 border border-dashed border-gray-200 rounded-lg">
+            <p class="font-medium text-gray-700 mb-1">No flow steps defined</p>
+            <p class="text-sm mb-3">Define steps in Django Admin (Services → {{ service.name }} → Service flow steps) to enable data-driven orchestration.</p>
+            {% if user.is_staff %}
+            <a href="/admin/portal/service/{{ service.id }}/change/#serviceflowstep_set-group" class="btn-enterprise btn-enterprise-secondary text-sm" target="_blank" rel="noopener">Add flow steps in Admin</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <p class="text-sm text-gray-500">Manage vendors and APIs in <a href="{% url 'api_explorer' %}" class="text-indigo-600 hover:underline">API Explorer (Postman)</a>.</p>
+</div>
+
+<!-- Test API Modal -->
+<div id="testModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xl font-semibold text-gray-900" id="modalTitle">Test API</h3>
+                <button onclick="closeTestModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="ti ti-x text-2xl"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-6">
+            <form id="testApiForm" onsubmit="testApi(event)">
+                {% csrf_token %}
+                <div id="formFields" class="space-y-4">
+                    <!-- Dynamic form fields will be inserted here -->
+                </div>
+                <div class="mt-6 flex items-center gap-3">
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary">
+                        <i class="ti ti-send"></i>
+                        <span>Test API</span>
+                    </button>
+                    <button type="button" onclick="closeTestModal()" class="btn-enterprise btn-enterprise-secondary">
+                        <span>Cancel</span>
+                    </button>
+                </div>
+            </form>
+            <div id="apiResponse" class="mt-6 hidden border rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 mb-3">Response:</h4>
+                <div id="bankIconContainer" class="mb-3"></div>
+                <div class="bg-gray-50 rounded-lg p-4 mb-3">
+                    <pre id="responseContent" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+                </div>
+                <div id="logMessage" class="hidden"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const apiConfigs = {
+    pan: {
+        title: 'PAN Verification',
+        fields: [
+            { name: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true },
+            { name: 'name', label: 'Name (Optional)', type: 'text', placeholder: 'Enter name to verify', required: false }
+        ]
+    },
+    aadhaar: {
+        title: 'Aadhaar Verification',
+        fields: [
+            { name: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: '123456789012', required: true },
+            { name: 'name', label: 'Name (Optional)', type: 'text', placeholder: 'Enter name to verify', required: false }
+        ]
+    },
+    bank: {
+        title: 'Bank Account Verification',
+        fields: [
+            { name: 'account_number', label: 'Account Number', type: 'text', placeholder: '1234567890', required: true },
+            { name: 'ifsc_code', label: 'IFSC Code', type: 'text', placeholder: 'HDFC0001234', required: true },
+            { name: 'name', label: 'Account Holder Name (Optional)', type: 'text', placeholder: 'Enter name', required: false },
+            { name: 'phone', label: 'Phone Number (Optional)', type: 'text', placeholder: '9999999999', required: false }
+        ]
+    },
+    phone: {
+        title: 'Phone Verification',
+        fields: [
+            { name: 'phone_number', label: 'Phone Number', type: 'text', placeholder: '+919876543210', required: true }
+        ]
+    },
+    email: {
+        title: 'Email Verification',
+        fields: [
+            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'test@example.com', required: true }
+        ]
+    },
+    driving_license: {
+        title: 'Driving License Verification',
+        fields: [
+            { name: 'dl_number', label: 'Driving License Number', type: 'text', placeholder: 'KA0120198900984', required: true },
+            { name: 'dob', label: 'Date of Birth', type: 'date', placeholder: 'YYYY-MM-DD', required: true }
+        ]
+    },
+    voter_id: {
+        title: 'Voter ID Verification',
+        fields: [
+            { name: 'voter_id', label: 'EPIC Number', type: 'text', placeholder: 'UAI4574761', required: true },
+            { name: 'name', label: 'Name (Optional)', type: 'text', placeholder: 'Enter name to verify', required: false }
+        ]
+    },
+    passport: {
+        title: 'Passport Verification',
+        fields: [
+            { name: 'passport_number', label: 'Passport File Number', type: 'text', placeholder: 'PA1079341954215', required: true },
+            { name: 'dob', label: 'Date of Birth', type: 'date', placeholder: 'YYYY-MM-DD', required: true }
+        ]
+    },
+    gst: {
+        title: 'GST Verification',
+        fields: [
+            { name: 'gstin', label: 'GSTIN', type: 'text', placeholder: '29AAICP2912R1ZR', required: true },
+            { name: 'business_name', label: 'Business Name (Optional)', type: 'text', placeholder: 'Enter business name', required: false }
+        ]
+    },
+    cin: {
+        title: 'CIN Verification',
+        fields: [
+            { name: 'cin', label: 'CIN Number', type: 'text', placeholder: 'U72900KA2015PTC082988', required: true }
+        ]
+    },
+    ifsc: {
+        title: 'IFSC Verification',
+        fields: [
+            { name: 'ifsc_code', label: 'IFSC Code', type: 'text', placeholder: 'HDFC0000001', required: true }
+        ]
+    },
+    vehicle_rc: {
+        title: 'Vehicle RC Verification',
+        fields: [
+            { name: 'vehicle_number', label: 'Vehicle Registration Number', type: 'text', placeholder: 'KA01MW8769', required: true }
+        ]
+    },
+    face_liveness: {
+        title: 'Face Liveness Check',
+        fields: [
+            { name: 'image_file', label: 'Face Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image_base64' }
+        ]
+    },
+    face_match: {
+        title: 'Face Match',
+        fields: [
+            { name: 'image1_file', label: 'First Face Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image1_base64' },
+            { name: 'image2_file', label: 'Second Face Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image2_base64' }
+        ]
+    },
+    name_match: {
+        title: 'Name Match',
+        fields: [
+            { name: 'name1', label: 'First Name', type: 'text', placeholder: 'Enter first name', required: true },
+            { name: 'name2', label: 'Second Name', type: 'text', placeholder: 'Enter second name', required: true }
+        ]
+    },
+    smart_ocr: {
+        title: 'Smart OCR',
+        fields: [
+            { name: 'document_type', label: 'Document Type', type: 'select', placeholder: 'Select document type', required: true, options: ['pan', 'aadhaar', 'driving_license', 'passport', 'voter_id', 'vehicle_rc', 'cancelled_cheque', 'invoice'] },
+            { name: 'image_file', label: 'Document Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image_base64' }
+        ]
+    },
+    aadhaar_ocr: {
+        title: 'Aadhaar OCR',
+        fields: [
+            { name: 'image_file', label: 'Aadhaar Card Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image_base64' }
+        ]
+    },
+    aadhaar_masking: {
+        title: 'Aadhaar Masking',
+        fields: [
+            { name: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: '123456789012', required: true }
+        ]
+    },
+    offline_aadhaar_send_otp: {
+        title: 'Offline Aadhaar Send OTP',
+        fields: [
+            { name: 'aadhaar_number', label: 'Aadhaar Number', type: 'text', placeholder: '123456789012', required: true }
+        ]
+    },
+    offline_aadhaar_verify_otp: {
+        title: 'Offline Aadhaar Verify OTP',
+        fields: [
+            { name: 'verification_id', label: 'Verification ID', type: 'text', placeholder: 'From send_otp response', required: true },
+            { name: 'otp', label: 'OTP', type: 'text', placeholder: 'Enter OTP received on mobile', required: true }
+        ]
+    },
+    pan_advance: {
+        title: 'PAN Advance',
+        fields: [
+            { name: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true },
+            { name: 'name', label: 'Name (Optional)', type: 'text', placeholder: 'Enter name to verify', required: false }
+        ]
+    },
+    pan_ocr: {
+        title: 'PAN OCR',
+        fields: [
+            { name: 'image_file', label: 'PAN Card Image', type: 'file', accept: 'image/*', required: true, convert_to_base64: true, base64_field: 'image_base64' }
+        ]
+    },
+    pan_to_gstin: {
+        title: 'PAN to GSTIN',
+        fields: [
+            { name: 'pan_number', label: 'PAN Number', type: 'text', placeholder: 'ABCDE1234F', required: true }
+        ]
+    },
+    pan_bulk: {
+        title: 'Bulk PAN Verification',
+        fields: [
+            { name: 'pan_entries', label: 'PAN Entries (JSON)', type: 'textarea', placeholder: '[{"pan": "ABCDE1234F", "name": "John Doe"}, {"pan": "FGHIJ5678K"}]', required: true }
+        ]
+    },
+    digilocker_create_url: {
+        title: 'DigiLocker Create URL',
+        fields: [
+            { name: 'redirect_url', label: 'Redirect URL', type: 'url', placeholder: 'https://yourdomain.com/callback', required: true }
+        ]
+    },
+    digilocker_get_status: {
+        title: 'DigiLocker Get Status',
+        fields: [
+            { name: 'verification_id', label: 'Verification ID', type: 'text', placeholder: 'From create_url response', required: true }
+        ]
+    },
+    digilocker_get_document: {
+        title: 'DigiLocker Get Document',
+        fields: [
+            { name: 'verification_id', label: 'Verification ID', type: 'text', placeholder: 'From create_url response', required: true },
+            { name: 'document_type', label: 'Document Type', type: 'select', placeholder: 'Select document type', required: true, options: ['aadhaar', 'driving_license', 'pan'] }
+        ]
+    },
+    esign_create_signature: {
+        title: 'E-sign Create Signature',
+        fields: [
+            { name: 'document_file', label: 'Document (PDF/Image)', type: 'file', accept: '.pdf,image/*', required: true, convert_to_base64: true, base64_field: 'document_base64' },
+            { name: 'signers', label: 'Signers (JSON)', type: 'textarea', placeholder: '[{"name": "John", "email": "john@example.com", "phone": "9999999999", "sign_positions": [{"page": 1, "x": 100, "y": 200}]}]', required: true }
+        ]
+    },
+    esign_get_status: {
+        title: 'E-sign Get Status',
+        fields: [
+            { name: 'verification_id', label: 'Verification ID', type: 'text', placeholder: 'From create_signature response', required: true }
+        ]
+    },
+    esign_upload_document: {
+        title: 'E-sign Upload Document',
+        fields: [
+            { name: 'document_file', label: 'Document (PDF/Image)', type: 'file', accept: '.pdf,image/*', required: true, convert_to_base64: true, base64_field: 'document_base64' }
+        ]
+    },
+    advance_employment: {
+        title: 'Advance Employment',
+        fields: [
+            { name: 'uan', label: 'UAN (Optional)', type: 'text', placeholder: '12 digit UAN', required: false },
+            { name: 'pan', label: 'PAN (Optional)', type: 'text', placeholder: 'ABCDE1234F', required: false }
+        ]
+    },
+    reverse_penny_drop: {
+        title: 'Reverse Penny Drop',
+        fields: [
+            { name: 'account_number', label: 'Account Number', type: 'text', placeholder: '1234567890', required: true },
+            { name: 'ifsc_code', label: 'IFSC Code', type: 'text', placeholder: 'HDFC0001234', required: true }
+        ]
+    },
+    reverse_penny_drop_status: {
+        title: 'Reverse Penny Drop Status',
+        fields: [
+            { name: 'verification_id', label: 'Verification ID', type: 'text', placeholder: 'From reverse_penny_drop response', required: true }
+        ]
+    },
+    reverse_geocoding: {
+        title: 'Reverse Geocoding',
+        fields: [
+            { name: 'latitude', label: 'Latitude', type: 'number', placeholder: '28.6139', required: true, step: 'any' },
+            { name: 'longitude', label: 'Longitude', type: 'number', placeholder: '77.2090', required: true, step: 'any' }
+        ]
+    },
+    ip_verification: {
+        title: 'IP Verification',
+        fields: [
+            { name: 'ip_address', label: 'IP Address', type: 'text', placeholder: '192.168.1.1', required: true }
+        ]
+    }
+};
+
+function openTestModal(apiType, vendorCode = 'cashfree') {
+    const config = apiConfigs[apiType];
+    if (!config) return;
+    
+    document.getElementById('modalTitle').textContent = config.title;
+    const formFields = document.getElementById('formFields');
+    formFields.innerHTML = '';
+    
+    // Store vendor code for API call
+    document.getElementById('testApiForm').setAttribute('data-vendor-code', vendorCode);
+    
+    config.fields.forEach(field => {
+        const div = document.createElement('div');
+        let inputHTML = '';
+        
+        if (field.type === 'file') {
+            const acceptAttr = field.accept ? `accept="${field.accept}"` : '';
+            inputHTML = `
+                <input 
+                    type="file" 
+                    name="${field.name}" 
+                    ${acceptAttr}
+                    ${field.required ? 'required' : ''}
+                    class="input-enterprise w-full file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    ${field.convert_to_base64 ? 'data-convert-base64="true" data-base64-field="' + field.base64_field + '"' : ''}
+                />
+                <p class="text-xs text-gray-500 mt-1">${field.convert_to_base64 ? 'File will be automatically converted to Base64' : ''}</p>
+            `;
+        } else if (field.type === 'textarea') {
+            inputHTML = `
+                <textarea 
+                    name="${field.name}" 
+                    placeholder="${field.placeholder}"
+                    ${field.required ? 'required' : ''}
+                    rows="4"
+                    class="input-enterprise w-full"
+                ></textarea>
+            `;
+        } else if (field.type === 'select' && field.options) {
+            let optionsHTML = '<option value="">Select...</option>';
+            field.options.forEach(opt => {
+                optionsHTML += `<option value="${opt}">${opt.charAt(0).toUpperCase() + opt.slice(1).replace('_', ' ')}</option>`;
+            });
+            inputHTML = `
+                <select 
+                    name="${field.name}" 
+                    ${field.required ? 'required' : ''}
+                    class="input-enterprise w-full"
+                >
+                    ${optionsHTML}
+                </select>
+            `;
+        } else {
+            const stepAttr = field.step ? `step="${field.step}"` : '';
+            inputHTML = `
+                <input 
+                    type="${field.type}" 
+                    name="${field.name}" 
+                    placeholder="${field.placeholder}"
+                    ${field.required ? 'required' : ''}
+                    ${stepAttr}
+                    class="input-enterprise w-full"
+                />
+            `;
+        }
+        
+        div.innerHTML = `
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                ${field.label} ${field.required ? '<span class="text-red-600">*</span>' : ''}
+            </label>
+            ${inputHTML}
+        `;
+        formFields.appendChild(div);
+    });
+    
+    document.getElementById('testApiForm').setAttribute('data-api-type', apiType);
+    document.getElementById('apiResponse').classList.add('hidden');
+    document.getElementById('testModal').classList.remove('hidden');
+}
+
+function closeTestModal() {
+    document.getElementById('testModal').classList.add('hidden');
+    document.getElementById('testApiForm').reset();
+    document.getElementById('apiResponse').classList.add('hidden');
+}
+
+// Convert file to base64
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // Remove data:image/jpeg;base64, prefix if present
+            const base64 = reader.result.split(',')[1] || reader.result;
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function testApi(event) {
+    event.preventDefault();
+    const form = event.target;
+    const apiType = form.getAttribute('data-api-type');
+    const formData = new FormData(form);
+    const data = {};
+    
+    // Process form data - handle files separately
+    for (const [key, value] of formData.entries()) {
+        if (value instanceof File) {
+            // Check if this file field needs base64 conversion
+            const fileInput = form.querySelector(`input[name="${key}"]`);
+            if (fileInput && fileInput.dataset.convertBase64 === 'true') {
+                const base64Field = fileInput.dataset.base64Field || key.replace('_file', '_base64');
+                try {
+                    data[base64Field] = await fileToBase64(value);
+                } catch (e) {
+                    alert(`Error converting file ${key} to base64: ${e.message}`);
+                    return;
+                }
+            } else {
+                // Regular file upload (not needed for our API, but keep for compatibility)
+                data[key] = value;
+            }
+        } else {
+            data[key] = value;
+        }
+    }
+    
+    // Parse JSON fields if present
+    if (data.pan_entries && typeof data.pan_entries === 'string') {
+        try {
+            data.pan_entries = JSON.parse(data.pan_entries);
+        } catch (e) {
+            alert('Invalid JSON format for PAN Entries');
+            return;
+        }
+    }
+    if (data.signers && typeof data.signers === 'string') {
+        try {
+            data.signers = JSON.parse(data.signers);
+        } catch (e) {
+            alert('Invalid JSON format for Signers');
+            return;
+        }
+    }
+    
+    // Convert number fields
+    if (data.latitude) data.latitude = parseFloat(data.latitude);
+    if (data.longitude) data.longitude = parseFloat(data.longitude);
+    
+    // Show loading
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="ti ti-loader-2 animate-spin"></i> <span>Testing...</span>';
+    submitBtn.disabled = true;
+    
+    try {
+        // Get CSRF token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                         getCookie('csrftoken');
+        
+        const response = await fetch(`/services/{{ service.id }}/test-api/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                api_type: apiType,
+                ...data
+            })
+        });
+        
+        const result = await response.json();
+        
+        // Show response with bank icons if applicable
+        let responseText = JSON.stringify(result, null, 2);
+        if (result.log_message) {
+            responseText += '\n\n' + result.log_message;
+        }
+        document.getElementById('responseContent').textContent = responseText;
+        
+        // Add bank icon if IFSC or bank account verification
+        const responseContainer = document.getElementById('apiResponse');
+        const iconContainer = document.getElementById('bankIconContainer');
+        if (iconContainer) {
+            iconContainer.innerHTML = '';
+            
+            // Check if response contains IFSC or bank information
+            if (apiType === 'ifsc' && result.data && result.data.ifsc) {
+                const ifscCode = result.data.ifsc;
+                if (window.PaymentIcons) {
+                    const iconHTML = window.PaymentIcons.createBankIconHTML(
+                        ifscCode,
+                        'md',
+                        result.data.bank || ifscCode,
+                        'shadow-sm'
+                    );
+                    iconContainer.innerHTML = `<div class="mb-3">
+                        <p class="text-sm text-gray-600 mb-2">Bank Logo:</p>
+                        ${iconHTML}
+                    </div>`;
+                }
+            } else if (apiType === 'bank' && result.data && result.data.ifsc) {
+                const ifscCode = result.data.ifsc;
+                if (window.PaymentIcons) {
+                    const iconHTML = window.PaymentIcons.createBankIconHTML(
+                        ifscCode,
+                        'md',
+                        result.data.bank_name || ifscCode,
+                        'shadow-sm'
+                    );
+                    iconContainer.innerHTML = `<div class="mb-3">
+                        <p class="text-sm text-gray-600 mb-2">Bank Logo:</p>
+                        ${iconHTML}
+                    </div>`;
+                }
+            }
+        }
+        
+        responseContainer.classList.remove('hidden');
+        
+        if (result.success) {
+            document.getElementById('apiResponse').classList.remove('bg-red-50', 'border-red-200');
+            document.getElementById('apiResponse').classList.add('bg-green-50', 'border-green-200');
+        } else {
+            document.getElementById('apiResponse').classList.remove('bg-green-50', 'border-green-200');
+            document.getElementById('apiResponse').classList.add('bg-red-50', 'border-red-200');
+        }
+        
+        // Show message about logs
+        if (result.log_message) {
+            const logMessageDiv = document.getElementById('logMessage');
+            logMessageDiv.className = 'mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg';
+            logMessageDiv.innerHTML = `
+                <p class="text-sm text-blue-900">
+                    <i class="ti ti-info-circle"></i>
+                    ${result.log_message}
+                    <a href="{% url 'log_list' %}?category=cashfree" class="text-blue-600 hover:text-blue-800 underline ml-1">View Logs</a>
+                </p>
+            `;
+            logMessageDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        document.getElementById('responseContent').textContent = `Error: ${error.message}`;
+        document.getElementById('apiResponse').classList.remove('hidden');
+        document.getElementById('apiResponse').classList.remove('bg-green-50');
+        document.getElementById('apiResponse').classList.add('bg-red-50');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+// Close modal on outside click
+document.getElementById('testModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeTestModal();
+    }
+});
+
+// Get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Test Connection
+async function testConnection(vendorCode = 'cashfree') {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+    
+    try {
+        const response = await fetch(`/services/{{ service.id }}/test-api/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                api_type: 'test_connection',
+                vendor: vendorCode
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Connection test successful! ' + (result.message || ''));
+        } else {
+            alert('Connection test failed: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error testing connection: ' + error.message);
+    }
+}
+
+// Toggle Service Enable/Disable
+async function toggleService(apiCode, enabled, vendorCode = 'cashfree') {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+    
+    try {
+        const response = await fetch(`/services/{{ service.id }}/toggle-service/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                vendor: vendorCode,
+                api_code: apiCode,
+                enabled: enabled
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update UI
+            const checkbox = document.querySelector(`[data-api-code="${apiCode}"]`);
+            const card = checkbox.closest('.p-4');
+            const testBtn = card.querySelector('button[onclick*="openTestModal"]');
+            
+            if (enabled) {
+                card.classList.remove('opacity-60');
+                testBtn.classList.remove('btn-enterprise-secondary');
+                testBtn.classList.add('btn-enterprise-primary');
+                testBtn.removeAttribute('disabled');
+                testBtn.removeAttribute('title');
+            } else {
+                card.classList.add('opacity-60');
+                testBtn.classList.remove('btn-enterprise-primary');
+                testBtn.classList.add('btn-enterprise-secondary');
+                testBtn.setAttribute('disabled', 'disabled');
+                testBtn.setAttribute('title', 'Enable service to test');
+            }
+        } else {
+            alert('Failed to update service: ' + result.message);
+            // Revert checkbox
+            checkbox.checked = !enabled;
+        }
+    } catch (error) {
+        alert('Error updating service: ' + error.message);
+        // Revert checkbox
+        const checkbox = document.querySelector(`[data-api-code="${apiCode}"]`);
+        checkbox.checked = !enabled;
+    }
+}
+</script>
+{% endblock %}

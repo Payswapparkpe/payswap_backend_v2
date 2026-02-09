@@ -1,0 +1,49 @@
+<div class="connect-scan-result">
+  <div class="scan-header">
+    <a routerLink="/dashboard" class="back-link">← ParkPe</a>
+    <h1>Contact vehicle owner</h1>
+  </div>
+
+  @if (loading()) {
+    <p class="loading">Loading…</p>
+  } @else if (error()) {
+    <div class="error-box">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error() }}</p>
+      <a routerLink="/dashboard" class="btn btn-outline">Go to Dashboard</a>
+    </div>
+  } @else if (data(); as d) {
+    <div class="vehicle-card">
+      <span class="material-icons">directions_car</span>
+      <p class="reg-masked">{{ d.registration_number_masked }}</p>
+      <p class="vehicle-label">Vehicle number</p>
+    </div>
+
+    <div class="contact-options">
+      <p class="options-label">Contact owner (masked – your number is not shared)</p>
+      @if (d.contact_options.includes('call')) {
+        <button type="button" class="btn btn-primary btn-block" (click)="contactCall()" [disabled]="calling()">
+          <span class="material-icons">call</span>
+          {{ calling() ? 'Connecting…' : 'Call owner' }}
+        </button>
+      }
+      @if (d.contact_options.includes('chat')) {
+        <button type="button" class="btn btn-outline btn-block" (click)="contactChat()">
+          <span class="material-icons">chat</span>
+          Chat
+        </button>
+      }
+    </div>
+
+    @if (showPhoneInput()) {
+      <div class="phone-modal">
+        <p>Enter your phone number to receive the call (masked call via Kaleyra):</p>
+        <input type="tel" [value]="scannerPhone()" (input)="onPhoneInput($event)" placeholder="e.g. 9876543210" />
+        <div class="phone-actions">
+          <button type="button" class="btn btn-primary" (click)="confirmCall()" [disabled]="!scannerPhone().trim() || calling()">Call</button>
+          <button type="button" class="btn btn-ghost" (click)="cancelCall()">Cancel</button>
+        </div>
+      </div>
+    }
+  }
+</div>

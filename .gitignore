@@ -251,6 +251,7 @@ Thumbs.db
 local_settings.py
 secrets.json
 secrets/
+.explorer-api-key
 
 # Certificates & Keys
 *.key

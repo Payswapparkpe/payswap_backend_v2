@@ -1,0 +1,266 @@
+<div class="bbps-internal" #contentBlock>
+  <audio #bbpsMogo preload="auto" src="assets/bbps/bharat-connect-mogo.mp3"></audio>
+
+  <div class="bbps-powered-by" role="img" aria-label="Powered by Bharat Connect">
+    <span class="bbps-powered-by-text">Powered by</span>
+    <img class="bbps-powered-by-logo" src="assets/bbps/bharat-connect-logo.png" alt="Bharat Connect" width="120" height="28" loading="eager" />
+  </div>
+
+  <a routerLink="/dashboard" class="bbps-back">
+    <span class="material-icons">arrow_back</span> Back to Dashboard
+  </a>
+  <header class="bbps-header">
+    <h1 class="bbps-title">Pay Bills</h1>
+    <p class="bbps-subtitle">Electricity, Water, Gas, DTH &amp; more — one screen</p>
+    <app-step-indicator [steps]="stepLabels" [currentStep]="currentStepIndex()" />
+  </header>
+
+  <!-- Step 1: Category (grouped) + Favorite biller & Saved bill on right -->
+  @if (step() === 'category') {
+    <section class="bbps-section bbps-category-layout">
+      @if (loadingCategories()) {
+        <div class="loading-wrap">
+          <div class="spinner"></div>
+          <p>Loading categories...</p>
+        </div>
+      } @else {
+        <div class="bbps-category-main">
+          @for (group of categoriesByGroup(); track group.groupKey) {
+            <div class="category-group">
+              <h3 class="category-group-heading">{{ group.groupLabel }}</h3>
+              <div class="category-group-box">
+                @for (cat of group.categories; track cat) {
+                  <button type="button" class="category-card card" (click)="selectCategory(cat)">
+                    <span class="category-icon material-icons">{{ getCategoryIcon(cat) }}</span>
+                    <span class="category-label">{{ getCategoryLabel(cat) }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+        <aside class="bbps-side-panel">
+          <div class="side-panel-block">
+            <h4 class="side-panel-title">Favorite biller</h4>
+            @if (favoriteBillersList().length === 0) {
+              <p class="side-panel-hint">Star billers from the list to see them here for quick access.</p>
+            } @else {
+              <div class="favorite-billers-list">
+                @for (fav of favoriteBillersList(); track fav.operatorId) {
+                  <div class="favorite-biller-chip">
+                    <button type="button" class="favorite-biller-chip-main" (click)="selectFavoriteBiller(fav)">
+                      <span class="material-icons favorite-biller-icon">star</span>
+                      <span class="favorite-biller-name">{{ fav.operatorName }}</span>
+                    </button>
+                    <button type="button" class="chip-remove" (click)="removeFavoriteBiller(fav); $event.stopPropagation()" aria-label="Remove from favorites">
+                      <span class="material-icons">close</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+          <div class="side-panel-block">
+            <h4 class="side-panel-title">Saved bill</h4>
+            @if (savedBillsList().length === 0) {
+              <p class="side-panel-hint">Save bills with a nickname after fetching to pay quickly later.</p>
+            } @else {
+              <div class="saved-bills-list">
+                @for (saved of savedBillsList(); track saved.id) {
+                  <div class="saved-bill-chip">
+                    <button type="button" class="saved-bill-chip-main" (click)="selectSavedBill(saved)">
+                      <div class="saved-bill-info">
+                        <span class="saved-bill-name">{{ saved.nickname || saved.operatorName }}</span>
+                        @if (saved.nickname) {
+                          <span class="saved-bill-biller">Biller: {{ saved.operatorName }}</span>
+                        }
+                        <span class="saved-bill-consumer">Consumer no.: {{ saved.consumerId }}</span>
+                      </div>
+                      @if (saved.lastAmount) {
+                        <span class="saved-bill-amount">₹{{ saved.lastAmount | number:'1.0-0' }}</span>
+                      }
+                    </button>
+                    <button type="button" class="chip-remove" (click)="removeSavedBillFromList(saved); $event.stopPropagation()" aria-label="Remove saved bill">
+                      <span class="material-icons">close</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </aside>
+      }
+    </section>
+  }
+
+  <!-- Step 2–4: Two-column – Billers (left) + Form / Bill details (right) -->
+  @if (step() === 'operator' || step() === 'form' || step() === 'bill') {
+    <section class="bbps-section bbps-two-col">
+      <div class="bbps-col-left">
+        <button type="button" class="btn btn-outline back-btn" (click)="goBackToCategory()">
+          <span class="material-icons">arrow_back</span> Change category
+        </button>
+        <h2 class="section-heading">Billers — {{ selectedCategory() ? getCategoryLabel(selectedCategory()!) : '' }}</h2>
+        <div class="biller-search-wrap">
+          <span class="material-icons biller-search-icon">search</span>
+          <input
+            type="search"
+            class="biller-search-input"
+            placeholder="Search your biller"
+            [value]="billerSearchQuery()"
+            (input)="billerSearchQuery.set($any($event.target).value)"
+          />
+        </div>
+        @if (loadingOperators()) {
+          <div class="loading-wrap">
+            <div class="spinner"></div>
+            <p>Loading billers...</p>
+          </div>
+        } @else if (filteredOperators().length === 0) {
+          <div class="empty-wrap">
+            <span class="material-icons">business</span>
+            <p>No billers found.</p>
+          </div>
+        } @else {
+          <div class="operator-list-wrap">
+            <div class="operator-list">
+            @for (op of filteredOperators(); track op.id) {
+              <div class="operator-card card" role="button" tabindex="0" (click)="selectOperator(op)" (keydown.enter)="selectOperator(op)" (keydown.space)="selectOperator(op); $event.preventDefault()">
+                <button type="button" class="operator-star" (click)="toggleFavorite(op.id, $event)" [attr.aria-label]="isFavorite(op.id) ? 'Remove from favorites' : 'Add to favorites'">
+                  <span class="material-icons">{{ isFavorite(op.id) ? 'star' : 'star_border' }}</span>
+                </button>
+                <div class="operator-info">
+                  <span class="operator-name">{{ op.name }}</span>
+                  <span class="operator-code">{{ op.code }}</span>
+                </div>
+                <span class="material-icons operator-chevron">chevron_right</span>
+              </div>
+            }
+            </div>
+          </div>
+        }
+      </div>
+      <div class="bbps-col-right">
+        @if (!selectedOperator()) {
+          <div class="right-panel-placeholder">
+            <h4 class="side-panel-title">Select biller</h4>
+            <p class="side-panel-hint">Choose a biller from the list to enter consumer details and pay.</p>
+          </div>
+        } @else if (selectedOperator(); as op) {
+          @if (!bill()) {
+            <div class="right-panel-form">
+              <h3 class="right-panel-heading">{{ op.name }}</h3>
+              <p class="right-panel-category">{{ getCategoryLabel(selectedCategory()!) }}</p>
+              <form [formGroup]="billForm" (ngSubmit)="fetchBill()" class="bill-form card">
+                @for (p of getFormParams(); track p.name) {
+                  <div class="form-group">
+                    <label [for]="'param-' + p.name">{{ p.label }}{{ p.required ? ' *' : '' }}</label>
+                    @if (p.type === 'select' && p.options?.length) {
+                      <select [id]="'param-' + p.name" [formControlName]="p.name" class="form-control">
+                        <option value="">Select</option>
+                        @for (opt of p.options; track opt.value) {
+                          <option [value]="opt.value">{{ opt.label }}</option>
+                        }
+                      </select>
+                    } @else {
+                      <input
+                        [id]="'param-' + p.name"
+                        [type]="p.type === 'number' ? 'number' : 'text'"
+                        [formControlName]="p.name"
+                        class="form-control"
+                        [placeholder]="p.placeholder ?? p.label"
+                        [attr.maxlength]="p.maxLength"
+                      />
+                    }
+                    @if (p.helpText) {
+                      <span class="form-hint">{{ p.helpText }}</span>
+                    }
+                    @if (billForm.get(p.name)?.invalid && billForm.get(p.name)?.touched) {
+                      <span class="form-error">Required</span>
+                    }
+                  </div>
+                }
+                <span class="form-link" role="button" tabindex="0">View sample bill to find account or customer number</span>
+                <button type="submit" class="btn btn-primary btn-block" [disabled]="loadingBill()">
+                  @if (loadingBill()) {
+                    <span class="spinner"></span>
+                    Fetching...
+                  } @else {
+                    Proceed
+                  }
+                </button>
+              </form>
+            </div>
+          } @else if (bill(); as b) {
+            <div class="right-panel-bill card">
+              <h3 class="right-panel-heading">{{ b.operatorName }}</h3>
+              <p class="right-panel-meta">Consumer ID {{ b.consumerId }}</p>
+              <div class="bill-rows">
+                @if (b.consumerName) {
+                  <div class="bill-row">
+                    <span>Consumer name</span>
+                    <span>{{ b.consumerName }}</span>
+                  </div>
+                }
+                <div class="bill-row">
+                  <span>Due date</span>
+                  <span>{{ b.dueDate | date:'d MMM y' }}</span>
+                </div>
+                @if (b.billDetails && b.billDetails.length) {
+                  @for (d of b.billDetails; track d.label) {
+                    <div class="bill-row">
+                      <span>{{ d.label }}</span>
+                      <span>{{ d.value }}</span>
+                    </div>
+                  }
+                }
+                <div class="bill-row highlight">
+                  <span>Amount</span>
+                  <span class="bill-amount">₹{{ b.amount | number:'1.2-2' }}</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Add nickname</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  placeholder="Add nickname"
+                  [value]="billNickname()"
+                  (input)="billNickname.set($any($event.target).value)"
+                />
+                <button type="button" class="btn btn-outline btn-sm" (click)="saveBillWithNickname()">Save bill</button>
+              </div>
+              <div class="bill-payable">
+                <span>Payable amount</span>
+                <span>₹{{ b.amount | number:'1.2-2' }}</span>
+              </div>
+              <div class="payment-method-section">
+                <p class="voucher-balance">Voucher balance: <strong>₹{{ voucherBalance() | number:'1.2-2' }}</strong></p>
+                <div class="payment-method-options">
+                  <label class="payment-method-option">
+                    <input type="radio" name="bbpsPayMethod" [checked]="paymentMethod() === 'voucher'" (change)="paymentMethod.set('voucher')" />
+                    <span>Pay with Voucher</span>
+                    <span class="option-detail">(Balance: ₹{{ voucherBalance() | number:'1.2-2' }})</span>
+                  </label>
+                  <label class="payment-method-option">
+                    <input type="radio" name="bbpsPayMethod" [checked]="paymentMethod() === 'pg'" (change)="paymentMethod.set('pg')" />
+                    <span>Pay with Card / UPI</span>
+                  </label>
+                </div>
+              </div>
+              <button type="button" class="btn btn-primary btn-block btn-lg" (click)="payBill()" [disabled]="paying() || (paymentMethod() === 'voucher' && voucherBalance() < b.amount)">
+                @if (paying()) {
+                  <span class="spinner"></span>
+                  Processing...
+                } @else {
+                  {{ paymentMethod() === 'voucher' ? 'Pay with Voucher' : 'Pay with Card/UPI' }} ₹{{ b.amount | number:'1.2-2' }}
+                }
+              </button>
+              <button type="button" class="btn btn-outline btn-block" (click)="goBackToForm()">Edit details</button>
+            </div>
+          }
+        }
+      </div>
+    </section>
+  }
+</div>

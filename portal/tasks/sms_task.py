@@ -66,9 +66,37 @@ def send_sms_task(
         )
         
         # Send SMS via Kaleyra
+        # NOTE: This is for REGULAR SMS only. OTP SMS should use send_otp_sms_task instead.
+        # If is_otp=True is in context, it means someone is calling this incorrectly.
+        # OTP should go through: NotificationServiceV2.send_otp() → send_otp_sms_task → KaleyraClient.send_otp()
+        
         kaleyra_client = KaleyraClient()
-        # Kaleyra requires + prefix, so format it
         kaleyra_phone = format_phone_for_kaleyra(normalized_phone)
+        
+        # Check if someone is trying to send OTP through regular SMS (WRONG PATH)
+        is_otp = context.get('is_otp', False)
+        if is_otp:
+            # Log warning - OTP should not come through send_sms_task
+            write_logs_task.delay(
+                log_level='WARNING',
+                message=f'SMS Task - OTP detected in regular SMS task! OTP should use send_otp_sms_task instead. Phone: {masked_phone}',
+                module_name=module_name,
+                url=None,
+                request_id=request_id,
+                response_id=None,
+                user_id=user_id,
+                extra_data={
+                    'action': 'sms_task_otp_warning',
+                    'phone_masked': masked_phone,
+                    'message': 'OTP should not use send_sms_task'
+                },
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id
+            )
+            # Still send it, but log the warning
+        
+        # Regular SMS sending (no template_id for non-OTP messages)
         result = kaleyra_client.send_sms(kaleyra_phone, message, message_type="TXN")
         
         # Check success

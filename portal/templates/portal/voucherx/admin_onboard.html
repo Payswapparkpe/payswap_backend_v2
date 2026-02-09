@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Admin Brand Onboarding{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-building-store text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Create & Onboard Brand</h1>
+            <p class="page-description-enterprise">Complete brand creation and onboarding in one flow</p>
+        </div>
+    </div>
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-4xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-8">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-red-600 font-semibold mb-2">Please correct the errors below:</p>
+            <ul class="list-disc list-inside text-sm text-red-600 space-y-1">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- Step 1: Basic Information -->
+        <div class="border-b border-gray-200 pb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">1</span>
+                Basic Information
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="form-label-enterprise">Brand Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="brand_name" value="{{ form.brand_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter brand name">
+                    {% if form.brand_name.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.brand_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Contact Person <span class="text-red-500">*</span></label>
+                    <input type="text" name="contact_person" value="{{ form.contact_person.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter contact person name">
+                    {% if form.contact_person.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.contact_person.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Contact Email <span class="text-red-500">*</span></label>
+                    <input type="email" name="contact_email" value="{{ form.contact_email.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter email address">
+                    {% if form.contact_email.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.contact_email.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Contact Phone <span class="text-red-500">*</span></label>
+                    <input type="text" name="contact_phone" value="{{ form.contact_phone.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter phone number">
+                    {% if form.contact_phone.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.contact_phone.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="form-label-enterprise">Business Address <span class="text-red-500">*</span></label>
+                    <textarea name="address" rows="3" required class="form-textarea-enterprise" placeholder="Enter business address">{{ form.address.value|default:'' }}</textarea>
+                    {% if form.address.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.address.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 2: Business Details -->
+        <div class="border-b border-gray-200 pb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">2</span>
+                Business Details
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="form-label-enterprise">Business Type <span class="text-red-500">*</span></label>
+                    <select name="business_type" required class="form-select-enterprise">
+                        <option value="">Select business type</option>
+                        <option value="LLP" {% if form.business_type.value == 'LLP' %}selected{% endif %}>Limited Liability Partnership</option>
+                        <option value="PRIVATE_LTD" {% if form.business_type.value == 'PRIVATE_LTD' %}selected{% endif %}>Private Limited</option>
+                        <option value="PUBLIC_LTD" {% if form.business_type.value == 'PUBLIC_LTD' %}selected{% endif %}>Public Limited</option>
+                        <option value="PARTNERSHIP" {% if form.business_type.value == 'PARTNERSHIP' %}selected{% endif %}>Partnership</option>
+                        <option value="SOLE_PROPRIETORSHIP" {% if form.business_type.value == 'SOLE_PROPRIETORSHIP' %}selected{% endif %}>Sole Proprietorship</option>
+                        <option value="HUF" {% if form.business_type.value == 'HUF' %}selected{% endif %}>Hindu Undivided Family</option>
+                        <option value="OTHER" {% if form.business_type.value == 'OTHER' %}selected{% endif %}>Other</option>
+                    </select>
+                    {% if form.business_type.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.business_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Business Registration Number <span class="text-red-500">*</span></label>
+                    <input type="text" name="business_reg_no" value="{{ form.business_reg_no.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter registration number">
+                    {% if form.business_reg_no.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.business_reg_no.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">PAN Number</label>
+                    <input type="text" name="pan_number" value="{{ form.pan_number.value|default:'' }}" maxlength="10" class="form-input-enterprise" placeholder="Enter PAN (10 characters)">
+                    {% if form.pan_number.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.pan_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">GST Number</label>
+                    <input type="text" name="gst_number" value="{{ form.gst_number.value|default:'' }}" maxlength="15" class="form-input-enterprise" placeholder="Enter GSTIN (15 characters)">
+                    {% if form.gst_number.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.gst_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 3: Banking Information -->
+        <div class="border-b border-gray-200 pb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold">3</span>
+                Banking Information
+            </h3>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p class="text-sm text-blue-800">
+                    <i class="ti ti-shield-lock mr-2"></i>
+                    Banking information is encrypted and stored securely.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="form-label-enterprise">Bank Account Number <span class="text-red-500">*</span></label>
+                    <input type="text" name="bank_account_number" value="{{ form.bank_account_number.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter account number">
+                    {% if form.bank_account_number.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.bank_account_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">IFSC Code <span class="text-red-500">*</span></label>
+                    <input type="text" name="bank_ifsc_code" value="{{ form.bank_ifsc_code.value|default:'' }}" maxlength="11" required class="form-input-enterprise" placeholder="Enter IFSC code">
+                    {% if form.bank_ifsc_code.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.bank_ifsc_code.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Bank Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="bank_name" value="{{ form.bank_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter bank name">
+                    {% if form.bank_name.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.bank_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Account Holder Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="account_holder_name" value="{{ form.account_holder_name.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter account holder name">
+                    {% if form.account_holder_name.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ form.account_holder_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 4: Documents -->
+        <div class="border-b border-gray-200 pb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">4</span>
+                Documents (Optional - Can be uploaded later)
+            </h3>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p class="text-sm text-yellow-800">
+                    <i class="ti ti-info-circle mr-2"></i>
+                    Accepted formats: PDF, JPG, PNG. Maximum file size: 10MB per file.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="form-label-enterprise">Business Registration Document</label>
+                    <input type="file" name="business_registration_doc" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise">
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">PAN Document</label>
+                    <input type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise">
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">GST Certificate</label>
+                    <input type="file" name="gst_certificate" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise">
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Bank Statement</label>
+                    <input type="file" name="bank_statement" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise">
+                </div>
+                
+                <div>
+                    <label class="form-label-enterprise">Signed Agreement</label>
+                    <input type="file" name="agreement_document" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 5: Agreement -->
+        <div class="border-b border-gray-200 pb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">5</span>
+                Terms & Agreement
+            </h3>
+            <div class="space-y-4">
+                <div class="flex items-start gap-3">
+                    <input type="checkbox" name="terms_accepted" id="terms_accepted" value="1" required class="mt-1 form-checkbox-enterprise">
+                    <label for="terms_accepted" class="text-sm text-gray-700">
+                        Terms and conditions have been accepted <span class="text-red-500">*</span>
+                    </label>
+                </div>
+                {% if form.terms_accepted.errors %}
+                <p class="text-sm text-red-600">{{ form.terms_accepted.errors.0 }}</p>
+                {% endif %}
+                
+                <div class="flex items-start gap-3">
+                    <input type="checkbox" name="agreement_signed" id="agreement_signed" value="1" required class="mt-1 form-checkbox-enterprise">
+                    <label for="agreement_signed" class="text-sm text-gray-700">
+                        Service agreement has been signed <span class="text-red-500">*</span>
+                    </label>
+                </div>
+                {% if form.agreement_signed.errors %}
+                <p class="text-sm text-red-600">{{ form.agreement_signed.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Admin Options -->
+        <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Admin Options</h3>
+            <div class="flex items-start gap-3">
+                <input type="checkbox" name="auto_approve" id="auto_approve" value="1" checked class="mt-1 form-checkbox-enterprise">
+                <label for="auto_approve" class="text-sm text-gray-700">
+                    <span class="font-semibold">Auto-approve after creation</span>
+                    <p class="text-xs text-gray-600 mt-1">If checked, the brand will be automatically approved and activated, allowing immediate voucher issuance.</p>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Submit Buttons -->
+        <div class="flex gap-4 pt-6">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Create & Onboard Brand
+            </button>
+            <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

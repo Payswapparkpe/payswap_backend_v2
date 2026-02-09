@@ -1,0 +1,24 @@
+{
+  "id": "booking_001",
+  "locationId": "loc_001",
+  "locationName": "Downtown Mall Parking",
+  "slotId": "slot_001",
+  "slotCode": "A-101",
+  "vehicleNumber": "KA01AB1234",
+  "vehicleType": "four_wheeler",
+  "from": "2024-02-05T10:00:00Z",
+  "to": "2024-02-05T13:00:00Z",
+  "duration": 180,
+  "amount": 150,
+  "currency": "INR",
+  "status": "confirmed",
+  "customer": {
+    "name": "John Doe",
+    "phone": "+919876543210",
+    "email": "john.doe@example.com"
+  },
+  "qrCode": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "bookingReference": "PARK001234",
+  "createdAt": "2024-02-05T09:45:00Z",
+  "paymentId": "txn_001"
+}

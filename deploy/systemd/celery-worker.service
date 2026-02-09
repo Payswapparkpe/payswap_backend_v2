@@ -1,0 +1,25 @@
+# Celery worker – Payswap / ParkPe
+# Install: sudo cp deploy/systemd/celery-worker.service /etc/systemd/system/
+#         Edit WorkingDirectory/ExecStart if app lives elsewhere (e.g. /opt/payswap).
+#         sudo systemctl daemon-reload && sudo systemctl enable celery-worker && sudo systemctl start celery-worker
+# Logs:   journalctl -u celery-worker -f
+
+[Unit]
+Description=Celery Worker - Payswap
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/payswap
+Environment="PATH=/var/www/payswap/venv/bin"
+ExecStart=/var/www/payswap/venv/bin/celery -A core worker -l info
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=celery-worker
+
+[Install]
+WantedBy=multi-user.target

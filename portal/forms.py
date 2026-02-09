@@ -6,7 +6,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
-from portal.models import User, Profile, KYC
+from portal.models import User, Profile, KYC, ParkPeServiceConfig, ParkPePaymentGatewayConfig
 from portal.utils.validators import validate_phone_number
 from django.core.exceptions import ValidationError
 
@@ -258,6 +258,100 @@ class MFAVerifyForm(forms.Form):
             'autofocus': True
         })
     )
+
+
+# PIN: 4-digit numeric only. Used for session re-unlock after expiry; OTP/2FA is primary auth.
+PIN_DIGITS = 4
+PIN_REGEX = r'^\d{4}$'
+
+
+class SetPinForm(forms.Form):
+    """Set 4-digit PIN (secondary unlock only; requires full OTP/2FA auth first)."""
+    
+    pin = forms.CharField(
+        max_length=PIN_DIGITS,
+        min_length=PIN_DIGITS,
+        strip=True,
+        error_messages={
+            'required': 'Please enter a 4-digit PIN.',
+            'min_length': 'PIN must be exactly 4 digits.',
+            'max_length': 'PIN must be exactly 4 digits.',
+        },
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20 text-center text-xl tracking-widest',
+            'placeholder': '••••',
+            'autocomplete': 'off',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+        })
+    )
+    pin_confirm = forms.CharField(
+        max_length=PIN_DIGITS,
+        min_length=PIN_DIGITS,
+        strip=True,
+        label='Confirm PIN',
+        error_messages={
+            'required': 'Please confirm your PIN.',
+            'min_length': 'PIN must be exactly 4 digits.',
+            'max_length': 'PIN must be exactly 4 digits.',
+        },
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20 text-center text-xl tracking-widest',
+            'placeholder': '••••',
+            'autocomplete': 'off',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+        })
+    )
+    
+    def clean_pin(self):
+        data = self.cleaned_data.get('pin')
+        if data is not None and (len(data) != PIN_DIGITS or not data.isdigit()):
+            raise ValidationError('PIN must be exactly 4 numeric digits.')
+        return data
+    
+    def clean_pin_confirm(self):
+        data = self.cleaned_data.get('pin_confirm')
+        if data is not None and (len(data) != PIN_DIGITS or not data.isdigit()):
+            raise ValidationError('PIN must be exactly 4 numeric digits.')
+        return data
+    
+    def clean(self):
+        cleaned = super().clean()
+        pin = cleaned.get('pin')
+        pin_confirm = cleaned.get('pin_confirm')
+        if pin is not None and pin_confirm is not None and pin != pin_confirm:
+            raise ValidationError({'pin_confirm': 'PIN and confirmation do not match.'})
+        return cleaned
+
+
+class UnlockPinForm(forms.Form):
+    """Enter 4-digit PIN to re-unlock after session expiry (no OTP/2FA)."""
+    
+    pin = forms.CharField(
+        max_length=PIN_DIGITS,
+        min_length=PIN_DIGITS,
+        strip=True,
+        error_messages={
+            'required': 'Please enter your PIN.',
+            'min_length': 'PIN must be exactly 4 digits.',
+            'max_length': 'PIN must be exactly 4 digits.',
+        },
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20 text-center text-xl tracking-widest',
+            'placeholder': '••••',
+            'autocomplete': 'off',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+            'autofocus': True,
+        })
+    )
+    
+    def clean_pin(self):
+        data = self.cleaned_data.get('pin')
+        if data is not None and (len(data) != PIN_DIGITS or not data.isdigit()):
+            raise ValidationError('PIN must be exactly 4 numeric digits.')
+        return data
 
 
 class ProfileCreateForm(forms.ModelForm):
@@ -898,3 +992,743 @@ class OTPVerifyForm(forms.Form):
         if otp_code and not otp_code.isdigit():
             raise forms.ValidationError('Verification code must contain only digits.')
         return otp_code
+
+
+# ============================================================================
+# BRAND ONBOARDING FORMS
+# ============================================================================
+
+class BrandOnboardingStep1Form(forms.Form):
+    """Step 1: Basic Information"""
+    
+    brand_name = forms.CharField(
+        label='Brand Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter brand name'
+        })
+    )
+    contact_person = forms.CharField(
+        label='Contact Person',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter contact person name'
+        })
+    )
+    contact_email = forms.EmailField(
+        label='Contact Email',
+        required=True,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter email address'
+        })
+    )
+    contact_phone = forms.CharField(
+        label='Contact Phone',
+        required=True,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter phone number'
+        })
+    )
+    address = forms.CharField(
+        label='Business Address',
+        required=True,
+        widget=forms.Textarea(attrs={
+            'class': 'form-textarea-enterprise',
+            'rows': 3,
+            'placeholder': 'Enter business address'
+        })
+    )
+
+
+class BrandOnboardingStep2Form(forms.Form):
+    """Step 2: Business Details"""
+    
+    business_type = forms.ChoiceField(
+        label='Business Type',
+        required=True,
+        choices=[
+            ('', 'Select business type'),
+            ('LLP', 'Limited Liability Partnership'),
+            ('PRIVATE_LTD', 'Private Limited'),
+            ('PUBLIC_LTD', 'Public Limited'),
+            ('PARTNERSHIP', 'Partnership'),
+            ('SOLE_PROPRIETORSHIP', 'Sole Proprietorship'),
+            ('HUF', 'Hindu Undivided Family'),
+            ('OTHER', 'Other'),
+        ],
+        widget=forms.Select(attrs={
+            'class': 'form-select-enterprise'
+        })
+    )
+    business_reg_no = forms.CharField(
+        label='Business Registration Number',
+        required=True,
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter registration number'
+        })
+    )
+    pan_number = forms.CharField(
+        label='PAN Number',
+        required=False,
+        max_length=10,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter PAN (10 characters)',
+            'maxlength': '10'
+        })
+    )
+    gst_number = forms.CharField(
+        label='GST Number',
+        required=False,
+        max_length=15,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter GSTIN (15 characters)',
+            'maxlength': '15'
+        })
+    )
+    
+    def clean_pan_number(self):
+        pan = self.cleaned_data.get('pan_number', '').strip().upper()
+        if pan and len(pan) != 10:
+            raise forms.ValidationError('PAN must be exactly 10 characters')
+        return pan
+    
+    def clean_gst_number(self):
+        gst = self.cleaned_data.get('gst_number', '').strip().upper()
+        if gst and len(gst) != 15:
+            raise forms.ValidationError('GST number must be exactly 15 characters')
+        return gst
+
+
+class BrandOnboardingStep3Form(forms.Form):
+    """Step 3: Banking Information"""
+    
+    bank_account_number = forms.CharField(
+        label='Bank Account Number',
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter account number',
+            'type': 'text'
+        })
+    )
+    bank_ifsc_code = forms.CharField(
+        label='IFSC Code',
+        required=True,
+        max_length=11,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter IFSC code (11 characters)',
+            'maxlength': '11'
+        })
+    )
+    bank_name = forms.CharField(
+        label='Bank Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter bank name'
+        })
+    )
+    account_holder_name = forms.CharField(
+        label='Account Holder Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter account holder name'
+        })
+    )
+    
+    def clean_bank_ifsc_code(self):
+        ifsc = self.cleaned_data.get('bank_ifsc_code', '').strip().upper()
+        if len(ifsc) != 11:
+            raise forms.ValidationError('IFSC code must be exactly 11 characters')
+        return ifsc
+    
+    def clean_bank_account_number(self):
+        account = self.cleaned_data.get('bank_account_number', '').strip()
+        if account and (len(account) < 9 or not account.isdigit()):
+            raise forms.ValidationError('Invalid account number')
+        return account
+
+
+class BrandOnboardingStep4Form(forms.Form):
+    """Step 4: Document Upload"""
+    
+    business_registration_doc = forms.FileField(
+        label='Business Registration Document',
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-input-enterprise',
+            'accept': '.pdf,.jpg,.jpeg,.png'
+        })
+    )
+    pan_document = forms.FileField(
+        label='PAN Document',
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-input-enterprise',
+            'accept': '.pdf,.jpg,.jpeg,.png'
+        })
+    )
+    gst_certificate = forms.FileField(
+        label='GST Certificate',
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-input-enterprise',
+            'accept': '.pdf,.jpg,.jpeg,.png'
+        })
+    )
+    bank_statement = forms.FileField(
+        label='Bank Statement',
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-input-enterprise',
+            'accept': '.pdf,.jpg,.jpeg,.png'
+        })
+    )
+    agreement_document = forms.FileField(
+        label='Signed Agreement',
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-input-enterprise',
+            'accept': '.pdf,.jpg,.jpeg,.png'
+        })
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        # Check if required documents are provided (either new upload or existing URL)
+        # This validation is handled in the view since we need to check existing URLs
+        return cleaned_data
+
+
+class BrandOnboardingStep5Form(forms.Form):
+    """Step 5: Terms & Agreement"""
+    
+    terms_accepted = forms.BooleanField(
+        label='I accept the terms and conditions',
+        required=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        })
+    )
+    agreement_signed = forms.BooleanField(
+        label='I confirm that the agreement has been signed',
+        required=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        })
+    )
+
+
+class BrandOnboardingReviewForm(forms.Form):
+    """Step 6: Review & Submit"""
+    # Review form doesn't need fields - it's just a confirmation
+    confirm_submit = forms.BooleanField(
+        label='I confirm all information is correct and ready to submit',
+        required=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        })
+    )
+
+
+class BrandOnboardingAdminApprovalForm(forms.Form):
+    """Admin approval/rejection form"""
+    
+    action = forms.ChoiceField(
+        label='Action',
+        required=True,
+        choices=[
+            ('approve', 'Approve'),
+            ('reject', 'Reject'),
+        ],
+        widget=forms.RadioSelect(attrs={
+            'class': 'form-radio-enterprise'
+        })
+    )
+    onboarding_notes = forms.CharField(
+        label='Notes',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-textarea-enterprise',
+            'rows': 4,
+            'placeholder': 'Add notes about this review (optional)'
+        })
+    )
+    rejection_reason = forms.CharField(
+        label='Rejection Reason',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-textarea-enterprise',
+            'rows': 4,
+            'placeholder': 'Explain why the onboarding is being rejected'
+        })
+    )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        rejection_reason = cleaned_data.get('rejection_reason')
+        
+        if action == 'reject' and not rejection_reason:
+            raise forms.ValidationError({
+                'rejection_reason': 'Rejection reason is required when rejecting onboarding'
+            })
+        
+        return cleaned_data
+
+
+class ResellerOnboardingStep1Form(forms.Form):
+    """Reseller Partner Onboarding - Step 1: Company Information"""
+    
+    company_name = forms.CharField(
+        label='Company Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Enter company name'
+        })
+    )
+    
+    business_type = forms.ChoiceField(
+        label='Business Type',
+        required=True,
+        choices=[
+            ('', 'Select...'),
+            ('LLP', 'Limited Liability Partnership'),
+            ('PRIVATE_LTD', 'Private Limited'),
+            ('PUBLIC_LTD', 'Public Limited'),
+            ('PARTNERSHIP', 'Partnership'),
+            ('SOLE_PROPRIETORSHIP', 'Sole Proprietorship'),
+            ('HUF', 'Hindu Undivided Family'),
+            ('OTHER', 'Other'),
+        ],
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md'
+        })
+    )
+    
+    gst_number = forms.CharField(
+        label='GST Number',
+        required=False,
+        max_length=15,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Optional'
+        })
+    )
+    
+    address = forms.CharField(
+        label='Business Address',
+        required=True,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'rows': 4,
+            'placeholder': 'Enter complete business address'
+        })
+    )
+
+
+class ResellerOnboardingStep2Form(forms.Form):
+    """Reseller Partner Onboarding - Step 2: Contact Details"""
+    
+    contact_person = forms.CharField(
+        label='Contact Person Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Enter contact person name'
+        })
+    )
+    
+    phone = forms.CharField(
+        label='Phone Number',
+        required=True,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': '+91XXXXXXXXXX'
+        })
+    )
+
+
+def _get_vendor_queryset(codes):
+    """Return active ApiVendor queryset for given codes (used by onboarding form)."""
+    from portal.models import ApiVendor
+    return ApiVendor.objects.filter(is_active=True, code__in=codes).order_by('name')
+
+
+class AdminResellerPartnerOnboardForm(forms.Form):
+    """Admin form for onboarding reseller partners (includes vendor assignment)."""
+    
+    company_name = forms.CharField(
+        label='Company Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Enter company name'
+        })
+    )
+    
+    contact_person = forms.CharField(
+        label='Contact Person',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Contact person name'
+        })
+    )
+    
+    email = forms.EmailField(
+        label='Email',
+        required=True,
+        widget=forms.EmailInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'business@example.com'
+        })
+    )
+    
+    phone = forms.CharField(
+        label='Phone',
+        required=True,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': '+919876543210'
+        })
+    )
+    
+    business_type = forms.ChoiceField(
+        label='Business Type',
+        required=True,
+        choices=[
+            ('LLP', 'Limited Liability Partnership'),
+            ('PRIVATE_LTD', 'Private Limited'),
+            ('PUBLIC_LTD', 'Public Limited'),
+            ('PARTNERSHIP', 'Partnership'),
+            ('SOLE_PROPRIETORSHIP', 'Sole Proprietorship'),
+            ('HUF', 'Hindu Undivided Family'),
+            ('OTHER', 'Other'),
+        ],
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md'
+        })
+    )
+    
+    gst_number = forms.CharField(
+        label='GST Number',
+        required=False,
+        max_length=15,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'placeholder': 'Optional'
+        })
+    )
+    
+    address = forms.CharField(
+        label='Business Address',
+        required=True,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md',
+            'rows': 4,
+            'placeholder': 'Enter complete business address'
+        })
+    )
+    
+    auto_approve = forms.BooleanField(
+        label='Auto-approve onboarding',
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'mr-2'
+        })
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.forms import ModelMultipleChoiceField, ModelChoiceField
+        from portal.models import ApiVendor
+        qs = ApiVendor.objects.filter(is_active=True).order_by('name')
+        # BBPS: Euronet, Mobikwik
+        bbps_qs = qs.filter(code__in=['euronet', 'mobikwik'])
+        self.fields['bbps_vendors'] = ModelMultipleChoiceField(
+            queryset=bbps_qs, required=False, label='BBPS vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['bbps_primary_vendor'] = ModelChoiceField(
+            queryset=bbps_qs, required=False, label='BBPS primary vendor'
+        )
+        # AEPS: PayPoint
+        aeps_qs = qs.filter(code='paypoint')
+        self.fields['aeps_vendors'] = ModelMultipleChoiceField(
+            queryset=aeps_qs, required=False, label='AEPS vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['aeps_primary_vendor'] = ModelChoiceField(queryset=aeps_qs, required=False, label='AEPS primary')
+        # DMT: PayPoint DMT
+        dmt_qs = qs.filter(code='paypoint_dmt')
+        self.fields['dmt_vendors'] = ModelMultipleChoiceField(
+            queryset=dmt_qs, required=False, label='DMT vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['dmt_primary_vendor'] = ModelChoiceField(queryset=dmt_qs, required=False, label='DMT primary')
+        # KYC: Cashfree, Instantpay
+        kyc_qs = qs.filter(code__in=['cashfree', 'instantpay'])
+        self.fields['kyc_vendors'] = ModelMultipleChoiceField(
+            queryset=kyc_qs, required=False, label='KYC vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['kyc_primary_vendor'] = ModelChoiceField(queryset=kyc_qs, required=False, label='KYC primary')
+        # SMS: Kaleyra
+        sms_qs = qs.filter(code='kaleyra')
+        self.fields['sms_vendors'] = ModelMultipleChoiceField(
+            queryset=sms_qs, required=False, label='SMS vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['sms_primary_vendor'] = ModelChoiceField(queryset=sms_qs, required=False, label='SMS primary')
+        # Payment: Cashfree PG
+        payment_qs = qs.filter(code='cashfree_pg')
+        self.fields['payment_vendors'] = ModelMultipleChoiceField(
+            queryset=payment_qs, required=False, label='Payment vendors',
+            widget=forms.CheckboxSelectMultiple(attrs={'class': 'mr-2'})
+        )
+        self.fields['payment_primary_vendor'] = ModelChoiceField(
+            queryset=payment_qs, required=False, label='Payment primary'
+        )
+
+
+class BrandAdminOnboardingForm(forms.Form):
+    """Combined form for admin to create and onboard brand in one flow"""
+    
+    # Step 1: Basic Information
+    brand_name = forms.CharField(
+        label='Brand Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter brand name'
+        })
+    )
+    contact_person = forms.CharField(
+        label='Contact Person',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter contact person name'
+        })
+    )
+    contact_email = forms.EmailField(
+        label='Contact Email',
+        required=True,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter email address'
+        })
+    )
+    contact_phone = forms.CharField(
+        label='Contact Phone',
+        required=True,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter phone number'
+        })
+    )
+    address = forms.CharField(
+        label='Business Address',
+        required=True,
+        widget=forms.Textarea(attrs={
+            'class': 'form-textarea-enterprise',
+            'rows': 3,
+            'placeholder': 'Enter business address'
+        })
+    )
+    
+    # Step 2: Business Details
+    business_type = forms.ChoiceField(
+        label='Business Type',
+        required=True,
+        choices=[
+            ('', 'Select business type'),
+            ('LLP', 'Limited Liability Partnership'),
+            ('PRIVATE_LTD', 'Private Limited'),
+            ('PUBLIC_LTD', 'Public Limited'),
+            ('PARTNERSHIP', 'Partnership'),
+            ('SOLE_PROPRIETORSHIP', 'Sole Proprietorship'),
+            ('HUF', 'Hindu Undivided Family'),
+            ('OTHER', 'Other'),
+        ],
+        widget=forms.Select(attrs={
+            'class': 'form-select-enterprise'
+        })
+    )
+    business_reg_no = forms.CharField(
+        label='Business Registration Number',
+        required=True,
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter registration number'
+        })
+    )
+    pan_number = forms.CharField(
+        label='PAN Number',
+        required=False,
+        max_length=10,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter PAN (10 characters)',
+            'maxlength': '10'
+        })
+    )
+    gst_number = forms.CharField(
+        label='GST Number',
+        required=False,
+        max_length=15,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter GSTIN (15 characters)',
+            'maxlength': '15'
+        })
+    )
+    
+    # Step 3: Banking Information
+    bank_account_number = forms.CharField(
+        label='Bank Account Number',
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter account number',
+            'type': 'text'
+        })
+    )
+    bank_ifsc_code = forms.CharField(
+        label='IFSC Code',
+        required=True,
+        max_length=11,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter IFSC code (11 characters)',
+            'maxlength': '11'
+        })
+    )
+    bank_name = forms.CharField(
+        label='Bank Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter bank name'
+        })
+    )
+    account_holder_name = forms.CharField(
+        label='Account Holder Name',
+        required=True,
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input-enterprise',
+            'placeholder': 'Enter account holder name'
+        })
+    )
+    
+    # Step 5: Agreement
+    terms_accepted = forms.BooleanField(
+        label='Terms and conditions accepted',
+        required=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        })
+    )
+    agreement_signed = forms.BooleanField(
+        label='Agreement signed',
+        required=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        })
+    )
+    
+    # Admin options
+    auto_approve = forms.BooleanField(
+        label='Auto-approve after creation',
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-checkbox-enterprise'
+        }),
+        help_text='If checked, brand will be automatically approved and activated'
+    )
+    
+    def clean_pan_number(self):
+        pan = self.cleaned_data.get('pan_number', '').strip().upper()
+        if pan and len(pan) != 10:
+            raise forms.ValidationError('PAN must be exactly 10 characters')
+        return pan
+    
+    def clean_gst_number(self):
+        gst = self.cleaned_data.get('gst_number', '').strip().upper()
+        if gst and len(gst) != 15:
+            raise forms.ValidationError('GST number must be exactly 15 characters')
+        return gst
+    
+    def clean_bank_ifsc_code(self):
+        ifsc = self.cleaned_data.get('bank_ifsc_code', '').strip().upper()
+        if len(ifsc) != 11:
+            raise forms.ValidationError('IFSC code must be exactly 11 characters')
+        return ifsc
+    
+    def clean_bank_account_number(self):
+        account = self.cleaned_data.get('bank_account_number', '').strip()
+        if account and (len(account) < 9 or not account.isdigit()):
+            raise forms.ValidationError('Invalid account number')
+        return account
+
+
+# ParkPe App Management (Backend UI – no Django admin)
+class ParkPeServiceConfigForm(forms.ModelForm):
+    class Meta:
+        model = ParkPeServiceConfig
+        fields = ('service_code', 'voucher_allowed', 'pg_allowed', 'is_active')
+        widgets = {
+            'service_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. BBPS'}),
+            'voucher_allowed': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'pg_allowed': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class ParkPePaymentGatewayConfigForm(forms.ModelForm):
+    class Meta:
+        model = ParkPePaymentGatewayConfig
+        fields = ('gateway', 'service_code', 'enabled', 'is_default_for_voucher_purchase', 'merchant_id', 'credential_key')
+        labels = {
+            'merchant_id': 'Merchant ID',
+            'credential_key': 'Credential key (Key ID / App ID)',
+        }
+        widgets = {
+            'gateway': forms.Select(attrs={'class': 'form-select'}),
+            'service_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Leave empty for voucher purchase'}),
+            'enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_default_for_voucher_purchase': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'merchant_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. MCH_RAZORPAY_001 — is service ke liye kaun sa merchant'}),
+            'credential_key': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Razorpay: Key ID. Cashfree: App ID (x-client-id). Optional if .env use kar rahe ho'}),
+        }
+

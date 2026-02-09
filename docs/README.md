@@ -37,4 +37,5 @@ See individual documentation files:
 - [Authentication](authentication.md)
 - [MFA Setup](mfa_setup.md)
 - [Permissions](permissions.md)
-- [API Integrations](api_integrations.md)
+- [API & Portal](API_README.md)
+- [Vendor Integration](VENDOR_INTEGRATION_REFERENCE.md)

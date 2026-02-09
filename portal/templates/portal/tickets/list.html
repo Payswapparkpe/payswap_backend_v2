@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load static %}
+{% load portal_tags %}
+
+{% block page_title %}Tickets{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <i class="ti ti-ticket text-xl text-indigo-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">Tickets</h1>
+                <p class="page-description-enterprise">Manage and track support tickets across the platform</p>
+            </div>
+        </div>
+        <a href="{% url 'ticket_create' %}" class="btn-enterprise-primary">
+            <i class="ti ti-plus mr-2"></i>
+            Create Ticket
+        </a>
+    </div>
+    
+    <!-- Enterprise Stat Cards - 3D Style -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="stat-card-enterprise" data-color="indigo" style="border-left-color: #6366f1;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Total Tickets</p>
+                    <p class="stat-value">{{ total_tickets|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #6366f1;">
+                    <i class="ti ti-ticket text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="amber" style="border-left-color: #f59e0b;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Open Tickets</p>
+                    <p class="stat-value">{{ open_tickets|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #f59e0b;">
+                    <i class="ti ti-clock text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="emerald" style="border-left-color: #10b981;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Resolved</p>
+                    <p class="stat-value">{{ resolved_tickets|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #10b981;">
+                    <i class="ti ti-check text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card-enterprise" data-color="blue" style="border-left-color: #3b82f6;">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="stat-label">Closed</p>
+                    <p class="stat-value">{{ closed_tickets|default:0 }}</p>
+                </div>
+                <div class="stat-icon" style="color: #3b82f6;">
+                    <i class="ti ti-x text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Enterprise Filters -->
+    <div class="card-enterprise">
+        <form method="get" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Status</label>
+                    <select name="status" class="input-enterprise">
+                        <option value="">All Status</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Priority</label>
+                    <select name="priority" class="input-enterprise">
+                        <option value="">All Priorities</option>
+                        {% for value, label in priority_choices %}
+                        <option value="{{ value }}" {% if request.GET.priority == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Department</label>
+                    <select name="department" class="input-enterprise">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if request.GET.department == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Search</label>
+                    <input type="text" name="search" value="{{ request.GET.search }}" 
+                           placeholder="Ticket ID, Subject..." 
+                           class="input-enterprise">
+                </div>
+            </div>
+            
+            <div class="flex gap-3 pt-4 border-t border-gray-200">
+                <button type="submit" class="btn-enterprise-primary">Apply Filters</button>
+                <a href="{% url 'ticket_list' %}" class="btn-enterprise-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Enterprise Tickets Table -->
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Ticket ID</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Assigned To</th>
+                    <th>Department</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td class="font-semibold">
+                        <a href="{% url 'ticket_detail' ticket.pk %}" 
+                           class="text-indigo-600 hover:text-indigo-700 font-mono transition-colors">
+                            {{ ticket.ticket_id }}
+                        </a>
+                    </td>
+                    <td class="text-gray-900">{{ ticket.subject|truncatewords:8 }}</td>
+                    <td>
+                        {% if ticket.status == 'NEW' %}
+                        <span class="badge-enterprise badge-enterprise-info">New</span>
+                        {% elif ticket.status == 'OPEN' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Open</span>
+                        {% elif ticket.status == 'IN_PROGRESS' %}
+                        <span class="badge-enterprise badge-enterprise-info">In Progress</span>
+                        {% elif ticket.status == 'PENDING' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                        {% elif ticket.status == 'RESOLVED' %}
+                        <span class="badge-enterprise badge-enterprise-success">Resolved</span>
+                        {% elif ticket.status == 'CLOSED' %}
+                        <span class="badge-enterprise badge-enterprise-gray">Closed</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ ticket.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ticket.priority == 'LOW' %}
+                        <span class="badge-enterprise badge-enterprise-gray">Low</span>
+                        {% elif ticket.priority == 'MEDIUM' %}
+                        <span class="badge-enterprise badge-enterprise-warning">Medium</span>
+                        {% elif ticket.priority == 'HIGH' %}
+                        <span class="badge-enterprise badge-enterprise-warning">High</span>
+                        {% elif ticket.priority == 'CRITICAL' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Critical</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-gray">{{ ticket.get_priority_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">{{ ticket.assigned_to.username|default:"Unassigned" }}</td>
+                    <td class="text-gray-600">{{ ticket.department.name|default:"-" }}</td>
+                    <td class="text-gray-600">{{ ticket.created_at|date:"M d, Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-16">
+                        <div class="flex flex-col items-center justify-center">
+                            <i class="ti ti-inbox text-5xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-900 font-semibold mb-1">No tickets found</p>
+                            <p class="text-sm text-gray-500">Create your first ticket to get started</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Delete Brand - {{ brand.brand_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'voucher_brand_detail' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="text-gray-500 hover:text-gray-700">
+            <i class="ti ti-arrow-left text-xl"></i>
+        </a>
+        <div class="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
+            <i class="ti ti-trash text-xl text-red-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Delete Brand</h1>
+            <p class="page-description-enterprise">{{ brand.brand_name }} ({{ brand.brand_code }})</p>
+        </div>
+    </div>
+</div>
+
+<div class="card-enterprise max-w-2xl">
+    {% if can_delete %}
+    <div class="mb-6">
+        <p class="text-gray-700">Are you sure you want to delete <strong>{{ brand.brand_name }}</strong>? This will also remove all clients linked to this brand. This action cannot be undone.</p>
+    </div>
+    <form method="post" action="{% url 'voucher_brand_delete' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}">
+        {% csrf_token %}
+        {% if from_voucherx %}
+        <input type="hidden" name="from_voucherx" value="1">
+        {% endif %}
+        <div class="flex gap-4">
+            <button type="submit" class="btn-enterprise-primary bg-red-600 hover:bg-red-700 focus:ring-red-500">
+                <i class="ti ti-trash mr-2"></i>
+                Yes, delete brand
+            </button>
+            <a href="{% url 'voucher_brand_detail' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+    {% else %}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <p class="text-amber-800 font-medium mb-2">This brand cannot be deleted:</p>
+        <ul class="list-disc list-inside text-sm text-amber-700 space-y-1">
+            {% if has_vouchers %}
+            <li>It has vouchers. Remove or transfer vouchers first.</li>
+            {% endif %}
+            {% if has_batches %}
+            <li>It has issuance batches. Remove or complete batches first.</li>
+            {% endif %}
+        </ul>
+    </div>
+    <div class="mt-4">
+        <a href="{% url 'voucher_brand_detail' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Brand
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "transactionId": "txn_mock_001",
+  "orderId": "order_mock_123",
+  "gateway": "razorpay",
+  "amount": 500,
+  "currency": "INR",
+  "status": "success",
+  "timestamp": "2024-02-05T10:30:00Z",
+  "message": "Payment verified successfully",
+  "receipt": "receipt_txn_001"
+}

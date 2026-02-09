@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 2: Business Details{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="ti ti-building text-xl text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 2: Business Details</h1>
+            <p class="page-description-enterprise">Enter your business registration and tax information</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Business Type <span class="text-red-500">*</span></label>
+                <select name="business_type" required class="form-select-enterprise">
+                    <option value="">Select business type</option>
+                    <option value="LLP" {% if form.business_type.value == 'LLP' %}selected{% endif %}>Limited Liability Partnership</option>
+                    <option value="PRIVATE_LTD" {% if form.business_type.value == 'PRIVATE_LTD' %}selected{% endif %}>Private Limited</option>
+                    <option value="PUBLIC_LTD" {% if form.business_type.value == 'PUBLIC_LTD' %}selected{% endif %}>Public Limited</option>
+                    <option value="PARTNERSHIP" {% if form.business_type.value == 'PARTNERSHIP' %}selected{% endif %}>Partnership</option>
+                    <option value="SOLE_PROPRIETORSHIP" {% if form.business_type.value == 'SOLE_PROPRIETORSHIP' %}selected{% endif %}>Sole Proprietorship</option>
+                    <option value="HUF" {% if form.business_type.value == 'HUF' %}selected{% endif %}>Hindu Undivided Family</option>
+                    <option value="OTHER" {% if form.business_type.value == 'OTHER' %}selected{% endif %}>Other</option>
+                </select>
+                {% if form.business_type.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.business_type.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Business Registration Number <span class="text-red-500">*</span></label>
+                <input type="text" name="business_reg_no" value="{{ form.business_reg_no.value|default:'' }}" required class="form-input-enterprise" placeholder="Enter registration number">
+                {% if form.business_reg_no.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.business_reg_no.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">PAN Number</label>
+                <input type="text" name="pan_number" value="{{ form.pan_number.value|default:'' }}" maxlength="10" class="form-input-enterprise" placeholder="Enter PAN (10 characters)">
+                {% if form.pan_number.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.pan_number.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-gray-500 mt-1">Format: ABCDE1234F</p>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">GST Number</label>
+                <input type="text" name="gst_number" value="{{ form.gst_number.value|default:'' }}" maxlength="15" class="form-input-enterprise" placeholder="Enter GSTIN (15 characters)">
+                {% if form.gst_number.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.gst_number.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-gray-500 mt-1">15-character GSTIN</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=1 %}" class="btn-enterprise-outline">
+                <i class="ti ti-arrow-left mr-2"></i>
+                Previous
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Continue to Next Step
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

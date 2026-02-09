@@ -1,86 +1,164 @@
 """
-Phone number utility functions
+Phone Number Utility Functions
+Helpers for phone number normalization and validation
 """
-import re
-from typing import Optional
+from typing import Tuple, Optional
+
+# Re-export normalize_phone_number from validators for backward compatibility
+from portal.utils.validators import normalize_phone_number
+
+__all__ = [
+    'normalize_phone_number',
+    'safe_normalize_phone',
+    'format_phone_display',
+    'format_phone_for_kaleyra',
+    'mask_phone_number',
+    'is_valid_indian_mobile'
+]
 
 
-def normalize_phone_number(phone: str, country_code: str = "91") -> str:
+def format_phone_for_kaleyra(phone_number: str) -> str:
     """
-    Normalize phone number to format: 91XXXXXXXXXX (no + sign)
+    Format phone number for Kaleyra API (91XXXXXXXXXX format)
     
     Args:
-        phone: Phone number in any format (e.g., "9876543210", "+919876543210", "0919876543210")
-        country_code: Country code to use (default: "91" for India)
-    
+        phone_number: Phone number string
+        
     Returns:
-        Normalized phone number in format: 91XXXXXXXXXX (no + sign)
-    
-    Examples:
-        >>> normalize_phone_number("9876543210")
-        '919876543210'
-        >>> normalize_phone_number("+919876543210")
-        '919876543210'
-        >>> normalize_phone_number("0919876543210")
-        '919876543210'
-        >>> normalize_phone_number("919876543210")
-        '919876543210'
+        Phone number in 91XXXXXXXXXX format for Kaleyra
     """
-    if not phone:
-        raise ValueError("Phone number cannot be empty")
+    # Remove any non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
     
-    # Remove all spaces, dashes, and parentheses
-    phone = re.sub(r'[\s\-\(\)]', '', str(phone).strip())
+    # If it starts with +91, remove the +
+    if phone_number.startswith('+91'):
+        digits = phone_number[1:]  # Remove +, keep 91XXXXXXXXXX
+        digits = ''.join(filter(str.isdigit, digits))
     
-    # Remove leading + if present
-    if phone.startswith('+'):
-        phone = phone[1:]
+    # If it's 10 digits, add 91 prefix
+    if len(digits) == 10:
+        return f"91{digits}"
     
-    # Remove leading 0 if present (common in Indian numbers)
-    if phone.startswith('0'):
-        phone = phone[1:]
+    # If it already has 91 prefix (12 digits), return as-is
+    if len(digits) == 12 and digits.startswith('91'):
+        return digits
     
-    # Remove country code if already present at the start
-    if phone.startswith(country_code):
-        phone = phone[len(country_code):]
+    # If it starts with 0, remove it and add 91
+    if digits.startswith('0') and len(digits) == 11:
+        return f"91{digits[1:]}"
     
-    # Validate that remaining digits are valid Indian mobile number (10 digits starting with 6-9)
-    if not re.match(r'^[6-9]\d{9}$', phone):
-        raise ValueError(f"Invalid Indian mobile number format: {phone}. Must be 10 digits starting with 6-9.")
-    
-    # Return normalized format: 91XXXXXXXXXX (no + sign)
-    return f"{country_code}{phone}"
+    # Return as-is if already in correct format or unknown format
+    return digits
 
 
-def format_phone_for_kaleyra(phone: str) -> str:
+def safe_normalize_phone(phone_number: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Format phone number specifically for Kaleyra API (India)
-    Kaleyra API requires + prefix, so we add it here
+    Normalize phone number with safe error handling
     
     Args:
-        phone: Phone number in any format
-    
+        phone_number: Phone number string to normalize
+        
     Returns:
-        Phone number formatted as +91XXXXXXXXXX for Kaleyra API
+        Tuple of (normalized_phone, error_message)
+        - If successful: (normalized_phone, None)
+        - If failed: (None, error_message)
     """
-    normalized = normalize_phone_number(phone, country_code="91")
-    # Kaleyra API requires + prefix
-    return f"+{normalized}"
+    if not phone_number:
+        return None, "Phone number is required"
+    
+    try:
+        normalized = normalize_phone_number(phone_number)
+        return normalized, None
+    except ValueError as e:
+        return None, str(e)
+    except Exception as e:
+        return None, f"Invalid phone number: {str(e)}"
 
 
-def is_valid_indian_mobile(phone: str) -> bool:
+def format_phone_display(phone_number: str) -> str:
+    """
+    Format phone number for display
+    
+    Args:
+        phone_number: Phone number string
+        
+    Returns:
+        Formatted phone number string
+    """
+    if not phone_number:
+        return ""
+    
+    # Remove any non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
+    
+    # Format based on length
+    if len(digits) == 10:
+        # Format as (XXX) XXX-XXXX
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    elif len(digits) == 12 and digits.startswith('91'):
+        # Indian format with country code: +91 XXXXX XXXXX
+        return f"+91 {digits[2:7]} {digits[7:]}"
+    elif len(digits) > 10:
+        # Generic format for international numbers
+        return f"+{digits[:len(digits)-10]} {digits[-10:-5]} {digits[-5:]}"
+    
+    # Return as-is if format not recognized
+    return phone_number
+
+
+def mask_phone_number(phone_number: str, show_last_digits: int = 4) -> str:
+    """
+    Mask phone number for security
+    
+    Args:
+        phone_number: Phone number string
+        show_last_digits: Number of last digits to show
+        
+    Returns:
+        Masked phone number string
+    """
+    if not phone_number:
+        return ""
+    
+    # Remove any non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
+    
+    if len(digits) <= show_last_digits:
+        return phone_number
+    
+    # Mask all but last N digits
+    masked_part = '*' * (len(digits) - show_last_digits)
+    visible_part = digits[-show_last_digits:]
+    
+    # Add country code prefix if present
+    if phone_number.startswith('+'):
+        return f"+{masked_part}{visible_part}"
+    
+    return f"{masked_part}{visible_part}"
+
+
+def is_valid_indian_mobile(phone_number: str) -> bool:
     """
     Check if phone number is a valid Indian mobile number
     
     Args:
-        phone: Phone number to validate
-    
+        phone_number: Phone number string
+        
     Returns:
-        True if valid Indian mobile number, False otherwise
+        True if valid Indian mobile, False otherwise
     """
-    try:
-        normalized = normalize_phone_number(phone)
-        # Check if it's 12 digits (91 + 10 digit mobile)
-        return len(normalized) == 12 and normalized.startswith('91') and normalized[2:].isdigit()
-    except (ValueError, AttributeError):
+    if not phone_number:
         return False
+    
+    # Remove any non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
+    
+    # Indian mobile numbers:
+    # - 10 digits starting with 6-9
+    # - Or 12 digits starting with 91 followed by 6-9
+    if len(digits) == 10 and digits[0] in '6789':
+        return True
+    elif len(digits) == 12 and digits[:2] == '91' and digits[2] in '6789':
+        return True
+    
+    return False

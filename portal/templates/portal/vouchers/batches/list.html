@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Voucher Batches{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+            <i class="ti ti-file-stack text-xl text-indigo-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Voucher Batches</h1>
+            <p class="page-description-enterprise">View and manage bulk voucher issuance batches</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card-enterprise mb-6">
+    <form method="get" class="flex gap-4 items-end flex-wrap">
+        <div class="w-48">
+            <label class="form-label-enterprise">Brand</label>
+            <select name="brand_id" class="form-select-enterprise">
+                <option value="">All Brands</option>
+                {% for brand in brands %}
+                <option value="{{ brand.id }}" {% if current_brand == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Client</label>
+            <select name="client_id" class="form-select-enterprise">
+                <option value="">All Clients</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}" {% if current_client == client.id|stringformat:"s" %}selected{% endif %}>{{ client.client_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Issuer Type</label>
+            <select name="issuer_type" class="form-select-enterprise">
+                <option value="">All Types</option>
+                {% for value, label in issuer_type_choices %}
+                <option value="{{ value }}" {% if current_issuer_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Status</label>
+            <select name="status" class="form-select-enterprise">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Date From</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="form-input-enterprise">
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Date To</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="form-input-enterprise">
+        </div>
+        <button type="submit" class="btn-enterprise-secondary">
+            <i class="ti ti-filter mr-2"></i>
+            Filter
+        </button>
+        <a href="/vouchers/batches/" class="btn-enterprise-outline">
+            <i class="ti ti-x mr-2"></i>
+            Clear
+        </a>
+    </form>
+</div>
+
+<!-- Enterprise Data Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Batch Reference</th>
+                <th>Brand</th>
+                <th>Client</th>
+                <th>Total Vouchers</th>
+                <th>Successful</th>
+                <th>Failed</th>
+                <th>Issued By</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for batch in batches %}
+            <tr>
+                <td class="font-semibold">
+                    <a href="{% url 'voucher_batch_detail' batch_id=batch.id %}{% if from_voucherx %}?from=voucherx{% endif %}" 
+                       class="text-indigo-600 hover:text-indigo-700 font-mono transition-colors">
+                        {{ batch.batch_reference }}
+                    </a>
+                </td>
+                <td class="text-gray-900">{{ batch.brand.brand_name }}</td>
+                <td class="text-gray-900">{{ batch.client.client_name|default:"Payswap (Default)" }}</td>
+                <td class="text-gray-900">{{ batch.total_vouchers }}</td>
+                <td class="text-emerald-600 font-semibold">{{ batch.successful_vouchers }}</td>
+                <td class="text-red-600 font-semibold">{{ batch.failed_vouchers }}</td>
+                <td class="text-gray-600">{{ batch.issued_by.username|default:"-" }}</td>
+                <td>
+                    <span class="badge-enterprise badge-enterprise-info">{{ batch.get_issuance_method_display }}</span>
+                </td>
+                <td>
+                    {% if batch.status == 'COMPLETED' %}
+                    <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                    {% elif batch.status == 'PROCESSING' %}
+                    <span class="badge-enterprise badge-enterprise-warning">Processing</span>
+                    {% elif batch.status == 'FAILED' %}
+                    <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray">Pending</span>
+                    {% endif %}
+                </td>
+                <td class="text-gray-600">{{ batch.created_at|date:"M d, Y H:i" }}</td>
+                <td class="text-right">
+                    <div class="flex gap-2 justify-end">
+                        {% if batch.status == 'PROCESSING' %}
+                        <a href="{% url 'voucher_batch_processing' batch_id=batch.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-action" title="View Processing">
+                            <i class="ti ti-loader-2 animate-spin"></i>
+                        </a>
+                        {% elif batch.status == 'PENDING' or batch.status == 'FAILED' %}
+                        <form method="post" action="{% url 'voucher_batch_process' batch_id=batch.id %}" class="inline" onsubmit="return confirm('Are you sure you want to {% if batch.status == 'FAILED' %}retry{% else %}process{% endif %} this batch?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action" title="{% if batch.status == 'FAILED' %}Retry{% else %}Process{% endif %} Batch">
+                                <i class="ti ti-{% if batch.status == 'FAILED' %}refresh{% else %}play{% endif %}"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if batch.status == 'COMPLETED' %}
+                        <a href="/vouchers/batches/{{ batch.id }}/export/?format=csv" class="btn-action" title="Download Vouchers (CSV)">
+                            <i class="ti ti-download"></i>
+                        </a>
+                        {% endif %}
+                        <a href="/vouchers/batches/{{ batch.id }}/{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-action" title="View Details">
+                            <i class="ti ti-eye"></i>
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="11" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-file-stack-off text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No batches found</p>
+                        <p class="text-sm text-gray-500">Get started by creating a bulk issuance batch</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_client %}&client_id={{ current_client }}{% endif %}{% if current_issuer_type %}&issuer_type={{ current_issuer_type }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_client %}&client_id={{ current_client }}{% endif %}{% if current_issuer_type %}&issuer_type={{ current_issuer_type }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

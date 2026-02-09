@@ -11,15 +11,18 @@ import logging
 from django.conf import settings
 from core.config import payswap_config
 from portal.utils.logging_helper import sanitize_sensitive_data
+from portal.utils.logging_utils import categorize_log
 
 
 # Configure log categories and file paths
 LOG_CATEGORIES = {
     'api': 'api',
+    'api_explorer': 'api_explorer',
     'auth': 'auth',
     'payment': 'payment',
     'notification': 'notification',
     'security': 'security',
+    'mobikwik_bbps': 'mobikwik_bbps',
     'general': 'general'
 }
 
@@ -52,44 +55,8 @@ def get_log_file_path(category: str, date: Optional[datetime] = None) -> Path:
     return category_dir / filename
 
 
-def categorize_log(module_name: Optional[str] = None, url: Optional[str] = None) -> str:
-    """
-    Determine log category based on module name and URL
-    
-    Args:
-        module_name: Module name (e.g., 'portal.views', 'api.v1.views')
-        url: URL path (e.g., '/api/v1/auth/login')
-    
-    Returns:
-        Log category string
-    """
-    # Check URL first
-    if url:
-        if '/api/' in url:
-            return 'api'
-        if any(x in url for x in ['/login', '/signup', '/signin', '/auth', '/mfa', '/password']):
-            return 'auth'
-        if any(x in url for x in ['/payment', '/wallet', '/transaction']):
-            return 'payment'
-        if any(x in url for x in ['/notification', '/sms', '/email', '/otp']):
-            return 'notification'
-        if any(x in url for x in ['/security', '/lockout', '/failed']):
-            return 'security'
-    
-    # Check module name
-    if module_name:
-        if 'api' in module_name.lower():
-            return 'api'
-        if any(x in module_name.lower() for x in ['auth', 'login', 'signup', 'mfa']):
-            return 'auth'
-        if any(x in module_name.lower() for x in ['payment', 'wallet', 'transaction']):
-            return 'payment'
-        if any(x in module_name.lower() for x in ['notification', 'sms', 'email', 'otp']):
-            return 'notification'
-        if any(x in module_name.lower() for x in ['security', 'lockout']):
-            return 'security'
-    
-    return 'general'
+# Import categorize_log from utils to avoid duplication
+from portal.utils.logging_utils import categorize_log
 
 
 @shared_task(name='portal.tasks.write_logs', bind=True, max_retries=3)
@@ -128,8 +95,8 @@ def write_logs_task(
         Dict with success status
     """
     try:
-        # Determine log category
-        category = categorize_log(module_name, url)
+        # Determine log category (pass extra_data to help detect voucher operations)
+        category = categorize_log(module_name, url, extra_data)
         
         # Get current timestamp
         now = datetime.now()
@@ -182,6 +149,50 @@ def write_logs_task(
                 logger = logging.getLogger('portal.tasks.write_logs')
                 logger.error(f'Failed to write log to file: {str(e)}')
                 logger.error(f'Log entry: {log_json}')
+        
+        # Also save to database for internal log management
+        try:
+            from portal.models import LogEntry, User
+            from django.utils import timezone
+            
+            # Extract exception type from extra_data if present
+            exception_type = None
+            traceback_data = None
+            if extra_data:
+                exception_type = extra_data.get('exception_type')
+                traceback_data = extra_data.get('traceback')
+            
+            # Get user object if user_id provided
+            user_obj = None
+            if user_id:
+                try:
+                    user_obj = User.objects.get(id=user_id)
+                except User.DoesNotExist:
+                    pass
+            
+            # Create database log entry
+            LogEntry.objects.create(
+                timestamp=now,
+                log_level=log_level.upper(),
+                category=category,
+                message=message,
+                module_name=module_name or 'unknown',
+                url=url,
+                request_id=request_id,
+                response_id=response_id,
+                user=user_obj,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                session_id=session_id,
+                extra_data=extra_data if extra_data else {},
+                traceback=traceback_data,
+                exception_type=exception_type
+            )
+        except Exception as db_error:
+            # Don't fail the entire logging if DB save fails
+            # Log to file as fallback
+            logger = logging.getLogger('portal.tasks.write_logs')
+            logger.warning(f'Failed to save log to database: {str(db_error)}')
         
         return {
             'success': True,

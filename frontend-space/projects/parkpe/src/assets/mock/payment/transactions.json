@@ -1,0 +1,65 @@
+{
+  "transactions": [
+    {
+      "id": "txn_001",
+      "orderId": "order_001",
+      "transactionId": "pay_razorpay_001",
+      "transactionType": "parking",
+      "gateway": "razorpay",
+      "amount": 150,
+      "currency": "INR",
+      "status": "success",
+      "customer": {
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone": "+919876543210"
+      },
+      "paymentMethod": "upi",
+      "timestamp": "2024-02-05T10:30:00Z",
+      "completedAt": "2024-02-05T10:30:45Z",
+      "description": "Parking at Downtown Mall - Slot A-101",
+      "receipt": "receipt_001"
+    },
+    {
+      "id": "txn_002",
+      "orderId": "order_002",
+      "transactionId": "pay_cashfree_002",
+      "transactionType": "bbps",
+      "gateway": "cashfree",
+      "amount": 1250,
+      "currency": "INR",
+      "status": "success",
+      "customer": {
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone": "+919876543210"
+      },
+      "paymentMethod": "card",
+      "timestamp": "2024-02-04T15:20:00Z",
+      "completedAt": "2024-02-04T15:21:10Z",
+      "description": "Electricity Bill Payment",
+      "receipt": "receipt_002"
+    },
+    {
+      "id": "txn_003",
+      "orderId": "order_003",
+      "transactionId": "pay_razorpay_003",
+      "transactionType": "fastag",
+      "gateway": "razorpay",
+      "amount": 500,
+      "currency": "INR",
+      "status": "success",
+      "customer": {
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone": "+919876543210"
+      },
+      "paymentMethod": "netbanking",
+      "timestamp": "2024-02-03T09:15:00Z",
+      "completedAt": "2024-02-03T09:16:30Z",
+      "description": "FASTag Recharge - DL01AB1234",
+      "receipt": "receipt_003"
+    }
+  ],
+  "total": 3
+}

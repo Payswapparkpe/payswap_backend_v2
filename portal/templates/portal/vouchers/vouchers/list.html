@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Gift Vouchers{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-ticket text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Gift Vouchers</h1>
+            <p class="page-description-enterprise">Manage and track all gift vouchers</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% endif %}
+        <a href="/vouchers/issue/single/" class="btn-enterprise-primary">
+            <i class="ti ti-plus mr-2"></i>
+            Issue Single
+        </a>
+        <a href="/vouchers/issue/bulk/" class="btn-enterprise-secondary">
+            <i class="ti ti-upload mr-2"></i>
+            Bulk Issue
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card-enterprise mb-6">
+    <form method="get" class="flex gap-4 items-end">
+        <div class="flex-1">
+            <label class="form-label-enterprise">Search</label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Search by voucher code or reference..." class="form-input-enterprise">
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Brand</label>
+            <select name="brand_id" class="form-select-enterprise">
+                <option value="">All Brands</option>
+                {% for brand in brands %}
+                <option value="{{ brand.id }}" {% if current_brand == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Status</label>
+            <select name="status" class="form-select-enterprise">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn-enterprise-secondary">
+            <i class="ti ti-filter mr-2"></i>
+            Filter
+        </button>
+        <a href="/vouchers/" class="btn-enterprise-outline">
+            <i class="ti ti-x mr-2"></i>
+            Clear
+        </a>
+    </form>
+</div>
+
+<!-- Enterprise Data Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Voucher Code</th>
+                <th>Reference</th>
+                <th>Brand</th>
+                <th>Amount</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Issued At</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for voucher in vouchers %}
+            <tr>
+                <td class="font-mono font-semibold text-gray-900">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</td>
+                <td class="text-gray-600">{{ voucher.reference_number }}</td>
+                <td class="text-gray-900">{{ voucher.brand.brand_name }}</td>
+                <td class="text-gray-900">₹{{ voucher.original_amount }}</td>
+                <td class="text-gray-900">₹{{ voucher.current_balance }}</td>
+                <td>
+                    {% if voucher.status == 'ACTIVE' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    {% elif voucher.status == 'PARTIALLY_REDEEMED' %}
+                    <span class="badge-enterprise badge-enterprise-warning">Partially Redeemed</span>
+                    {% elif voucher.status == 'FULLY_REDEEMED' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Fully Redeemed</span>
+                    {% elif voucher.status == 'BLOCKED' %}
+                    <span class="badge-enterprise badge-enterprise-danger">Blocked</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray">Expired</span>
+                    {% endif %}
+                </td>
+                <td class="text-gray-600">{{ voucher.issued_at|date:"M d, Y" }}</td>
+                <td class="text-right">
+                    <a href="/vouchers/{{ voucher.id }}/{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-action">
+                        <i class="ti ti-eye"></i>
+                        View
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-ticket-off text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No vouchers found</p>
+                        <p class="text-sm text-gray-500">Get started by issuing your first voucher</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

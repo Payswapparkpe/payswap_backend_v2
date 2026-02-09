@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Step 4: Document Upload{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
+            <i class="ti ti-file-upload text-xl text-orange-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Step 4: Document Upload</h1>
+            <p class="page-description-enterprise">Upload documents (all optional, one at a time)</p>
+        </div>
+    </div>
+    <a href="{% url 'brand_onboarding_start_brand' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back
+    </a>
+</div>
+
+<!-- Progress Indicator -->
+<div class="card-enterprise mb-6">
+    <div class="mb-2">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">Step {{ step }} of 6</span>
+            <span class="text-sm font-medium text-gray-600">{{ progress.progress_percentage|floatformat:0 }}% Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-6" id="documentUploadForm">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-blue-800">
+                <i class="ti ti-info-circle mr-2"></i>
+                All documents are optional. You can upload one at a time and save. Accepted: PDF, JPG, PNG. Max 10MB per file.
+            </p>
+        </div>
+        
+        <div class="space-y-6">
+            <div>
+                <label class="form-label-enterprise">Business Registration Document</label>
+                <input type="file" name="business_registration_doc" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise" id="business_reg_doc">
+                {% if brand.business_registration_doc %}
+                <p class="text-sm text-green-600 mt-2">
+                    <i class="ti ti-check mr-1"></i>
+                    Document uploaded: <a href="{{ brand.business_registration_doc }}" target="_blank" class="underline">View</a>
+                </p>
+                {% endif %}
+                {% if form.business_registration_doc.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.business_registration_doc.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">PAN Document</label>
+                <input type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise" id="pan_doc">
+                {% if brand.pan_document %}
+                <p class="text-sm text-green-600 mt-2">
+                    <i class="ti ti-check mr-1"></i>
+                    Document uploaded: <a href="{{ brand.pan_document }}" target="_blank" class="underline">View</a>
+                </p>
+                {% endif %}
+                {% if form.pan_document.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.pan_document.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">GST Certificate</label>
+                <input type="file" name="gst_certificate" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise" id="gst_cert">
+                {% if brand.gst_certificate %}
+                <p class="text-sm text-green-600 mt-2">
+                    <i class="ti ti-check mr-1"></i>
+                    Document uploaded: <a href="{{ brand.gst_certificate }}" target="_blank" class="underline">View</a>
+                </p>
+                {% endif %}
+                {% if form.gst_certificate.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.gst_certificate.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Bank Statement</label>
+                <input type="file" name="bank_statement" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise" id="bank_stmt">
+                {% if brand.bank_statement %}
+                <p class="text-sm text-green-600 mt-2">
+                    <i class="ti ti-check mr-1"></i>
+                    Document uploaded: <a href="{{ brand.bank_statement }}" target="_blank" class="underline">View</a>
+                </p>
+                {% endif %}
+                {% if form.bank_statement.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.bank_statement.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Signed Agreement</label>
+                <input type="file" name="agreement_document" accept=".pdf,.jpg,.jpeg,.png" class="form-input-enterprise" id="agreement_doc">
+                {% if brand.agreement_document %}
+                <p class="text-sm text-green-600 mt-2">
+                    <i class="ti ti-check mr-1"></i>
+                    Document uploaded: <a href="{{ brand.agreement_document }}" target="_blank" class="underline">View</a>
+                </p>
+                {% endif %}
+                {% if form.agreement_document.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.agreement_document.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=3 %}" class="btn-enterprise-outline">
+                <i class="ti ti-arrow-left mr-2"></i>
+                Previous
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-arrow-right mr-2"></i>
+                Continue to Next Step
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// File size validation
+document.getElementById('documentUploadForm').addEventListener('submit', function(e) {
+    const fileInputs = this.querySelectorAll('input[type="file"]');
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    for (let input of fileInputs) {
+        if (input.files.length > 0) {
+            const file = input.files[0];
+            if (file.size > maxSize) {
+                e.preventDefault();
+                alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+                return false;
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

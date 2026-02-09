@@ -12,7 +12,8 @@ from portal.models import (
 )
 from portal.utils.logging_helper import get_logger
 
-logger = get_logger('portal.services.partner_accounting')
+# Finance logger: writes to logs/finance.log (file-system; never affects DB transactions)
+logger = get_logger('portal.finance')
 
 
 class PartnerAccountingService:
@@ -421,33 +422,41 @@ class PartnerAccountingService:
         return partner_transaction
     
     @staticmethod
-    def _update_partner_wallet(partner: ResellerPartner, amount: Decimal, transaction_type: str, reference_transaction: ResellerPartnerTransaction):
-        """Update partner wallet balance"""
+    def _update_partner_wallet(
+        partner: ResellerPartner,
+        amount: Decimal,
+        transaction_type: str,
+        reference_transaction: ResellerPartnerTransaction,
+    ) -> None:
+        """
+        Update partner wallet balance. Must run inside or as single atomic block.
+        Uses select_for_update so balance update + WalletTransaction succeed or fail together.
+        """
         if not partner.wallet:
             return
-
-        wallet = partner.wallet
-        balance_before = wallet.balance
-
-        if transaction_type == 'credit':
-            wallet.balance += amount
-            balance_after = wallet.balance
-        else:  # debit
-            wallet.balance -= amount
-            balance_after = wallet.balance
-
-        wallet.save(update_fields=['balance'])
-
-        # Create wallet transaction
-        WalletTransaction.objects.create(
-            wallet=wallet,
-            transaction_type=transaction_type,
-            amount=amount,
-            balance_before=balance_before,
-            balance_after=balance_after,
-            reference=f"Partner Transaction #{reference_transaction.id}",
-            status='completed'
-        )
+        with transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(id=partner.wallet_id)
+            balance_before = wallet.balance
+            if transaction_type == 'credit':
+                wallet.balance += amount
+                balance_after = wallet.balance
+            else:  # debit
+                if wallet.balance < amount:
+                    raise ValueError(
+                        f"Insufficient partner wallet balance: {wallet.balance} < {amount}"
+                    )
+                wallet.balance -= amount
+                balance_after = wallet.balance
+            wallet.save(update_fields=['balance'])
+            WalletTransaction.objects.create(
+                wallet=wallet,
+                transaction_type=transaction_type,
+                amount=amount,
+                balance_before=balance_before,
+                balance_after=balance_after,
+                reference=f"Partner Transaction #{reference_transaction.id}",
+                status='completed',
+            )
 
     # -------------------------------------------------------------------------
     # Manual partner wallet credit/debit (4-eye: call only from approval execution)
@@ -646,42 +655,44 @@ class PartnerAccountingService:
         settlement: ResellerPartnerSettlement,
         payment_method: str,
         payment_reference: str,
-        processed_by: Any
+        processed_by: Any,
     ) -> ResellerPartnerSettlement:
         """
-        Process a settlement (mark as completed)
-        
-        Args:
-            settlement: ResellerPartnerSettlement instance
-            payment_method: Payment method used
-            payment_reference: Payment reference number
-            processed_by: User processing the settlement
-        
-        Returns:
-            Updated ResellerPartnerSettlement instance
+        Process a settlement (mark as completed). Call only after approval (4-eye).
+        Atomic: lock settlement row, validate status PENDING, then update to PROCESSING then COMPLETED.
         """
-        settlement.status = 'PROCESSING'
-        settlement.payment_method = payment_method
-        settlement.payment_reference = payment_reference
-        settlement.processed_by = processed_by
-        settlement.processed_at = timezone.now()
-        settlement.save()
-        
-        # Mark as completed (in real scenario, this would be after actual payment)
-        settlement.status = 'COMPLETED'
-        settlement.completed_at = timezone.now()
-        settlement.save()
-        
+        with transaction.atomic():
+            settlement_locked = ResellerPartnerSettlement.objects.select_for_update().get(
+                id=settlement.id
+            )
+            if settlement_locked.status != 'PENDING':
+                raise ValueError(
+                    f"Settlement {settlement.id} is not PENDING (current: {settlement_locked.status})"
+                )
+            settlement_locked.status = 'PROCESSING'
+            settlement_locked.payment_method = payment_method
+            settlement_locked.payment_reference = payment_reference
+            settlement_locked.processed_by = processed_by
+            settlement_locked.processed_at = timezone.now()
+            settlement_locked.save(
+                update_fields=[
+                    'status', 'payment_method', 'payment_reference',
+                    'processed_by', 'processed_at', 'updated_at',
+                ]
+            )
+            settlement_locked.status = 'COMPLETED'
+            settlement_locked.completed_at = timezone.now()
+            settlement_locked.save(update_fields=['status', 'completed_at', 'updated_at'])
+            settlement = settlement_locked
         logger.info(
             f'Settlement processed: {settlement.settlement_reference}',
-            user=processed_by,
             extra_data={
                 'settlement_id': settlement.id,
                 'settlement_reference': settlement.settlement_reference,
-                'amount': str(settlement.settlement_amount)
-            }
+                'amount': str(settlement.settlement_amount),
+                'processed_by_id': getattr(processed_by, 'id', None),
+            },
         )
-        
         return settlement
     
     @staticmethod

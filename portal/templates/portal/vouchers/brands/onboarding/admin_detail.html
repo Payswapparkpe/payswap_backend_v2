@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Review Brand Onboarding{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-file-check text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Review Brand Onboarding</h1>
+            <p class="page-description-enterprise">{{ brand.brand_name }} ({{ brand.brand_code }})</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="{% url 'brand_onboarding_admin_list' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Reviews
+    </a>
+    {% endif %}
+</div>
+
+<!-- Brand Information -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Brand Information</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Brand Name</p>
+            <p class="font-medium text-gray-900">{{ brand.brand_name }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Brand Code</p>
+            <p class="font-medium text-gray-900">{{ brand.brand_code }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Contact Person</p>
+            <p class="font-medium text-gray-900">{{ brand.contact_person|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Contact Email</p>
+            <p class="font-medium text-gray-900">{{ brand.contact_email|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Contact Phone</p>
+            <p class="font-medium text-gray-900">{{ brand.contact_phone|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Address</p>
+            <p class="font-medium text-gray-900">{{ brand.address|default:"-" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Business Details -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Business Details</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Business Type</p>
+            <p class="font-medium text-gray-900">{{ brand.get_business_type_display|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Registration Number</p>
+            <p class="font-medium text-gray-900">{{ brand.business_reg_no|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">PAN Number</p>
+            <p class="font-medium text-gray-900">{{ brand.pan_number|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">GST Number</p>
+            <p class="font-medium text-gray-900">{{ brand.gst_number|default:"-" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Banking Information -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Banking Information</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Bank Name</p>
+            <p class="font-medium text-gray-900">{{ brand.bank_name|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">IFSC Code</p>
+            <p class="font-medium text-gray-900">{{ brand.bank_ifsc_code|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Account Holder Name</p>
+            <p class="font-medium text-gray-900">{{ brand.account_holder_name|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Account Number</p>
+            <p class="font-medium text-gray-900">****{{ brand.get_decrypted_bank_account|slice:"-4:" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Documents -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Documents</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% if brand.business_registration_doc %}
+        <div>
+            <p class="text-sm text-gray-600 mb-2">Business Registration Document</p>
+            <a href="{{ brand.business_registration_doc }}" target="_blank" class="btn-enterprise-outline text-sm">
+                <i class="ti ti-download mr-2"></i>
+                Download
+            </a>
+        </div>
+        {% endif %}
+        {% if brand.pan_document %}
+        <div>
+            <p class="text-sm text-gray-600 mb-2">PAN Document</p>
+            <a href="{{ brand.pan_document }}" target="_blank" class="btn-enterprise-outline text-sm">
+                <i class="ti ti-download mr-2"></i>
+                Download
+            </a>
+        </div>
+        {% endif %}
+        {% if brand.gst_certificate %}
+        <div>
+            <p class="text-sm text-gray-600 mb-2">GST Certificate</p>
+            <a href="{{ brand.gst_certificate }}" target="_blank" class="btn-enterprise-outline text-sm">
+                <i class="ti ti-download mr-2"></i>
+                Download
+            </a>
+        </div>
+        {% endif %}
+        {% if brand.bank_statement %}
+        <div>
+            <p class="text-sm text-gray-600 mb-2">Bank Statement</p>
+            <a href="{{ brand.bank_statement }}" target="_blank" class="btn-enterprise-outline text-sm">
+                <i class="ti ti-download mr-2"></i>
+                Download
+            </a>
+        </div>
+        {% endif %}
+        {% if brand.agreement_document %}
+        <div>
+            <p class="text-sm text-gray-600 mb-2">Signed Agreement</p>
+            <a href="{{ brand.agreement_document }}" target="_blank" class="btn-enterprise-outline text-sm">
+                <i class="ti ti-download mr-2"></i>
+                Download
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Agreement Status -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Agreement & Terms</h3>
+    <div class="space-y-2">
+        <div class="flex items-center gap-2">
+            {% if brand.terms_accepted %}
+            <i class="ti ti-check-circle text-green-600"></i>
+            <span class="text-gray-700">Terms and Conditions accepted on {{ brand.terms_accepted_at|date:"M d, Y H:i" }}</span>
+            {% else %}
+            <i class="ti ti-x-circle text-red-600"></i>
+            <span class="text-red-600">Terms not accepted</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+            {% if brand.agreement_signed %}
+            <i class="ti ti-check-circle text-green-600"></i>
+            <span class="text-gray-700">Agreement signed on {{ brand.agreement_signed_at|date:"M d, Y H:i" }}</span>
+            {% else %}
+            <i class="ti ti-x-circle text-red-600"></i>
+            <span class="text-red-600">Agreement not signed</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Approval Form -->
+<div class="card-enterprise max-w-3xl">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Review & Decision</h3>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p class="text-sm text-red-600">Please correct the errors below:</p>
+            <ul class="mt-2 list-disc list-inside text-sm text-red-600">
+                {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+                {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div>
+            <label class="form-label-enterprise">Action <span class="text-red-500">*</span></label>
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <input type="radio" name="action" value="approve" id="action_approve" required class="form-radio-enterprise">
+                    <label for="action_approve" class="text-gray-700 cursor-pointer">
+                        <span class="font-semibold text-green-600">Approve</span> - Brand can start issuing vouchers
+                    </label>
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="radio" name="action" value="reject" id="action_reject" required class="form-radio-enterprise">
+                    <label for="action_reject" class="text-gray-700 cursor-pointer">
+                        <span class="font-semibold text-red-600">Reject</span> - Brand needs to update information
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Notes</label>
+            <textarea name="onboarding_notes" rows="4" class="form-textarea-enterprise" placeholder="Add any notes about this review (optional)">{{ form.onboarding_notes.value|default:'' }}</textarea>
+        </div>
+        
+        <div id="rejection_reason_field" style="display: none;">
+            <label class="form-label-enterprise">Rejection Reason <span class="text-red-500">*</span></label>
+            <textarea name="rejection_reason" rows="4" class="form-textarea-enterprise" placeholder="Explain why the onboarding is being rejected">{{ form.rejection_reason.value|default:'' }}</textarea>
+            {% if form.rejection_reason.errors %}
+            <p class="text-sm text-red-600 mt-1">{{ form.rejection_reason.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'brand_onboarding_admin_list' %}" class="btn-enterprise-outline">
+                Cancel
+            </a>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Submit Decision
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Show/hide rejection reason field
+document.querySelectorAll('input[name="action"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const rejectionField = document.getElementById('rejection_reason_field');
+        if (this.value === 'reject') {
+            rejectionField.style.display = 'block';
+            rejectionField.querySelector('textarea').required = true;
+        } else {
+            rejectionField.style.display = 'none';
+            rejectionField.querySelector('textarea').required = false;
+        }
+    });
+});
+</script>
+{% endblock %}

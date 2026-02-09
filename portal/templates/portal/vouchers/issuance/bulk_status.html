@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Bulk Issuance Status - {{ batch.batch_reference }}{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="ti ti-file-upload text-xl text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Batch Status</h1>
+            <p class="page-description-enterprise">Reference: {{ batch.batch_reference }}</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="/vouchers/issue/bulk/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Bulk Issuance
+    </a>
+    {% endif %}
+</div>
+
+<!-- Status Card -->
+<div class="card-enterprise mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Status</p>
+            <p class="text-lg font-semibold">
+                {% if batch.status == 'COMPLETED' %}
+                <span class="badge-enterprise badge-enterprise-success">Completed</span>
+                {% elif batch.status == 'PROCESSING' %}
+                <span class="badge-enterprise badge-enterprise-warning">Processing</span>
+                {% elif batch.status == 'FAILED' %}
+                <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                {% else %}
+                <span class="badge-enterprise badge-enterprise-gray">Pending</span>
+                {% endif %}
+            </p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Total Vouchers</p>
+            <p class="text-2xl font-bold text-gray-900">{{ batch.total_vouchers }}</p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Successful</p>
+            <p class="text-2xl font-bold text-emerald-600">{{ batch.successful_vouchers }}</p>
+        </div>
+        
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Failed</p>
+            <p class="text-2xl font-bold text-red-600">{{ batch.failed_vouchers }}</p>
+        </div>
+    </div>
+    
+    <!-- Progress Bar -->
+    {% if batch.status == 'PROCESSING' %}
+    <div class="mt-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Progress</span>
+            <span class="text-sm font-semibold text-gray-900">{{ batch.processed_vouchers }} / {{ batch.total_vouchers }}</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div class="bg-blue-600 h-2.5 rounded-full" style="width: {% widthratio batch.processed_vouchers batch.total_vouchers 100 %}%"></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Batch Details -->
+<div class="card-enterprise mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Batch Details</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <p class="text-sm text-gray-600">Brand</p>
+            <p class="font-semibold text-gray-900">{{ batch.brand.brand_name }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600">Created At</p>
+            <p class="font-semibold text-gray-900">{{ batch.created_at|date:"M d, Y H:i" }}</p>
+        </div>
+        {% if batch.started_at %}
+        <div>
+            <p class="text-sm text-gray-600">Started At</p>
+            <p class="font-semibold text-gray-900">{{ batch.started_at|date:"M d, Y H:i" }}</p>
+        </div>
+        {% endif %}
+        {% if batch.completed_at %}
+        <div>
+            <p class="text-sm text-gray-600">Completed At</p>
+            <p class="font-semibold text-gray-900">{{ batch.completed_at|date:"M d, Y H:i" }}</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if batch.error_log %}
+    <div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-sm font-semibold text-red-900 mb-2">Error Log</p>
+        <p class="text-xs text-red-700 whitespace-pre-wrap">{{ batch.error_log }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Result File Download -->
+{% if batch.status == 'COMPLETED' and batch.result_file_path %}
+<div class="card-enterprise">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 mb-1">Result File</h2>
+            <p class="text-sm text-gray-600">Download the complete voucher details including codes and PINs</p>
+        </div>
+        <a href="{{ batch.result_file_path }}" target="_blank" class="btn-enterprise-primary">
+            <i class="ti ti-download mr-2"></i>
+            Download Result File
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Auto-refresh for processing status -->
+{% if batch.status == 'PROCESSING' %}
+<script>
+    setTimeout(function() {
+        window.location.reload();
+    }, 5000); // Refresh every 5 seconds
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{
+  "categories": [
+    "electricity",
+    "water",
+    "gas",
+    "dth",
+    "broadband",
+    "mobile_postpaid",
+    "landline",
+    "insurance",
+    "loan_repayment",
+    "municipal_taxes"
+  ]
+}

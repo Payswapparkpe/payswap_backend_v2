@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Voucher Clients{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="ti ti-users text-xl text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Voucher Clients</h1>
+            <p class="page-description-enterprise">Manage clients under brands</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% endif %}
+        <a href="/vouchers/clients/create/" class="btn-enterprise-primary">
+            <i class="ti ti-plus mr-2"></i>
+            Create Client
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card-enterprise mb-6">
+    <form method="get" class="flex gap-4 items-end">
+        <div class="flex-1">
+            <label class="form-label-enterprise">Search</label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Search by name, code, or email..." class="form-input-enterprise">
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Brand</label>
+            <select name="brand_id" class="form-select-enterprise">
+                <option value="">All Brands</option>
+                {% for brand in brands %}
+                <option value="{{ brand.id }}" {% if current_brand == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Status</label>
+            <select name="status" class="form-select-enterprise">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn-enterprise-secondary">
+            <i class="ti ti-filter mr-2"></i>
+            Filter
+        </button>
+        <a href="/vouchers/clients/" class="btn-enterprise-outline">
+            <i class="ti ti-x mr-2"></i>
+            Clear
+        </a>
+    </form>
+</div>
+
+<!-- Enterprise Data Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Client Code</th>
+                <th>Client Name</th>
+                <th>Brand</th>
+                <th>Contact Email</th>
+                <th>Contact Phone</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td class="font-semibold text-gray-900">{{ client.client_code }}</td>
+                <td class="text-gray-900">
+                    {{ client.client_name }}
+                    {% if client.is_default %}
+                    <span class="ml-2 badge-enterprise badge-enterprise-info">Default</span>
+                    {% endif %}
+                </td>
+                <td class="text-gray-900">{{ client.brand.brand_name }}</td>
+                <td class="text-gray-600">{{ client.contact_email|default:"-" }}</td>
+                <td class="text-gray-600">{{ client.contact_phone|default:"-" }}</td>
+                <td>
+                    {% if client.status == 'ACTIVE' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="text-gray-600">{{ client.created_at|date:"M d, Y" }}</td>
+                <td class="text-right">
+                    <a href="/vouchers/clients/{{ client.id }}/" class="btn-action">
+                        <i class="ti ti-eye"></i>
+                        View
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-users-off text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No clients found</p>
+                        <p class="text-sm text-gray-500">Get started by creating your first client</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_brand %}&brand_id={{ current_brand }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

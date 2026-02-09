@@ -1,0 +1,32 @@
+<div class="connect-vehicle-detail">
+  @if (loading()) {
+    <p class="loading">Loading…</p>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+    <a routerLink="/connect/vehicles">Back to vehicles</a>
+  } @else if (vehicle(); as v) {
+    <div class="page-head">
+      <h1>{{ v.registration_number }}</h1>
+      <a [routerLink]="['/connect/vehicles', v.id, 'edit']" class="btn btn-outline btn-sm">Edit</a>
+    </div>
+    <p class="meta">{{ v.brand }} {{ v.model }} @if (v.year) { · {{ v.year }} }</p>
+    @if (v.is_primary) {
+      <span class="badge">Primary</span>
+    }
+
+    <section class="qr-section">
+      <h2>Connect QR</h2>
+      <p class="qr-desc">Anyone can scan this QR to contact you about this vehicle (masked call, chat, or ticket).</p>
+      @if (qrImageUrl(); as src) {
+        <div class="qr-box">
+          <img [src]="src" alt="Connect QR code" width="200" height="200" />
+          <p class="scan-url">{{ qr()?.scan_path || qr()?.scan_url }}</p>
+        </div>
+      } @else {
+        <p class="loading">Loading QR…</p>
+      }
+    </section>
+
+    <p class="back"><a routerLink="/connect/vehicles">Back to vehicles</a></p>
+  }
+</div>

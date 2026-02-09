@@ -17,7 +17,10 @@ from django.db import transaction
 from django.utils import timezone
 from django.core.mail import send_mail
 from core.config import payswap_config
-from portal.models import User, Profile, KYC, Wallet, WalletTransaction, Role
+from portal.models import (
+    User, Profile, KYC, Wallet, WalletTransaction, Role,
+    ParkPeServiceConfig, ParkPePaymentGatewayConfig,
+)
 from portal.forms import (
     SignUpForm, SignInForm, MFASetupForm, MFAVerifyForm,
     ProfileCreateForm, UserCreateForm, KYCSubmitForm,
@@ -863,6 +866,29 @@ class AdminDashboardView(TemplateView):
         context['pending_kyc'] = KYC.objects.filter(status='pending').count()
         context['total_wallets'] = Wallet.objects.count()
         context['active_profiles'] = Profile.objects.filter(status='active').count()
+        return context
+
+
+class ParkPeAppManagementView(TemplateView):
+    """ParkPe App Management: Voucher Management & Payment Gateway Management cards."""
+    template_name = 'portal/parkpe/app_management.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
+            raise Http404
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['service_configs'] = ParkPeServiceConfig.objects.all().order_by('service_code')
+        context['gateway_configs'] = ParkPePaymentGatewayConfig.objects.all().order_by('gateway', 'service_code')
+        from django.urls import reverse
+        context['admin_service_config_url'] = reverse('admin:portal_parkpeserviceconfig_changelist')
+        context['admin_gateway_config_url'] = reverse('admin:portal_parkpepaymentgatewayconfig_changelist')
         return context
 
 
@@ -1836,6 +1862,88 @@ def social_callback_view(request):
         return redirect('/dashboard/')
     
     return redirect('/signin/')
+
+
+# ---------------------------------------------------------------------------
+# API Management (Registry + Logs) - Admin only
+# ---------------------------------------------------------------------------
+
+def _is_api_registry_admin(user):
+    if not user or not user.is_authenticated:
+        return False
+    return getattr(user, "role_code", "").lower() in ("admin", "super")
+
+
+class APIRegistryListView(ListView):
+    """List all APIs in the registry with status toggle. Admin/Super only."""
+    template_name = "portal/api_registry/list.html"
+    context_object_name = "apis"
+    paginate_by = 25
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not _is_api_registry_admin(request.user):
+            messages.error(request, "Access denied. Admin or Super role required.")
+            return redirect("/dashboard/admin/")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        from api_management.models import APIRegistry
+        qs = APIRegistry.objects.select_related("service_category").order_by("version", "module_name", "api_name")
+        version = self.request.GET.get("version")
+        status_filter = self.request.GET.get("status")
+        if version:
+            qs = qs.filter(version=version)
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+
+class APIRegistryToggleView(View):
+    """POST to toggle API status ON/OFF. Admin/Super only."""
+
+    @method_decorator(login_required)
+    @method_decorator(require_http_methods(["POST"]))
+    def dispatch(self, request, *args, **kwargs):
+        if not _is_api_registry_admin(request.user):
+            return JsonResponse({"success": False, "message": "Access denied"}, status=403)
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, pk):
+        from api_management.models import APIRegistry
+        api = get_object_or_404(APIRegistry, pk=pk)
+        api.status = APIRegistry.STATUS_OFF if api.status == APIRegistry.STATUS_ON else APIRegistry.STATUS_ON
+        api.updated_by = request.user
+        api.save()
+        messages.success(request, f"API {api.api_name} is now {api.status}.")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"success": True, "status": api.status})
+        return redirect("api_registry_list")
+
+
+class APILogListView(ListView):
+    """List API logs with filters. Admin/Super only."""
+    template_name = "portal/api_registry/log_list.html"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not _is_api_registry_admin(request.user):
+            messages.error(request, "Access denied. Admin or Super role required.")
+            return redirect("/dashboard/admin/")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        from api_management.models import APILog
+        qs = APILog.objects.select_related("api_registry", "user").order_by("-created_at")
+        status_code = self.request.GET.get("status_code")
+        request_id = self.request.GET.get("request_id")
+        if status_code:
+            qs = qs.filter(status_code=status_code)
+        if request_id:
+            qs = qs.filter(request_id__icontains=request_id)
+        return qs
 
 
 # SocialSignupAdapter is now in portal/adapters.py

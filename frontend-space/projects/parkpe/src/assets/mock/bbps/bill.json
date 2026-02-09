@@ -1,0 +1,44 @@
+{
+  "billId": "bill_001",
+  "operatorId": "op_elec_001",
+  "operatorName": "BESCOM - Bangalore Electricity",
+  "consumerId": "123456789012",
+  "consumerName": "John Doe",
+  "billNumber": "BILL202402001",
+  "billDate": "2024-02-01T00:00:00Z",
+  "dueDate": "2024-02-15T23:59:59Z",
+  "amount": 1250,
+  "currency": "INR",
+  "billDetails": [
+    {
+      "label": "Previous Reading",
+      "value": "2500 units"
+    },
+    {
+      "label": "Current Reading",
+      "value": "2650 units"
+    },
+    {
+      "label": "Units Consumed",
+      "value": "150 units"
+    },
+    {
+      "label": "Rate per Unit",
+      "value": "₹7.50"
+    },
+    {
+      "label": "Energy Charges",
+      "value": "₹1125"
+    },
+    {
+      "label": "Fixed Charges",
+      "value": "₹75"
+    },
+    {
+      "label": "Tax",
+      "value": "₹50"
+    }
+  ],
+  "latePaymentCharge": 50,
+  "additionalInfo": "Pay before due date to avoid late payment charges"
+}

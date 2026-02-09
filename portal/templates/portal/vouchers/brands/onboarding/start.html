@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Brand Onboarding{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-checklist text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Brand Onboarding</h1>
+            <p class="page-description-enterprise">Complete the onboarding process to start issuing vouchers</p>
+        </div>
+    </div>
+    <a href="/vouchers/brands/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Brands
+    </a>
+</div>
+
+<!-- Progress Card -->
+<div class="card-enterprise mb-6">
+    <div class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-semibold text-gray-900">Onboarding Progress</h3>
+            <span class="text-sm font-medium text-gray-600">{{ progress.completed_steps }}/{{ progress.total_steps }} Steps Complete</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: {{ progress.progress_percentage }}%"></div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div class="p-4 border border-gray-200 rounded-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <i class="ti ti-info-circle text-purple-600"></i>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Status</p>
+                    <p class="font-semibold text-gray-900">{{ brand.get_onboarding_status_display }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border border-gray-200 rounded-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <i class="ti ti-check text-blue-600"></i>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Completed Steps</p>
+                    <p class="font-semibold text-gray-900">{{ progress.completed_steps }}/{{ progress.total_steps }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border border-gray-200 rounded-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                    <i class="ti ti-percentage text-green-600"></i>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Progress</p>
+                    <p class="font-semibold text-gray-900">{{ progress.progress_percentage|floatformat:0 }}%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Steps Overview -->
+<div class="card-enterprise mb-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Onboarding Steps</h3>
+    <div class="space-y-3">
+        {% for step_key, step_info in progress.steps_status.items %}
+        <div class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg {% if step_info.complete %}bg-green-50{% else %}bg-gray-50{% endif %}">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center {% if step_info.complete %}bg-green-500 text-white{% elif step_info.number == progress.next_step %}bg-purple-500 text-white{% else %}bg-gray-300 text-gray-600{% endif %}">
+                {% if step_info.complete %}
+                <i class="ti ti-check text-sm"></i>
+                {% else %}
+                <span class="text-sm font-semibold">{{ step_info.number }}</span>
+                {% endif %}
+            </div>
+            <div class="flex-1">
+                <p class="font-medium text-gray-900">{{ step_info.name }}</p>
+            </div>
+            {% if step_info.complete %}
+            <span class="text-sm text-green-600 font-medium">Complete</span>
+            {% elif step_info.number == progress.next_step %}
+            <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=step_info.number %}" class="btn-enterprise-primary text-sm">
+                Start
+            </a>
+            {% else %}
+            <span class="text-sm text-gray-500">Pending</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="flex gap-4">
+    {% if progress.next_step %}
+    <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=progress.next_step %}" class="btn-enterprise-primary">
+        <i class="ti ti-arrow-right mr-2"></i>
+        Continue Onboarding
+    </a>
+    {% elif progress.can_submit %}
+    <a href="{% url 'brand_onboarding_step' brand_id=brand.id step=6 %}" class="btn-enterprise-primary">
+        <i class="ti ti-send mr-2"></i>
+        Review & Submit
+    </a>
+    {% endif %}
+    <a href="{% url 'brand_onboarding_status' brand_id=brand.id %}" class="btn-enterprise-outline">
+        <i class="ti ti-info-circle mr-2"></i>
+        View Status
+    </a>
+</div>
+{% endblock %}

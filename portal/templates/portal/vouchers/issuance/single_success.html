@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Voucher Issued Successfully{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <i class="ti ti-check text-xl text-emerald-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Voucher Issued Successfully</h1>
+            <p class="page-description-enterprise">Please save the voucher details below</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/issue/single/" class="btn-enterprise-outline">
+            <i class="ti ti-plus mr-2"></i>
+            Issue Another
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if voucher %}
+{% if voucher_email_failed %}
+<div class="card-enterprise max-w-2xl mb-6 border-2 border-amber-200 bg-amber-50">
+    <div class="flex items-start gap-3 p-4">
+        <i class="ti ti-mail-x text-2xl text-amber-600 mt-0.5"></i>
+        <div class="flex-1">
+            <p class="font-semibold text-amber-900 mb-1">Email could not be sent</p>
+            <p class="text-sm text-amber-800 mb-3">Please copy the voucher details below and share them with the customer manually (e.g. by messaging or in person).</p>
+            {% if can_see_voucher_sensitive %}
+            <button type="button" id="copy-voucher-details" class="btn-enterprise-primary text-sm" data-code="{{ voucher.voucher_code }}" data-pin="{{ voucher.pin }}" data-amount="{{ voucher.amount }}" data-ref="{{ voucher.reference_number }}">
+                <i class="ti ti-copy mr-2"></i>
+                Copy voucher details
+            </button>
+            <span id="copy-feedback" class="ml-2 text-sm text-emerald-600 hidden">Copied to clipboard.</span>
+            {% else %}
+            <p class="text-sm text-amber-700">Use the <strong>Copy details</strong> button below the voucher card to copy code and PIN, then share with the customer.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Voucher Details Card -->
+<div class="card-enterprise max-w-2xl">
+    <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-8 mb-6 border-2 border-green-200">
+        <div class="text-center">
+            <div class="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-4">
+                <i class="ti ti-ticket text-2xl text-white"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Gift Voucher</h2>
+            <p class="text-gray-600 mb-6">Reference: {{ voucher.reference_number }}</p>
+            
+            <div class="bg-white rounded-lg p-6 mb-6">
+                <div class="text-center mb-4">
+                    <p class="text-sm text-gray-600 mb-1">Voucher Code</p>
+                    {% if can_see_voucher_sensitive %}
+                    <p class="text-3xl font-bold text-gray-900 font-mono tracking-wider">{{ voucher.voucher_code }}</p>
+                    {% else %}
+                    <p class="text-3xl font-bold text-gray-900 font-mono tracking-wider">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</p>
+                    {% endif %}
+                </div>
+                
+                <div class="text-center mb-4 pt-4 border-t">
+                    <p class="text-sm text-gray-600 mb-1">PIN</p>
+                    {% if can_see_voucher_sensitive %}
+                    <p class="text-2xl font-bold text-gray-900 font-mono">{{ voucher.pin }}</p>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                        <div class="flex items-start gap-3">
+                            <i class="ti ti-alert-triangle text-amber-600 mt-0.5"></i>
+                            <div class="text-left">
+                                <p class="text-sm font-semibold text-amber-900 mb-1">Important</p>
+                                <p class="text-xs text-amber-700">Save this voucher code and PIN securely. They will not be shown again.</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-gray-500 text-sm">Not displayed. Only users with permission to view sensitive details can see the PIN. Contact an administrator if you need it.</p>
+                    {% endif %}
+                </div>
+                
+                <div class="text-center pt-4 border-t">
+                    <p class="text-sm text-gray-600 mb-1">Amount</p>
+                    <p class="text-2xl font-bold text-green-600">₹{{ voucher.amount }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="flex flex-wrap gap-4 items-center">
+        <button onclick="window.print()" class="btn-enterprise-primary">
+            <i class="ti ti-printer mr-2"></i>
+            Print
+        </button>
+        {% if can_see_voucher_sensitive %}
+        <button type="button" id="copy-details-btn" class="btn-enterprise-outline" data-code="{{ voucher.voucher_code }}" data-pin="{{ voucher.pin }}" data-amount="{{ voucher.amount }}" data-ref="{{ voucher.reference_number }}">
+            <i class="ti ti-copy mr-2"></i>
+            Copy details
+        </button>
+        <span id="copy-done" class="text-sm text-emerald-600 hidden">Copied.</span>
+        {% endif %}
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Vouchers
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card-enterprise">
+    <div class="text-center py-8">
+        <i class="ti ti-alert-circle text-5xl text-gray-300 mb-4"></i>
+        <p class="text-gray-900 font-semibold mb-1">No voucher details found</p>
+        <p class="text-sm text-gray-500 mb-6">The voucher details may have expired or were not found.</p>
+        <a href="/vouchers/issue/single/" class="btn-enterprise-primary">
+            Issue New Voucher
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    var copyDetailsBtn = document.getElementById('copy-details-btn');
+    var copyVoucherDetailsBtn = document.getElementById('copy-voucher-details');
+    var copyDone = document.getElementById('copy-done');
+    var copyFeedback = document.getElementById('copy-feedback');
+
+    function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            return Promise.resolve();
+        } finally {
+            document.body.removeChild(ta);
+        }
+    }
+
+    if (copyDetailsBtn) {
+        copyDetailsBtn.addEventListener('click', function() {
+            var code = this.getAttribute('data-code') || '';
+            var pin = this.getAttribute('data-pin') || '';
+            var amount = this.getAttribute('data-amount') || '';
+            var ref = this.getAttribute('data-ref') || '';
+            var text = 'Voucher Code: ' + code + '\nPIN: ' + pin + '\nAmount: ₹' + amount + '\nReference: ' + ref;
+            copyText(text).then(function() {
+                if (copyDone) { copyDone.classList.remove('hidden'); setTimeout(function() { copyDone.classList.add('hidden'); }, 2000); }
+            });
+        });
+    }
+
+    if (copyVoucherDetailsBtn) {
+        copyVoucherDetailsBtn.addEventListener('click', function() {
+            var code = this.getAttribute('data-code') || '';
+            var pin = this.getAttribute('data-pin') || '';
+            var amount = this.getAttribute('data-amount') || '';
+            var ref = this.getAttribute('data-ref') || '';
+            var text = 'Voucher Code: ' + code + '\nPIN: ' + pin + '\nAmount: ₹' + amount + '\nReference: ' + ref;
+            copyText(text).then(function() {
+                if (copyFeedback) { copyFeedback.classList.remove('hidden'); setTimeout(function() { copyFeedback.classList.add('hidden'); }, 2000); }
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

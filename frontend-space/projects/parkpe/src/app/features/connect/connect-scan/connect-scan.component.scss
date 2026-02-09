@@ -1,0 +1,118 @@
+$bg: transparent;
+$fg: var(--text-primary);
+$muted-fg: var(--text-secondary);
+$accent: #004aad;
+$border: var(--border-light);
+
+:host {
+  display: block;
+  min-height: 60vh;
+  padding: 2rem 0;
+}
+
+.connect-scan {
+  font-family: inherit;
+  text-align: center;
+  background: $bg;
+  color: $fg;
+}
+
+.container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+}
+
+.message {
+  font-size: 1rem;
+  color: $muted-fg;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.or {
+  font-size: 0.9rem;
+  color: $muted-fg;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.section {
+  margin: 1.5rem 0;
+  padding: 1rem 0;
+  border-top: 1px solid $border;
+
+  &:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+}
+
+.section-title {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+  color: $fg;
+}
+
+.qr-reader-wrap {
+  margin: 0.5rem 0;
+
+  #qr-reader {
+    border: 1px solid $border;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .stop-camera {
+    margin-top: 0.5rem;
+  }
+}
+
+.error-msg {
+  color: #c00;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+}
+
+.muted {
+  color: $muted-fg;
+  font-size: 0.95rem;
+}
+
+.enter-code {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+
+  input,
+  .vehicle-input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid $border;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+  }
+}
+
+.sub {
+  font-size: 0.9375rem;
+  color: $muted-fg;
+  margin: 1rem 0 1.5rem;
+}
+
+.link {
+  background: none;
+  border: none;
+  color: $accent;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font: inherit;
+  &:hover {
+    color: #003886;
+  }
+}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Brand Onboarding - Admin Review{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-checklist text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Brand Onboarding Review</h1>
+            <p class="page-description-enterprise">Review and approve brand onboarding applications</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="/vouchers/brands/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Brands
+    </a>
+    {% endif %}
+</div>
+
+<!-- Stats Card -->
+<div class="card-enterprise mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="p-4 border border-gray-200 rounded-lg">
+            <p class="text-sm text-gray-600">Pending Review</p>
+            <p class="text-2xl font-bold text-gray-900">{{ pending_count }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Brands Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Brand Code</th>
+                <th>Brand Name</th>
+                <th>Contact Email</th>
+                <th>Submitted By</th>
+                <th>Submitted At</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for brand in brands %}
+            <tr>
+                <td class="font-semibold text-gray-900">{{ brand.brand_code }}</td>
+                <td class="text-gray-900">{{ brand.brand_name }}</td>
+                <td class="text-gray-600">{{ brand.contact_email|default:"-" }}</td>
+                <td class="text-gray-600">{{ brand.created_by.username|default:"-" }}</td>
+                <td class="text-gray-600">{{ brand.updated_at|date:"M d, Y H:i" }}</td>
+                <td class="text-right">
+                    <a href="{% url 'brand_onboarding_admin_detail' brand_id=brand.id %}" class="btn-action">
+                        <i class="ti ti-eye"></i>
+                        Review
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-check-circle text-5xl text-green-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No pending reviews</p>
+                        <p class="text-sm text-gray-500">All brand onboarding applications have been reviewed</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

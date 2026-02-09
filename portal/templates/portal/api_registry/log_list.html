@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}API Logs{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-900">API Logs</h2>
+        <a href="{% url 'api_product_list' %}" class="text-[#0066CC] hover:underline">Back to API Control</a>
+    </div>
+
+    <form method="get" class="flex gap-2 flex-wrap items-center">
+        <input type="text" name="request_id" placeholder="Request ID" value="{{ request.GET.request_id }}" class="border rounded px-2 py-1 text-sm" />
+        <select name="status_code" class="border rounded px-2 py-1 text-sm">
+            <option value="">Any status</option>
+            <option value="200" {% if request.GET.status_code == '200' %}selected{% endif %}>200</option>
+            <option value="400" {% if request.GET.status_code == '400' %}selected{% endif %}>400</option>
+            <option value="401" {% if request.GET.status_code == '401' %}selected{% endif %}>401</option>
+            <option value="403" {% if request.GET.status_code == '403' %}selected{% endif %}>403</option>
+            <option value="404" {% if request.GET.status_code == '404' %}selected{% endif %}>404</option>
+            <option value="500" {% if request.GET.status_code == '500' %}selected{% endif %}>500</option>
+        </select>
+        <button type="submit" class="btn btn-primary text-white text-sm">Filter</button>
+    </form>
+
+    <div class="card">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-gray-200">
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Time</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Request ID</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">API</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Principal</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Duration (ms)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+                        <td class="py-3 px-4 text-sm font-mono text-gray-700">{{ log.request_id|default:"-" }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ log.api_registry.api_name|default:log.api_registry_id|default:"-" }}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ log.principal_type }}{% if log.user %} ({{ log.user.username }}){% endif %}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-1 rounded text-xs font-semibold {% if log.status_code and log.status_code < 400 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ log.status_code|default:"-" }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-sm text-gray-600">{{ log.duration_ms|floatformat:0|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="py-8 text-center text-gray-600">No API logs yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&status_code={{ request.GET.status_code }}&request_id={{ request.GET.request_id }}" class="text-[#0066CC]">Previous</a>{% endif %}
+        <span class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&status_code={{ request.GET.status_code }}&request_id={{ request.GET.request_id }}" class="text-[#0066CC]">Next</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

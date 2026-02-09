@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Brand Details - {{ brand.brand_name }}{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-building-store text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">{{ brand.brand_name }}</h1>
+            <p class="page-description-enterprise">Brand Code: {{ brand.brand_code }}{% if brand.api_identifier %} | API Identifier: <code class="bg-gray-100 px-1 rounded">{{ brand.api_identifier }}</code>{% endif %}</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/brands/" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Brands
+        </a>
+        {% endif %}
+        <a href="{% url 'brand_voucher_dashboard' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-enterprise-primary">
+            <i class="ti ti-dashboard mr-2"></i>
+            Voucher Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Brand Code</label>
+                <input type="text" value="{{ brand.brand_code }}" class="form-input-enterprise" disabled>
+                <p class="text-xs text-gray-500 mt-1">Auto-generated, cannot be changed</p>
+            </div>
+            <div>
+                <label class="form-label-enterprise">API Identifier (6-char)</label>
+                <input type="text" value="{{ brand.api_identifier|default:'' }}" class="form-input-enterprise font-mono" readonly>
+                <p class="text-xs text-gray-500 mt-1">Voucher API mein brand identify karne ke liye ye code bhejen. Onboard hote hi auto-generate.</p>
+            </div>
+            <div>
+                <label class="form-label-enterprise">Brand Name <span class="text-red-500">*</span></label>
+                <input type="text" name="brand_name" value="{{ brand.brand_name }}" required class="form-input-enterprise">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Status</label>
+                <select name="status" class="form-select-enterprise">
+                    {% for value, label in brand.STATUS_CHOICES %}
+                    <option value="{{ value }}" {% if brand.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Business Registration Number</label>
+                <input type="text" name="business_reg_no" value="{{ brand.business_reg_no|default:'' }}" class="form-input-enterprise">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Person</label>
+                <input type="text" name="contact_person" value="{{ brand.contact_person|default:'' }}" class="form-input-enterprise">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Email</label>
+                <input type="email" name="contact_email" value="{{ brand.contact_email|default:'' }}" class="form-input-enterprise">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Phone</label>
+                <input type="text" name="contact_phone" value="{{ brand.contact_phone|default:'' }}" class="form-input-enterprise">
+            </div>
+        </div>
+        
+        <div>
+            <label class="form-label-enterprise">Address</label>
+            <textarea name="address" rows="3" class="form-textarea-enterprise">{{ brand.address|default:'' }}</textarea>
+        </div>
+        
+        <div class="flex gap-4 pt-4 border-t">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Update Brand
+            </button>
+            <a href="{% if from_voucherx %}{% url 'voucherx_dashboard' %}{% else %}/vouchers/brands/{% endif %}" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Delete Brand -->
+<div class="card-enterprise max-w-3xl mt-6 border-red-200">
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-700">Delete Brand</h3>
+            <p class="text-xs text-gray-500 mt-1">Permanently remove this brand. Only allowed when it has no vouchers and no batches.</p>
+        </div>
+        <a href="{% url 'voucher_brand_delete' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-enterprise-outline text-red-600 border-red-300 hover:bg-red-50">
+            <i class="ti ti-trash mr-2"></i>
+            Delete Brand
+        </a>
+    </div>
+</div>
+
+<!-- Brand Statistics -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Total Vouchers</p>
+                <p class="text-2xl font-bold text-gray-900">{{ brand.vouchers.count }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                <i class="ti ti-ticket text-xl text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Active Vouchers</p>
+                <p class="text-2xl font-bold text-gray-900">{{ brand.vouchers.all|length }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <i class="ti ti-check text-xl text-emerald-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600 mb-1">Created</p>
+                <p class="text-sm font-semibold text-gray-900">{{ brand.created_at|date:"M d, Y" }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                <i class="ti ti-calendar text-xl text-gray-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

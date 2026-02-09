@@ -7,17 +7,23 @@ from django.contrib.messages import success as messages_success, error as messag
 from django.urls import path
 from django.shortcuts import render, redirect
 from django.utils.html import format_html
+from simple_history.admin import SimpleHistoryAdmin
 
 from portal.models import (
     User, Profile, Role, KYC, Wallet, WalletTransaction, UserPermission, LogEntry, CashfreeAPILog,
+    EmailQueue,
     Department, Agent, Ticket, TicketNote, TicketAssignmentHistory, TicketAttachment,
+    Vehicle, VehicleQRCode,
     GiftVoucherBrand, GiftVoucher, GiftVoucherTransaction, GiftVoucherOTP, 
     BulkVoucherIssuanceBatch, GiftVoucherAuditLog, VoucherClient,
     ResellerPartner, APIKey, APIKeyUsageLog,
     ResellerPartnerPricing, ResellerPartnerTransaction, ResellerPartnerSettlement,
-    Service, ServiceCost, BBPSBillerCategory, RBIRuleConfiguration,
+    Service, ServiceCost, BBPSBillerCategory, BBPSOperator, RBIRuleConfiguration,
     IdempotencyRecord,
     ApprovalRequest,
+    ApiVendor, VendorApi, ServiceFlowStep,
+    ParkPeVoucherBalance, ParkPeVoucherTransaction, ParkPeServiceConfig,
+    ParkPePaymentGatewayConfig, ParkPePaymentOrder,
 )
 
 
@@ -161,6 +167,49 @@ class WalletTransactionAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'encrypted_details']
 
 
+# ParkPe (no wallet – voucher balance only)
+@admin.register(ParkPeVoucherBalance)
+class ParkPeVoucherBalanceAdmin(admin.ModelAdmin):
+    list_display = ['user', 'balance', 'currency', 'updated_at']
+    list_filter = ['currency']
+    search_fields = ['user__username']
+    readonly_fields = ['updated_at']
+
+
+@admin.register(ParkPeVoucherTransaction)
+class ParkPeVoucherTransactionAdmin(admin.ModelAdmin):
+    list_display = ['user', 'amount', 'transaction_type', 'service_code', 'reference_id', 'created_at']
+    list_filter = ['transaction_type', 'created_at']
+    search_fields = ['user__username', 'reference_id', 'service_code']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(ParkPeServiceConfig)
+class ParkPeServiceConfigAdmin(admin.ModelAdmin):
+    list_display = ['service_code', 'voucher_allowed', 'pg_allowed', 'is_active', 'updated_at']
+    list_filter = ['voucher_allowed', 'pg_allowed', 'is_active']
+    search_fields = ['service_code']
+    list_editable = ['voucher_allowed', 'pg_allowed', 'is_active']
+
+
+@admin.register(ParkPePaymentGatewayConfig)
+class ParkPePaymentGatewayConfigAdmin(admin.ModelAdmin):
+    list_display = ['gateway', 'service_code', 'enabled', 'is_default_for_voucher_purchase', 'merchant_id', 'credential_key', 'updated_at']
+    list_filter = ['gateway', 'enabled', 'is_default_for_voucher_purchase']
+    search_fields = ['gateway', 'service_code', 'merchant_id', 'credential_key']
+    list_editable = ['enabled', 'is_default_for_voucher_purchase']
+
+
+@admin.register(ParkPePaymentOrder)
+class ParkPePaymentOrderAdmin(admin.ModelAdmin):
+    list_display = ['order_id', 'user', 'amount', 'gateway', 'status', 'created_at']
+    list_filter = ['gateway', 'status', 'created_at']
+    search_fields = ['order_id', 'user__username', 'reference_id']
+    readonly_fields = ['created_at', 'updated_at']
+    date_hierarchy = 'created_at'
+
+
 @admin.register(UserPermission)
 class UserPermissionAdmin(admin.ModelAdmin):
     list_display = ['user', 'permission', 'is_active', 'granted_at', 'revoked_at']
@@ -263,6 +312,54 @@ class LogEntryAdmin(admin.ModelAdmin):
         return request.user.is_staff
 
 
+@admin.register(EmailQueue)
+class EmailQueueAdmin(admin.ModelAdmin):
+    """Durable email queue: view pending/failed and resend without Celery."""
+    list_display = ['id', 'to_email_masked', 'subject_short', 'status', 'retry_count', 'created_at', 'sent_at']
+    list_filter = ['status', 'use_parkpe_smtp', 'created_at']
+    search_fields = ['to_email', 'subject', 'last_error']
+    readonly_fields = ['to_email', 'subject', 'body_html', 'body_text', 'status', 'retry_count', 'last_error',
+                       'related_entity', 'use_parkpe_smtp', 'created_at', 'sent_at']
+    date_hierarchy = 'created_at'
+    ordering = ['-created_at']
+    list_per_page = 50
+
+    def to_email_masked(self, obj):
+        if not obj.to_email:
+            return '-'
+        parts = obj.to_email.split('@')
+        return f"{parts[0][:2]}***@{parts[1]}" if len(parts) == 2 else '***@***'
+    to_email_masked.short_description = 'To'
+
+    def subject_short(self, obj):
+        return (obj.subject[:50] + '...') if obj.subject and len(obj.subject) > 50 else (obj.subject or '-')
+    subject_short.short_description = 'Subject'
+
+    actions = ['resend_selected']
+
+    def resend_selected(self, request, queryset):
+        from portal.services.email_queue_service import send_email_from_queue_row
+        from django.utils import timezone
+        sent, failed = 0, 0
+        for row in queryset.filter(status__in=[EmailQueue.STATUS_PENDING, EmailQueue.STATUS_FAILED]):
+            success, err = send_email_from_queue_row(row)
+            if success:
+                row.status = EmailQueue.STATUS_SENT
+                row.sent_at = timezone.now()
+                row.save(update_fields=['status', 'sent_at'])
+                sent += 1
+            else:
+                row.retry_count = (row.retry_count or 0) + 1
+                row.last_error = (err or '')[:2000]
+                row.save(update_fields=['retry_count', 'last_error'])
+                failed += 1
+        self.message_user(request, f'Resent: {sent} sent, {failed} failed.')
+    resend_selected.short_description = 'Resend selected (PENDING/FAILED)'
+
+    def has_add_permission(self, request):
+        return False  # Emails are enqueued by app, not created in admin
+
+
 # ============================================================================
 # TICKET MANAGEMENT ADMIN
 # ============================================================================
@@ -317,6 +414,23 @@ class TicketAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset().select_related('created_by', 'assigned_to', 'department')
+
+
+@admin.register(Vehicle)
+class VehicleAdmin(admin.ModelAdmin):
+    list_display = ['registration_number', 'user', 'brand', 'model', 'year', 'is_primary', 'created_at']
+    list_filter = ['is_primary', 'created_at']
+    search_fields = ['registration_number', 'brand', 'model', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['user']
+
+
+@admin.register(VehicleQRCode)
+class VehicleQRCodeAdmin(admin.ModelAdmin):
+    list_display = ['code', 'vehicle', 'created_at']
+    search_fields = ['code', 'vehicle__registration_number']
+    readonly_fields = ['created_at']
+    raw_id_fields = ['vehicle']
 
 
 @admin.register(TicketNote)
@@ -852,16 +966,25 @@ class ResellerPartnerSettlementAdmin(admin.ModelAdmin):
     )
 
 
+class ServiceFlowStepInline(admin.TabularInline):
+    model = ServiceFlowStep
+    extra = 0
+    ordering = ['step_order']
+    autocomplete_fields = ['vendor', 'vendor_api']
+    fields = ('step_order', 'step_name', 'vendor', 'vendor_api', 'is_mandatory', 'halt_on_failure')
+
+
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'status', 'is_enabled', 'requires_kyc', 'created_at']
-    list_filter = ['status', 'is_enabled', 'requires_kyc', 'created_at']
-    search_fields = ['name', 'code', 'description']
+    list_display = ['name', 'code', 'category', 'status', 'is_enabled', 'requires_kyc', 'created_at']
+    list_filter = ['status', 'is_enabled', 'requires_kyc', 'category', 'created_at']
+    search_fields = ['name', 'code', 'description', 'category']
     readonly_fields = ['created_at', 'updated_at']
-    
+    inlines = [ServiceFlowStepInline]
+
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'code', 'description', 'status')
+            'fields': ('name', 'code', 'category', 'description', 'status')
         }),
         ('API Integration', {
             'fields': ('api_provider', 'api_endpoint', 'api_key', 'api_secret')
@@ -873,6 +996,40 @@ class ServiceAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at', 'created_by', 'updated_by')
         }),
     )
+
+
+class VendorApiInline(admin.TabularInline):
+    model = VendorApi
+    extra = 0
+    fields = ('name', 'api_code', 'api_type', 'purpose', 'http_method', 'is_active', 'timeout_seconds', 'retry_allowed')
+
+
+@admin.register(ApiVendor)
+class ApiVendorAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['name', 'code', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [VendorApiInline]
+
+
+@admin.register(VendorApi)
+class VendorApiAdmin(admin.ModelAdmin):
+    list_display = ['name', 'api_code', 'vendor', 'api_type', 'purpose', 'is_active', 'http_method', 'created_at']
+    list_filter = ['vendor', 'api_type', 'is_active', 'created_at']
+    search_fields = ['name', 'api_code', 'vendor__name']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['vendor']
+
+
+@admin.register(ServiceFlowStep)
+class ServiceFlowStepAdmin(admin.ModelAdmin):
+    list_display = ['service', 'step_order', 'step_name', 'vendor', 'vendor_api', 'is_mandatory', 'halt_on_failure', 'created_at']
+    list_filter = ['service', 'vendor', 'is_mandatory', 'halt_on_failure', 'created_at']
+    search_fields = ['step_name', 'service__name', 'vendor__name']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['service', 'vendor', 'vendor_api']
+    ordering = ['service', 'step_order']
 
 
 @admin.register(ServiceCost)
@@ -931,6 +1088,15 @@ class BBPSBillerCategoryAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at')
         }),
     )
+
+
+@admin.register(BBPSOperator)
+class BBPSOperatorAdmin(admin.ModelAdmin):
+    list_display = ['name', 'biller_id', 'category', 'bbps_enabled', 'is_active', 'updated_at']
+    list_filter = ['category', 'bbps_enabled', 'is_active']
+    search_fields = ['name', 'biller_id', 'category']
+    readonly_fields = ['created_at', 'updated_at']
+    list_per_page = 50
 
 
 @admin.register(RBIRuleConfiguration)
@@ -1074,3 +1240,46 @@ class ApprovalRequestAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Prevent deletion of approval requests (audit trail).
         return False
+
+
+# ============================================================================
+# AUDIT HISTORY (django-simple-history) – read-only, immutable
+# Revert disabled globally via SIMPLE_HISTORY_REVERT_DISABLED = True
+# ============================================================================
+
+class ReadOnlyHistoryAdmin(SimpleHistoryAdmin):
+    """
+    Audit history models: view and search only. No add, edit, delete.
+    Compliance: append-only, immutable audit trail.
+    """
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # Allow viewing list and detail; get_readonly_fields makes form non-editable
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.get_fields()]
+
+    list_display = ['history_id', 'history_date', 'history_user', 'history_type', 'id']
+    list_filter = ['history_type', 'history_date', 'history_user']
+    search_fields = ['history_id', 'id', 'history_type']
+    date_hierarchy = 'history_date'
+    ordering = ['-history_date']
+
+
+# Register historical models (read-only audit)
+_AUDITED_MODELS = [
+    KYC, Wallet, WalletTransaction, GiftVoucher,
+    ResellerPartner, APIKey, ResellerPartnerPricing,
+    ResellerPartnerTransaction, ResellerPartnerSettlement,
+    Service, ApprovalRequest,
+]
+for _model in _AUDITED_MODELS:
+    _history_model = _model.history.model
+    if not admin.site.is_registered(_history_model):
+        admin.site.register(_history_model, ReadOnlyHistoryAdmin)

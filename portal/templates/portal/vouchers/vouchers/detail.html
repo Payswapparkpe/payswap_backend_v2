@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Voucher Details - {{ voucher.reference_number }}{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+            <i class="ti ti-ticket text-xl text-green-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Voucher Details</h1>
+            <p class="page-description-enterprise">Reference: {{ voucher.reference_number }}</p>
+        </div>
+    </div>
+    {% if from_voucherx %}
+    <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to VoucherX
+    </a>
+    {% else %}
+    <a href="/vouchers/" class="btn-enterprise-outline">
+        <i class="ti ti-arrow-left mr-2"></i>
+        Back to Vouchers
+    </a>
+    {% endif %}
+</div>
+
+<!-- Voucher Info Card -->
+<div class="card-enterprise mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Voucher Code</p>
+            {% if can_see_voucher_sensitive %}
+            <p class="text-xl font-bold font-mono text-gray-900">{{ voucher.voucher_code }}</p>
+            {% else %}
+            <p class="text-xl font-bold font-mono text-gray-900">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</p>
+            <p class="text-xs text-gray-500 mt-1">Full code visible only with sensitive-details permission</p>
+            {% endif %}
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Brand</p>
+            <p class="text-lg font-semibold text-gray-900">{{ voucher.brand.brand_name }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Status</p>
+            <p>
+                {% if voucher.status == 'ACTIVE' %}
+                <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif voucher.status == 'PARTIALLY_REDEEMED' %}
+                <span class="badge-enterprise badge-enterprise-warning">Partially Redeemed</span>
+                {% elif voucher.status == 'FULLY_REDEEMED' %}
+                <span class="badge-enterprise badge-enterprise-gray">Fully Redeemed</span>
+                {% elif voucher.status == 'BLOCKED' %}
+                <span class="badge-enterprise badge-enterprise-danger">Blocked</span>
+                {% else %}
+                <span class="badge-enterprise badge-enterprise-gray">Expired</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Original Amount</p>
+            <p class="text-2xl font-bold text-gray-900">₹{{ voucher.original_amount }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Current Balance</p>
+            <p class="text-2xl font-bold text-emerald-600">₹{{ voucher.current_balance }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Redeemed Amount</p>
+            <p class="text-2xl font-bold text-gray-900">₹{{ voucher.redeemed_amount }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Issued At</p>
+            <p class="font-semibold text-gray-900">{{ voucher.issued_at|date:"M d, Y H:i" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Last Transaction</p>
+            <p class="font-semibold text-gray-900">{{ voucher.last_transaction_at|date:"M d, Y H:i"|default:"Never" }}</p>
+        </div>
+        {% if voucher.mobile_number %}
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Mobile Number</p>
+            {% if can_see_voucher_sensitive %}
+            <p class="font-semibold text-gray-900">{{ voucher.mobile_number }}</p>
+            {% else %}
+            <p class="font-semibold text-gray-900">{{ voucher.mobile_number|slice:":2" }}******{{ voucher.mobile_number|slice:"-4:" }}</p>
+            <p class="text-xs text-gray-500 mt-1">Full number visible only with sensitive-details permission</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Transaction History -->
+<div class="card-enterprise">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Transaction History</h2>
+    <div class="table-enterprise">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Balance Before</th>
+                    <th>Balance After</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for txn in transactions %}
+                <tr>
+                    <td>
+                        <span class="badge-enterprise badge-enterprise-gray">{{ txn.get_transaction_type_display }}</span>
+                    </td>
+                    <td class="text-gray-900">
+                        {% if txn.transaction_amount %}
+                        ₹{{ txn.transaction_amount }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">₹{{ txn.balance_before }}</td>
+                    <td class="text-gray-900 font-semibold">₹{{ txn.balance_after }}</td>
+                    <td class="text-gray-600">
+                        {% if txn.redemption_method %}
+                        {{ txn.get_redemption_method_display }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if txn.transaction_status == 'SUCCESS' %}
+                        <span class="badge-enterprise badge-enterprise-success">Success</span>
+                        {% elif txn.transaction_status == 'FAILED' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Failed</span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">{{ txn.created_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-8">
+                        <p class="text-gray-500">No transactions found</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

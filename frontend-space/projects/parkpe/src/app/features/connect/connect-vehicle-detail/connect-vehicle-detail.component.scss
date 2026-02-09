@@ -1,0 +1,84 @@
+.connect-vehicle-detail {
+  padding: 1rem;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+}
+
+.meta {
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--primary-100, #004aad20);
+  color: var(--primary-700);
+  border-radius: 999px;
+}
+
+.qr-section {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: var(--surface-muted, rgba(0, 0, 0, 0.03));
+  border-radius: 1rem;
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+  }
+}
+
+.qr-desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0 0 1rem;
+}
+
+.qr-box {
+  text-align: center;
+
+  img {
+    display: block;
+    margin: 0 auto 0.5rem;
+    border-radius: 0.5rem;
+  }
+  .scan-url {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+    word-break: break-all;
+    margin: 0;
+  }
+}
+
+.loading,
+.error {
+  padding: 1rem;
+  color: var(--text-secondary);
+}
+
+.error {
+  color: var(--error, #b91c1c);
+}
+
+.back {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+
+  a {
+    color: var(--primary-600);
+    text-decoration: none;
+  }
+}

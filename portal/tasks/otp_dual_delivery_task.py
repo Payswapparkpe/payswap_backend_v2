@@ -1,9 +1,10 @@
 """
 OTP dual delivery task - sends same OTP to both email and SMS simultaneously
+Uses the CORRECT OTP sending method: send_otp_sms_task (which calls KaleyraClient.send_otp())
 """
 from celery import shared_task
 from typing import Optional, Dict, Any
-from portal.tasks.sms_task import send_sms_task
+from portal.tasks.notification_tasks import send_otp_sms_task
 from portal.tasks.email_task import send_email_task
 from portal.utils.phone_utils import normalize_phone_number
 
@@ -23,6 +24,9 @@ def send_otp_dual_delivery_task(
 ) -> Dict[str, Any]:
     """
     Send same OTP code to both email and SMS simultaneously via Celery tasks
+    
+    Uses the CORRECT OTP method: send_otp_sms_task (which calls KaleyraClient.send_otp() directly)
+    This ensures template_id and correct sender (PYSWAP) are used.
     
     Args:
         otp_code: OTP code to send (same for both channels)
@@ -45,22 +49,19 @@ def send_otp_dual_delivery_task(
         # Normalize phone number
         normalized_phone = normalize_phone_number(phone_number)
         
-        # Prepare OTP message (same for both channels)
-        otp_message = f"Your Payswap verification code is {otp_code}. Valid for 5 minutes."
+        # Prepare OTP message for email (SMS uses template via send_otp_sms_task)
+        otp_message = f"Dear User, Your one time password for Payswap registration is {otp_code}. Please do not share this OTP any one. Powered by PAYSWAP."
         
         # Email subject
         email_subject = "Your Payswap Verification Code"
         
-        # Send to both channels simultaneously
-        sms_task = send_sms_task.delay(
+        # Send SMS using CORRECT OTP method: send_otp_sms_task
+        # This calls KaleyraClient.send_otp() directly with template_id and correct sender
+        sms_task = send_otp_sms_task.delay(
             phone_number=normalized_phone,
-            message=otp_message,
+            otp_code=otp_code,
             user_id=user_id,
-            context={**context, 'is_otp': True, 'otp_length': len(otp_code)},
-            request_id=request_id,
-            client_ip=client_ip,
-            user_agent=user_agent,
-            session_id=session_id
+            context={**context, 'dual_delivery': True}
         )
         
         email_task = send_email_task.delay(
@@ -68,7 +69,7 @@ def send_otp_dual_delivery_task(
             subject=email_subject,
             plain_message=otp_message,
             user_id=user_id,
-            extra_context={**context, 'is_otp': True, 'otp_length': len(otp_code)},
+            extra_context={**context, 'is_otp': True, 'otp_length': len(otp_code), 'dual_delivery': True},
             request_id=request_id,
             client_ip=client_ip,
             user_agent=user_agent,

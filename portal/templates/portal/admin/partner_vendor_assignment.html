@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Vendor Assignment – {{ partner.company_name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Vendor Assignment</h1>
+            <p class="text-gray-600 mt-1">{{ partner.company_name }} ({{ partner.partner_code }})</p>
+        </div>
+        <a href="{% url 'admin_reseller_partner_detail' partner_id=partner.id %}" class="text-blue-600 hover:underline">Back to Partner</a>
+    </div>
+
+    <form method="post" class="bg-white rounded-lg shadow p-6">
+        {% csrf_token %}
+        <p class="text-sm text-gray-600 mb-6">Select which vendors this partner can use per service. Primary vendor is used when the API does not specify a vendor.</p>
+
+        <div class="space-y-6">
+            {% for form in service_forms %}
+            <div class="border rounded-lg p-4">
+                <h2 class="text-lg font-semibold text-gray-900 mb-3">{{ form.service_code|upper }}</h2>
+                <div class="flex flex-wrap gap-4 mb-2">
+                    {% for v in form.vendors %}
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" name="vendors_{{ form.service_code }}" value="{{ v.id }}" class="rounded border-gray-300"
+                            {% if v.id in form.assigned_ids %}checked{% endif %}>
+                        <span class="ml-2 text-sm">{{ v.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <label class="block text-xs text-gray-500 mt-2">Primary</label>
+                <select name="primary_{{ form.service_code }}" class="mt-1 block w-full max-w-xs rounded-md border border-gray-300 py-1 px-2 text-sm">
+                    <option value="">—</option>
+                    {% for v in form.vendors %}
+                    <option value="{{ v.id }}" {% if form.primary_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex justify-end gap-4">
+            <a href="{% url 'admin_reseller_partner_detail' partner_id=partner.id %}" class="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save Assignments</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+[
+  {
+    "id": "loc_001",
+    "name": "Downtown Mall Parking",
+    "address": "123 MG Road",
+    "city": "Bangalore",
+    "state": "Karnataka",
+    "postalCode": "560001",
+    "slotsCount": 150,
+    "availableSlots": 47,
+    "rates": [
+      {
+        "durationType": "hourly",
+        "amount": 50,
+        "currency": "INR",
+        "description": "₹50 per hour"
+      },
+      {
+        "durationType": "daily",
+        "amount": 300,
+        "currency": "INR",
+        "description": "₹300 per day"
+      }
+    ],
+    "coordinates": {
+      "latitude": 12.9716,
+      "longitude": 77.5946
+    },
+    "amenities": ["CCTV", "Security Guard", "EV Charging", "Covered Parking"],
+    "openingHours": {
+      "open": "00:00",
+      "close": "23:59"
+    },
+    "description": "24/7 secure parking facility with EV charging"
+  },
+  {
+    "id": "loc_002",
+    "name": "Airport Terminal Parking",
+    "address": "Kempegowda Airport",
+    "city": "Bangalore",
+    "state": "Karnataka",
+    "postalCode": "560300",
+    "slotsCount": 500,
+    "availableSlots": 234,
+    "rates": [
+      {
+        "durationType": "hourly",
+        "amount": 100,
+        "currency": "INR",
+        "description": "₹100 per hour"
+      },
+      {
+        "durationType": "daily",
+        "amount": 500,
+        "currency": "INR",
+        "description": "₹500 per day"
+      }
+    ],
+    "coordinates": {
+      "latitude": 13.1986,
+      "longitude": 77.7066
+    },
+    "amenities": ["CCTV", "Security", "Covered", "Shuttle Service"],
+    "openingHours": {
+      "open": "00:00",
+      "close": "23:59"
+    },
+    "description": "Premium parking at airport with shuttle service"
+  }
+]

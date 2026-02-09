@@ -1,0 +1,79 @@
+<div class="connect-scan">
+  <div class="container">
+    <h1>Scan or search to contact vehicle owner</h1>
+    <p class="message">
+      Scan the vehicle’s Connect QR with your camera, enter the QR code, or search by vehicle registration number. You’ll see the vehicle (masked) and options to <strong>Call</strong> or <strong>Chat</strong> with the owner.
+    </p>
+
+    <!-- 1. Scan with camera -->
+    <section class="section camera-section">
+      <h2 class="section-title">Scan QR with camera</h2>
+      @if (scannerLibReady()) {
+        @if (!cameraActive()) {
+          <button type="button" class="btn btn-primary" (click)="startCamera()">Start camera</button>
+        } @else {
+          <div class="qr-reader-wrap">
+            <div id="qr-reader"></div>
+            <button type="button" class="btn btn-ghost btn-sm stop-camera" (click)="stopCamera()">Stop camera</button>
+          </div>
+        }
+        @if (cameraError()) {
+          <p class="error-msg">{{ cameraError() }}</p>
+        }
+      } @else {
+        <p class="muted">Loading scanner…</p>
+      }
+    </section>
+
+    <!-- 2. Search by vehicle number -->
+    <section class="section">
+      <h2 class="section-title">Search by vehicle number</h2>
+      <p class="or">Enter registration number (e.g. KA01AB1234)</p>
+      <div class="enter-code">
+        <input
+          type="text"
+          [value]="vehicleNumber()"
+          (input)="onVehicleNumberInput($event)"
+          placeholder="e.g. KA01AB1234"
+          (keyup.enter)="searchByVehicleNumber()"
+          class="vehicle-input"
+        />
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="searchByVehicleNumber()"
+          [disabled]="!vehicleNumber().trim() || searchLoading()"
+        >
+          {{ searchLoading() ? 'Searching…' : 'Search' }}
+        </button>
+      </div>
+      @if (searchError()) {
+        <p class="error-msg">{{ searchError() }}</p>
+      }
+    </section>
+
+    <!-- 3. Or enter QR code -->
+    <section class="section">
+      <h2 class="section-title">Or enter QR code</h2>
+      <div class="enter-code">
+        <input
+          type="text"
+          [value]="code()"
+          (input)="onCodeInput($event)"
+          placeholder="Enter QR code"
+          (keyup.enter)="goToScanResult()"
+        />
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="goToScanResult()"
+          [disabled]="!code().trim()"
+        >
+          Continue
+        </button>
+      </div>
+    </section>
+
+    <a routerLink="/connect" class="btn btn-ghost">Back to Connect</a>
+  </div>
+</div>

@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ brand.brand_name }} - Voucher Dashboard{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
+            <i class="ti ti-building-store text-xl text-white"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">{{ brand.brand_name }}</h1>
+            <p class="page-description-enterprise">Voucher Management & Analytics Dashboard</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/brands/{{ brand.id }}/" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Brand Details
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total Vouchers -->
+    <div class="stat-card-enterprise" style="border-left-color: #6366f1;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Total Vouchers</p>
+                <p class="stat-value">{{ stats.vouchers.total|default:0 }}</p>
+                <p class="text-xs text-gray-600 mt-1">
+                    <span class="text-green-600">{{ stats.vouchers.active }} active</span>
+                </p>
+            </div>
+            <div class="stat-icon" style="color: #6366f1;">
+                <i class="ti ti-gift text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Outstanding Value -->
+    <div class="stat-card-enterprise" style="border-left-color: #8b5cf6;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Outstanding Value</p>
+                <p class="stat-value">₹{{ stats.value.outstanding|floatformat:0|default:"0" }}</p>
+                <p class="text-xs text-gray-600 mt-1">
+                    ₹{{ stats.value.redeemed|floatformat:0|default:"0" }} redeemed
+                </p>
+            </div>
+            <div class="stat-icon" style="color: #8b5cf6;">
+                <i class="ti ti-currency-rupee text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Redemption Rate -->
+    <div class="stat-card-enterprise" style="border-left-color: #10b981;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Redemption Rate</p>
+                <p class="stat-value">{{ stats.value.redemption_rate|default:0 }}%</p>
+                <p class="text-xs text-gray-600 mt-1">
+                    {{ stats.vouchers.redeemed }} vouchers redeemed
+                </p>
+            </div>
+            <div class="stat-icon" style="color: #10b981;">
+                <i class="ti ti-chart-pie text-2xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Total Clients -->
+    <div class="stat-card-enterprise" style="border-left-color: #3b82f6;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <p class="stat-label">Clients</p>
+                <p class="stat-value">{{ stats.clients.total|default:0 }}</p>
+                <p class="text-xs text-gray-600 mt-1">
+                    {{ stats.batches.total }} batches
+                </p>
+            </div>
+            <div class="stat-icon" style="color: #3b82f6;">
+                <i class="ti ti-users text-2xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Stats Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Today's Issuance -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700">Today's Issuance</h3>
+            <i class="ti ti-calendar text-gray-400"></i>
+        </div>
+        <div class="space-y-2">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Vouchers</span>
+                <span class="font-semibold text-gray-900">{{ stats.vouchers.today|default:0 }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Value</span>
+                <span class="font-semibold text-gray-900">₹{{ stats.value.today|floatformat:0|default:"0" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- This Week -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700">This Week</h3>
+            <i class="ti ti-calendar-week text-gray-400"></i>
+        </div>
+        <div class="space-y-2">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Vouchers</span>
+                <span class="font-semibold text-gray-900">{{ stats.vouchers.week|default:0 }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Value</span>
+                <span class="font-semibold text-gray-900">₹{{ stats.value.week|floatformat:0|default:"0" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- This Month -->
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700">This Month</h3>
+            <i class="ti ti-calendar-month text-gray-400"></i>
+        </div>
+        <div class="space-y-2">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Vouchers</span>
+                <span class="font-semibold text-gray-900">{{ stats.vouchers.month|default:0 }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-gray-600">Value</span>
+                <span class="font-semibold text-gray-900">₹{{ stats.value.month|floatformat:0|default:"0" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card-enterprise mb-6">
+    <div class="card-enterprise-header">
+        <div class="flex items-center gap-2">
+            <i class="ti ti-bolt text-xl text-indigo-600"></i>
+            <h3 class="card-enterprise-title">Quick Actions</h3>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Issue Single Voucher -->
+        <a href="{% url 'voucher_issue_single' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-lg transition-all group bg-gradient-to-br from-indigo-50 to-indigo-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-indigo-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-gift text-2xl text-indigo-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Issue Voucher</h4>
+            <p class="text-xs text-gray-600 text-center">Single voucher</p>
+        </a>
+        
+        <!-- Bulk Issue -->
+        <a href="{% url 'voucher_issue_bulk' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-lg transition-all group bg-gradient-to-br from-purple-50 to-purple-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-purple-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-file-upload text-2xl text-purple-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Bulk Issue</h4>
+            <p class="text-xs text-gray-600 text-center">Upload or manual</p>
+        </a>
+        
+        <!-- Create Client -->
+        <a href="{% url 'voucher_client_create' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-lg transition-all group bg-gradient-to-br from-teal-50 to-teal-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-teal-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-user-plus text-2xl text-teal-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Create Client</h4>
+            <p class="text-xs text-gray-600 text-center">Add new client</p>
+        </a>
+        
+        <!-- Manage Clients -->
+        <a href="{% url 'voucher_client_list' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-lg transition-all group bg-gradient-to-br from-teal-50 to-teal-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-teal-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-users-group text-2xl text-teal-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Manage Clients</h4>
+            <p class="text-xs text-gray-600 text-center">View all clients</p>
+        </a>
+        
+        <!-- View Batches -->
+        <a href="{% url 'voucher_batch_list' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all group bg-gradient-to-br from-blue-50 to-blue-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-file-stack text-2xl text-blue-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">View Batches</h4>
+            <p class="text-xs text-gray-600 text-center">All batches</p>
+        </a>
+        
+        <!-- View All Vouchers -->
+        <a href="{% url 'voucher_list' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-lg transition-all group bg-gradient-to-br from-purple-50 to-purple-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-purple-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-gift-card text-2xl text-purple-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">View Vouchers</h4>
+            <p class="text-xs text-gray-600 text-center">All vouchers</p>
+        </a>
+        
+        <!-- Reports -->
+        <a href="{% url 'voucher_report_issuance' %}?from=voucherx&brand_id={{ brand.id }}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-lg transition-all group bg-gradient-to-br from-indigo-50 to-indigo-100/50">
+            <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-indigo-100 group-hover:scale-110 transition-all duration-300">
+                <i class="ti ti-chart-bar text-2xl text-indigo-600"></i>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Reports</h4>
+            <p class="text-xs text-gray-600 text-center">Analytics & insights</p>
+        </a>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Recent Vouchers -->
+    <div class="card-enterprise">
+        <div class="card-enterprise-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="ti ti-gift text-xl text-purple-600"></i>
+                    <h3 class="card-enterprise-title">Recent Vouchers</h3>
+                </div>
+                <a href="{% url 'voucher_list' %}?from=voucherx&brand_id={{ brand.id }}" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                    View All
+                </a>
+            </div>
+        </div>
+        <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for voucher in recent_vouchers %}
+            <div class="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-gray-900 text-sm">{{ voucher.voucher_code|slice:":4" }}-{{ voucher.voucher_code|slice:"4:8" }}-****-****</p>
+                    <p class="text-xs text-gray-600">₹{{ voucher.original_amount }} • {{ voucher.get_status_display }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {{ voucher.issued_at|timesince }} ago
+                        {% if voucher.client %}
+                        • {{ voucher.client.client_name }}
+                        {% endif %}
+                    </p>
+                </div>
+                <a href="{% url 'voucher_detail' voucher_id=voucher.id %}?from=voucherx" class="btn-action text-xs">
+                    <i class="ti ti-eye"></i>
+                    View
+                </a>
+            </div>
+            {% empty %}
+            <div class="text-center py-8">
+                <i class="ti ti-gift-off text-4xl text-gray-300 mb-2"></i>
+                <p class="text-gray-600">No vouchers yet</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Recent Batches -->
+    <div class="card-enterprise">
+        <div class="card-enterprise-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="ti ti-file-stack text-xl text-blue-600"></i>
+                    <h3 class="card-enterprise-title">Recent Batches</h3>
+                </div>
+                <a href="{% url 'voucher_batch_list' %}?from=voucherx&brand_id={{ brand.id }}" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                    View All
+                </a>
+            </div>
+        </div>
+        <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for batch in recent_batches %}
+            <div class="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm">
+                        <a href="{% url 'voucher_batch_detail' batch_id=batch.id %}?from=voucherx" 
+                           class="text-indigo-600 hover:text-indigo-700 font-mono transition-colors">
+                            {{ batch.batch_reference }}
+                        </a>
+                    </p>
+                    <p class="text-xs text-gray-600">
+                        {{ batch.total_vouchers }} vouchers • 
+                        <span class="text-emerald-600">{{ batch.successful_vouchers }} success</span>
+                        {% if batch.failed_vouchers > 0 %}
+                        • <span class="text-red-600">{{ batch.failed_vouchers }} failed</span>
+                        {% endif %}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {{ batch.created_at|timesince }} ago
+                        {% if batch.client %}
+                        • {{ batch.client.client_name }}
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if batch.status == 'COMPLETED' %}
+                    <span class="badge-enterprise badge-enterprise-success text-xs">Completed</span>
+                    {% elif batch.status == 'PROCESSING' %}
+                    <span class="badge-enterprise badge-enterprise-warning text-xs">Processing</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray text-xs">{{ batch.get_status_display }}</span>
+                    {% endif %}
+                    <a href="{% url 'voucher_batch_detail' batch_id=batch.id %}?from=voucherx" class="btn-action text-xs">
+                        <i class="ti ti-eye"></i>
+                        View
+                    </a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8">
+                <i class="ti ti-file-stack-off text-4xl text-gray-300 mb-2"></i>
+                <p class="text-gray-600">No batches yet</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Clients Section -->
+<div class="card-enterprise mb-6">
+    <div class="card-enterprise-header">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="ti ti-users text-xl text-teal-600"></i>
+                <h3 class="card-enterprise-title">Clients</h3>
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'voucher_client_create' %}?from=voucherx&brand_id={{ brand.id }}" class="btn-enterprise-primary text-sm">
+                    <i class="ti ti-plus mr-1"></i>
+                    Create Client
+                </a>
+                <a href="{% url 'voucher_client_list' %}?from=voucherx&brand_id={{ brand.id }}" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                    View All
+                </a>
+            </div>
+        </div>
+    </div>
+    {% if clients %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for client in clients %}
+        <div class="p-4 border border-gray-200 rounded-lg hover:border-teal-300 hover:shadow-md transition-all">
+            <div class="flex items-start justify-between mb-2">
+                <div class="flex-1">
+                    <h4 class="font-semibold text-gray-900">{{ client.client_name }}</h4>
+                    <p class="text-xs text-gray-600">{{ client.client_code }}</p>
+                </div>
+                {% if client.is_default %}
+                <span class="badge-enterprise badge-enterprise-info text-xs">Default</span>
+                {% endif %}
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-600">Vouchers</p>
+                    <p class="text-sm font-semibold text-gray-900">
+                        {% for stat in client_stats %}
+                            {% if stat.client.id == client.id %}
+                                {{ stat.voucher_count }}
+                            {% endif %}
+                        {% endfor %}
+                    </p>
+                </div>
+                <a href="{% url 'voucher_client_detail' client_id=client.id %}?from=voucherx" class="btn-action text-xs">
+                    <i class="ti ti-eye"></i>
+                    View
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <i class="ti ti-users-off text-5xl text-gray-300 mb-4"></i>
+        <p class="text-gray-900 font-semibold mb-1">No clients yet</p>
+        <p class="text-sm text-gray-500 mb-4">Create your first client to start issuing vouchers</p>
+        <a href="{% url 'voucher_client_create' %}?from=voucherx&brand_id={{ brand.id }}" class="btn-enterprise-primary">
+            <i class="ti ti-plus mr-2"></i>
+            Create Client
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}{{ vendor.name }} - {{ service.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'service_detail' service_id=service.id %}" class="inline-flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition-colors">
+            <i class="ti ti-arrow-left"></i>
+            <span>Back to {{ service.name }}</span>
+        </a>
+    </div>
+
+    <!-- Enterprise Page Header -->
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <i class="ti {{ vendor.icon }} text-2xl text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="page-title-enterprise">{{ vendor.name }}</h1>
+                <p class="page-description-enterprise">{{ vendor.description }}</p>
+            </div>
+            <div>
+                {% if vendor.status == 'available' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                {% elif vendor.status == 'unavailable' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Unavailable</span>
+                {% else %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Info Card -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Vendor Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Vendor Name</p>
+                <p class="text-base font-semibold text-gray-900">{{ vendor.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Status</p>
+                <p class="text-base text-gray-900 capitalize">
+                    {% if vendor.status == 'available' %}Active (configured){% else %}Pending – set EURONET_BBPS_* in .env{% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Service</p>
+                <p class="text-base text-gray-900">{{ service.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Total APIs</p>
+                <p class="text-base text-gray-900">{{ apis|length }} Services</p>
+            </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200 flex flex-wrap items-center gap-4">
+            <p class="text-sm text-gray-600 mb-0 flex-1">
+                Euronet BBPS (Bharat Connect) provides bill fetch, bill pay, and operator listing via single EnService endpoint. Credentials are configured in <code class="bg-gray-100 px-1 rounded">.env</code>. Use the test panel below to validate integration per BBPS guidelines.
+            </p>
+            <a href="{% url 'log_list' %}?category=euronet_bbps" class="btn-enterprise btn-enterprise-secondary">
+                <i class="ti ti-file-analytics"></i>
+                <span>View BBPS Logs</span>
+            </a>
+            {% if vendor.documentation_url %}
+            <a href="{{ vendor.documentation_url }}" target="_blank" rel="noopener" class="text-indigo-600 hover:text-indigo-800 text-sm">Documentation <i class="ti ti-external-link"></i></a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Test parameters (optional overrides): save/edit for team -->
+    {% csrf_token %}
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Test parameters (optional overrides)</h2>
+        <p class="text-sm text-gray-500 mb-4">Override .env for testing. Leave blank to use .env values. Save then use "Test all APIs" or the tabs below. Required parameters: <code class="bg-gray-100 px-1 rounded">docs/VENDOR_INTEGRATION_REFERENCE.md</code> and <code class="bg-gray-100 px-1 rounded">docs/EURONET_BBPS_INTEGRATION.md</code>.</p>
+        <form id="vendor-test-params-form" class="space-y-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for field in vendor_test_params_schema %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+                    <input type="{{ field.type|default:'text' }}" name="{{ field.key }}" value="{{ field.value|default:'' }}"
+                        class="vendor-test-param w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="{{ field.placeholder|default:'' }}" autocomplete="off">
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button type="submit" id="save-test-params-btn" class="btn-enterprise btn-enterprise-primary">
+                    <i class="ti ti-device-floppy"></i>
+                    <span>Save test parameters</span>
+                </button>
+                <button type="button" id="test-all-apis-btn" class="btn-enterprise btn-enterprise-secondary">
+                    <i class="ti ti-api"></i>
+                    <span>Test all APIs</span>
+                </button>
+            </div>
+        </form>
+        <div id="test-all-result" class="hidden mt-4 p-4 rounded-lg border border-gray-200 bg-gray-50">
+            <p class="text-sm font-medium text-gray-700 mb-2">Test all results</p>
+            <pre id="test-all-result-body" class="text-xs overflow-auto max-h-64 p-3 bg-white rounded border border-gray-200"></pre>
+        </div>
+    </div>
+
+    <!-- BBPS Test UI = Postman collection in Admin (Euronet UAT) -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Euronet BBPS Test Panel (Postman in Admin)</h2>
+        <p class="text-sm text-gray-500 mb-6">Same 5 APIs as Postman: 1 Balance Enquiry, 2 Get Billers, 3 Fetch Bill, 4 Pay Bill, 5 Transaction Status. Test here instead of Postman.</p>
+
+        <!-- Tabs (Postman order) -->
+        <div class="border-b border-gray-200 mb-6">
+            <nav class="flex flex-wrap gap-2" aria-label="BBPS test tabs">
+                <button type="button" data-tab="balance" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">1. Balance Enquiry</button>
+                <button type="button" data-tab="billers" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">2. Get Billers</button>
+                <button type="button" data-tab="operators" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Operators (Excel)</button>
+                <button type="button" data-tab="fetch" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">3. Fetch Bill</button>
+                <button type="button" data-tab="pay" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">4. Pay Bill</button>
+                <button type="button" data-tab="status" class="bbps-tab py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">5. Payment Status</button>
+            </nav>
+        </div>
+
+        <!-- Tab: 1. Balance Enquiry (Postman #1) -->
+        <div id="tab-balance" class="bbps-tab-panel">
+            <p class="text-sm text-gray-600 mb-4">Call Euronet EnService with serviceType BALANCE_ENQUIRY. No extra parameters.</p>
+            <button type="button" id="bbps-balance-btn" class="btn-enterprise btn-enterprise-primary">
+                <i class="ti ti-wallet"></i>
+                <span>Balance Enquiry</span>
+            </button>
+            <div id="balance-result" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">Response</p>
+                <pre class="p-4 bg-gray-900 text-green-400 rounded-lg text-xs overflow-auto max-h-64"></pre>
+            </div>
+        </div>
+
+        <!-- Tab: 2. Get Billers (Postman #2) -->
+        <div id="tab-billers" class="bbps-tab-panel hidden">
+            <p class="text-sm text-gray-600 mb-4">Call Euronet EnService with serviceType GET_BILLERS. Optional category filter.</p>
+            <div class="flex gap-2 items-end mb-4">
+                <div class="w-48">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category (optional)</label>
+                    <select id="billers-category" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All</option>
+                        {% for cat in bbps_categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" id="bbps-billers-btn" class="btn-enterprise btn-enterprise-primary">
+                    <i class="ti ti-list"></i>
+                    <span>Get Billers</span>
+                </button>
+            </div>
+            <div id="billers-result" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">Response</p>
+                <pre class="p-4 bg-gray-900 text-green-400 rounded-lg text-xs overflow-auto max-h-96"></pre>
+            </div>
+        </div>
+
+        <!-- Tab: Operators (Excel) -->
+        <div id="tab-operators" class="bbps-tab-panel hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category (filter)</label>
+                    <select id="bbps-category" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All categories</option>
+                        {% for cat in bbps_categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button type="button" id="bbps-load-operators" class="btn-enterprise btn-enterprise-primary">
+                        <i class="ti ti-list"></i>
+                        <span>Load Operators</span>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Operator (for Fetch / Pay)</label>
+                <select id="bbps-operator-select" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                    <option value="">— Load operators first —</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Operator list from Operators.xlsx (BBPS enabled). Euronet uses billerId; dropdown uses operator_id.</p>
+            </div>
+            <div id="bbps-operator-meta" class="mt-3 p-3 bg-gray-50 rounded-lg text-sm hidden">
+                <p class="font-medium text-gray-700">Selected operator parameters</p>
+                <pre id="bbps-operator-meta-json" class="mt-1 text-xs overflow-auto max-h-32"></pre>
+            </div>
+        </div>
+
+        <!-- Tab: Fetch Bill -->
+        <div id="tab-fetch" class="bbps-tab-panel hidden">
+            <form id="bbps-fetch-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Operator <span class="text-red-500">*</span></label>
+                        <select id="fetch-operator-id" name="operator_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required>
+                            <option value="">Select operator (load in Operators tab)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" id="fetch-customer-label">Customer ID <span class="text-red-500">*</span></label>
+                        <input type="text" id="fetch-customer-id" name="customer_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Consumer / account number" required>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Subscriber ID (optional)</label>
+                        <input type="text" id="fetch-subscriber-id" name="subscriber_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="If required by biller">
+                    </div>
+                </div>
+                <div id="fetch-ad-params" class="space-y-2"></div>
+                <div>
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary">
+                        <i class="ti ti-file-search"></i>
+                        <span>Fetch Bill</span>
+                    </button>
+                </div>
+            </form>
+            <div id="fetch-result" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">Response</p>
+                <pre class="p-4 bg-gray-900 text-green-400 rounded-lg text-xs overflow-auto max-h-64"></pre>
+            </div>
+        </div>
+
+        <!-- Tab: Pay Bill -->
+        <div id="tab-pay" class="bbps-tab-panel hidden">
+            <form id="bbps-pay-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Operator <span class="text-red-500">*</span></label>
+                        <select id="pay-operator-id" name="operator_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required>
+                            <option value="">Select operator (load in Operators tab)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" id="pay-customer-label">Customer ID <span class="text-red-500">*</span></label>
+                        <input type="text" id="pay-customer-id" name="customer_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Subscriber ID (optional)</label>
+                        <input type="text" id="pay-subscriber-id" name="subscriber_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-red-500">*</span></label>
+                        <input type="text" id="pay-amount" name="amount" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. 500.00" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ref ID <span class="text-red-500">*</span></label>
+                        <div class="flex gap-2">
+                            <input type="text" id="pay-ref-id" name="ref_id" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Unique reference" required>
+                            <button type="button" id="pay-gen-ref" class="btn-enterprise btn-enterprise-secondary whitespace-nowrap">Generate</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="pay-ad-params" class="space-y-2"></div>
+                <div>
+                    <button type="submit" class="btn-enterprise btn-enterprise-primary">
+                        <i class="ti ti-currency-rupee"></i>
+                        <span>Pay Bill</span>
+                    </button>
+                </div>
+            </form>
+            <div id="pay-result" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">Response</p>
+                <pre class="p-4 bg-gray-900 text-green-400 rounded-lg text-xs overflow-auto max-h-64"></pre>
+            </div>
+        </div>
+
+        <!-- Tab: Payment Status -->
+        <div id="tab-status" class="bbps-tab-panel hidden">
+            <div class="flex gap-2 items-end max-w-md">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ref ID</label>
+                    <input type="text" id="status-ref-id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Reference from Pay Bill">
+                </div>
+                <button type="button" id="bbps-status-btn" class="btn-enterprise btn-enterprise-primary">
+                    <i class="ti ti-status-change"></i>
+                    <span>Check Status</span>
+                </button>
+            </div>
+            <div id="status-result" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-700 mb-1">Response</p>
+                <pre class="p-4 bg-gray-900 text-green-400 rounded-lg text-xs overflow-auto max-h-64"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Reference -->
+    <div class="card-enterprise">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">API v2 Endpoints</h2>
+        <p class="text-sm text-gray-500 mb-4">For partner integration (API key + bbps service permission). Pass <code>vendor=euronet</code> to use Euronet.</p>
+        <ul class="text-sm text-gray-700 space-y-1 font-mono">
+            <li>GET /api/v2/bbps/operators/?category=ELECTRICITY&amp;vendor=euronet</li>
+            <li>POST /api/v2/bbps/bill/fetch/ — body: operator_id, customer_id, vendor: euronet, …</li>
+            <li>POST /api/v2/bbps/bill/pay/ — body: operator_id, customer_id, amount, ref_id, vendor: euronet, …</li>
+            <li>GET /api/v2/bbps/bill/status/&lt;ref_id&gt;/?vendor=euronet</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+(function() {
+    const serviceId = {{ service.id }};
+    const vendorParam = 'euronet';
+    const saveTestParamsUrl = "{% url 'save_vendor_test_params' service_id=service.id vendor_code='euronet' %}";
+    const testAllApisUrl = "{% url 'test_all_vendor_apis' service_id=service.id vendor_code='euronet' %}";
+    const urls = {
+        balance: "{% url 'bbps_test_balance' service_id=service.id %}",
+        billers: "{% url 'bbps_test_billers' service_id=service.id %}",
+        operators: "{% url 'bbps_test_operators' service_id=service.id %}",
+        fetchBill: "{% url 'bbps_test_fetch_bill' service_id=service.id %}",
+        payBill: "{% url 'bbps_test_pay_bill' service_id=service.id %}",
+        status: "{% url 'bbps_test_status' service_id=service.id %}"
+    };
+
+    let operatorsList = [];
+
+    function getCookie(name) {
+        var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : null;
+    }
+    function getCsrfToken() {
+        var el = document.querySelector('[name=csrfmiddlewaretoken]');
+        return el ? el.value : getCookie('csrftoken');
+    }
+
+    // Tabs
+    document.querySelectorAll('.bbps-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const tab = this.getAttribute('data-tab');
+            document.querySelectorAll('.bbps-tab').forEach(function(b) {
+                b.classList.remove('border-blue-500', 'text-blue-600');
+                b.classList.add('border-transparent', 'text-gray-500');
+            });
+            this.classList.remove('border-transparent', 'text-gray-500');
+            this.classList.add('border-blue-500', 'text-blue-600');
+            document.querySelectorAll('.bbps-tab-panel').forEach(function(p) { p.classList.add('hidden'); });
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+        });
+    });
+
+    // 1. Balance Enquiry (Postman #1)
+    document.getElementById('bbps-balance-btn').addEventListener('click', function() {
+        const resultEl = document.getElementById('balance-result');
+        resultEl.classList.remove('hidden');
+        resultEl.querySelector('pre').textContent = 'Loading…';
+        this.disabled = true;
+        fetch(urls.balance + '?vendor=' + encodeURIComponent(vendorParam), {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            resultEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+        }).catch(function(err) {
+            resultEl.querySelector('pre').textContent = 'Error: ' + err.message;
+        }).finally(function() { document.getElementById('bbps-balance-btn').disabled = false; });
+    });
+
+    // 2. Get Billers (Postman #2)
+    document.getElementById('bbps-billers-btn').addEventListener('click', function() {
+        const cat = document.getElementById('billers-category').value;
+        let url = urls.billers + '?vendor=' + encodeURIComponent(vendorParam);
+        if (cat) url += '&category=' + encodeURIComponent(cat);
+        const resultEl = document.getElementById('billers-result');
+        resultEl.classList.remove('hidden');
+        resultEl.querySelector('pre').textContent = 'Loading…';
+        this.disabled = true;
+        fetch(url, { method: 'GET', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                resultEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(function(err) { resultEl.querySelector('pre').textContent = 'Error: ' + err.message; })
+            .finally(function() { document.getElementById('bbps-billers-btn').disabled = false; });
+    });
+
+    // Load Operators (with vendor=euronet)
+    document.getElementById('bbps-load-operators').addEventListener('click', function() {
+        const cat = document.getElementById('bbps-category').value;
+        let url = urls.operators + '?vendor=' + encodeURIComponent(vendorParam);
+        if (cat) url += '&category=' + encodeURIComponent(cat);
+        this.disabled = true;
+        fetch(url, { method: 'GET', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                operatorsList = data.operators || [];
+                const sel = document.getElementById('bbps-operator-select');
+                const fetchOp = document.getElementById('fetch-operator-id');
+                const payOp = document.getElementById('pay-operator-id');
+                sel.innerHTML = '<option value="">— Select operator —</option>';
+                fetchOp.innerHTML = '<option value="">— Select operator —</option>';
+                payOp.innerHTML = '<option value="">— Select operator —</option>';
+                operatorsList.forEach(function(op) {
+                    const text = op.name + ' (' + op.operator_id + ') — ' + op.category;
+                    const textShort = op.name + ' (' + op.operator_id + ')';
+                    const value = op.operator_id;
+                    sel.innerHTML += '<option value="' + value + '">' + text + '</option>';
+                    fetchOp.innerHTML += '<option value="' + value + '">' + textShort + '</option>';
+                    payOp.innerHTML += '<option value="' + value + '">' + textShort + '</option>';
+                });
+                sel.disabled = false;
+                fetchOp.disabled = false;
+                payOp.disabled = false;
+            })
+            .catch(function(e) { alert('Failed to load operators: ' + e.message); })
+            .finally(function() { document.getElementById('bbps-load-operators').disabled = false; });
+    });
+
+    function getSelectedOperatorMeta(selectId) {
+        const sel = document.getElementById(selectId);
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return null;
+        return operatorsList.find(function(o) { return o.operator_id === opt.value; }) || null;
+    }
+
+    function syncOperatorSelects() {
+        const main = document.getElementById('bbps-operator-select');
+        const idx = main.selectedIndex;
+        const opt = main.options[idx];
+        if (!opt || !opt.value) return;
+        const fetchOp = document.getElementById('fetch-operator-id');
+        const payOp = document.getElementById('pay-operator-id');
+        if (idx < fetchOp.options.length) fetchOp.selectedIndex = idx;
+        if (idx < payOp.options.length) payOp.selectedIndex = idx;
+        const op = operatorsList[idx - 1];
+        if (!op) return;
+        document.getElementById('fetch-customer-label').textContent = (op.customer_label || 'Customer ID') + ' *';
+        document.getElementById('pay-customer-label').textContent = (op.customer_label || 'Customer ID') + ' *';
+        document.getElementById('bbps-operator-meta').classList.remove('hidden');
+        document.getElementById('bbps-operator-meta-json').textContent = JSON.stringify(op, null, 2);
+        renderAdParams('fetch-ad-params', op, 'fetch');
+        renderAdParams('pay-ad-params', op, 'pay');
+    }
+
+    document.getElementById('bbps-operator-select').addEventListener('change', syncOperatorSelects);
+
+    function renderAdParams(containerId, op, prefix) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        ['ad1', 'ad2', 'ad3', 'ad4', 'ad9'].forEach(function(k) {
+            if (!op[k]) return;
+            const label = k.toUpperCase() + (op[k].length > 40 ? ' (' + op[k].substring(0, 40) + '…)' : '');
+            container.innerHTML += '<div><label class="block text-sm font-medium text-gray-700 mb-1">' + label + ' (optional)</label><input type="text" name="' + k + '" data-ad="' + k + '" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="' + (op[k].substring(0, 50) || k) + '"></div>';
+        });
+    }
+
+    // Fetch Bill form (with vendor=euronet)
+    document.getElementById('bbps-fetch-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const payload = {
+            operator_id: document.getElementById('fetch-operator-id').value,
+            customer_id: document.getElementById('fetch-customer-id').value.trim(),
+            subscriber_id: document.getElementById('fetch-subscriber-id').value.trim() || undefined,
+            vendor: vendorParam
+        };
+        form.querySelectorAll('[data-ad]').forEach(function(inp) {
+            if (inp.value && inp.value.trim()) payload[inp.getAttribute('data-ad')] = inp.value.trim();
+        });
+        const resultEl = document.getElementById('fetch-result');
+        resultEl.classList.remove('hidden');
+        resultEl.querySelector('pre').textContent = 'Loading…';
+        fetch(urls.fetchBill, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            resultEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+        }).catch(function(err) {
+            resultEl.querySelector('pre').textContent = 'Error: ' + err.message;
+        });
+    });
+
+    document.getElementById('pay-gen-ref').addEventListener('click', function() {
+        document.getElementById('pay-ref-id').value = 'EUR_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    });
+
+    document.getElementById('bbps-pay-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const payload = {
+            operator_id: document.getElementById('pay-operator-id').value,
+            customer_id: document.getElementById('pay-customer-id').value.trim(),
+            amount: document.getElementById('pay-amount').value.trim(),
+            ref_id: document.getElementById('pay-ref-id').value.trim(),
+            subscriber_id: document.getElementById('pay-subscriber-id').value.trim() || undefined,
+            vendor: vendorParam
+        };
+        document.getElementById('pay-ad-params').querySelectorAll('[data-ad]').forEach(function(inp) {
+            if (inp.value && inp.value.trim()) payload[inp.getAttribute('data-ad')] = inp.value.trim();
+        });
+        const resultEl = document.getElementById('pay-result');
+        resultEl.classList.remove('hidden');
+        resultEl.querySelector('pre').textContent = 'Loading…';
+        fetch(urls.payBill, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            resultEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+            if (payload.ref_id) document.getElementById('status-ref-id').value = payload.ref_id;
+        }).catch(function(err) {
+            resultEl.querySelector('pre').textContent = 'Error: ' + err.message;
+        });
+    });
+
+    document.getElementById('bbps-status-btn').addEventListener('click', function() {
+        const refId = document.getElementById('status-ref-id').value.trim();
+        if (!refId) { alert('Enter Ref ID'); return; }
+        const resultEl = document.getElementById('status-result');
+        resultEl.classList.remove('hidden');
+        resultEl.querySelector('pre').textContent = 'Loading…';
+        fetch(urls.status + '?ref_id=' + encodeURIComponent(refId) + '&vendor=' + encodeURIComponent(vendorParam), {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            resultEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+        }).catch(function(err) {
+            resultEl.querySelector('pre').textContent = 'Error: ' + err.message;
+        });
+    });
+
+    function copyOpToMain(fromSelectId) {
+        const fromSel = document.getElementById(fromSelectId);
+        const mainSel = document.getElementById('bbps-operator-select');
+        if (fromSel.selectedIndex >= 0 && mainSel.options.length === fromSel.options.length) {
+            mainSel.selectedIndex = fromSel.selectedIndex;
+            syncOperatorSelects();
+        }
+    }
+    document.getElementById('fetch-operator-id').addEventListener('change', function() { copyOpToMain('fetch-operator-id'); });
+    document.getElementById('pay-operator-id').addEventListener('change', function() { copyOpToMain('pay-operator-id'); });
+
+    // Save test parameters
+    document.getElementById('vendor-test-params-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var form = e.target;
+        var testParams = {};
+        form.querySelectorAll('.vendor-test-param').forEach(function(inp) {
+            var name = inp.getAttribute('name');
+            if (name && inp.value && inp.value.trim()) testParams[name] = inp.value.trim();
+        });
+        var btn = document.getElementById('save-test-params-btn');
+        btn.disabled = true;
+        fetch(saveTestParamsUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ test_params: testParams }),
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success) alert('Test parameters saved.');
+            else alert(data.message || 'Save failed');
+        }).catch(function(err) { alert('Error: ' + err.message); }).finally(function() { btn.disabled = false; });
+    });
+
+    // Test all APIs
+    document.getElementById('test-all-apis-btn').addEventListener('click', function() {
+        var btn = this;
+        var resultEl = document.getElementById('test-all-result');
+        var bodyEl = document.getElementById('test-all-result-body');
+        resultEl.classList.remove('hidden');
+        bodyEl.textContent = 'Running tests…';
+        btn.disabled = true;
+        fetch(testAllApisUrl, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            bodyEl.textContent = JSON.stringify(data, null, 2);
+        }).catch(function(err) {
+            bodyEl.textContent = 'Error: ' + err.message;
+        }).finally(function() { btn.disabled = false; });
+    });
+})();
+</script>
+{% endblock %}

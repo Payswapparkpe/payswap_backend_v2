@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Gift Voucher Brands{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i class="ti ti-building-store text-xl text-purple-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Gift Voucher Brands</h1>
+            <p class="page-description-enterprise">Manage brands that issue gift vouchers</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% endif %}
+        <a href="/vouchers/brands/create/" class="btn-enterprise-primary">
+            <i class="ti ti-plus mr-2"></i>
+            Create Brand
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card-enterprise mb-6">
+    <form method="get" class="flex gap-4 items-end">
+        <div class="flex-1">
+            <label class="form-label-enterprise">Search</label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Search by name, code, or email..." class="form-input-enterprise">
+        </div>
+        <div class="w-48">
+            <label class="form-label-enterprise">Status</label>
+            <select name="status" class="form-select-enterprise">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn-enterprise-secondary">
+            <i class="ti ti-filter mr-2"></i>
+            Filter
+        </button>
+        <a href="/vouchers/brands/" class="btn-enterprise-outline">
+            <i class="ti ti-x mr-2"></i>
+            Clear
+        </a>
+    </form>
+</div>
+
+<!-- Enterprise Data Table -->
+<div class="table-enterprise">
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th>Brand Code</th>
+                <th>Brand Name</th>
+                <th>Contact Email</th>
+                <th>Contact Phone</th>
+                <th>Onboarding Status</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for brand in brands %}
+            <tr>
+                <td class="font-semibold text-gray-900">{{ brand.brand_code }}</td>
+                <td class="text-gray-900">{{ brand.brand_name }}</td>
+                <td class="text-gray-600">{{ brand.contact_email|default:"-" }}</td>
+                <td class="text-gray-600">{{ brand.contact_phone|default:"-" }}</td>
+                <td>
+                    {% if brand.onboarding_status == 'APPROVED' %}
+                    <span class="badge-enterprise badge-enterprise-success">Approved</span>
+                    {% elif brand.onboarding_status == 'SUBMITTED' %}
+                    <span class="badge-enterprise badge-enterprise-warning">Pending Review</span>
+                    {% elif brand.onboarding_status == 'IN_PROGRESS' %}
+                    <span class="badge-enterprise badge-enterprise-info">In Progress</span>
+                    {% elif brand.onboarding_status == 'REJECTED' %}
+                    <span class="badge-enterprise badge-enterprise-danger">Rejected</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-gray">Not Started</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if brand.status == 'ACTIVE' %}
+                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    {% elif brand.status == 'INACTIVE' %}
+                    <span class="badge-enterprise badge-enterprise-gray">Inactive</span>
+                    {% else %}
+                    <span class="badge-enterprise badge-enterprise-danger">Suspended</span>
+                    {% endif %}
+                </td>
+                <td class="text-gray-600">{{ brand.created_at|date:"M d, Y" }}</td>
+                <td class="text-right">
+                    <div class="flex gap-2 justify-end">
+                        {% if brand.onboarding_status != 'APPROVED' %}
+                        <a href="/vouchers/brands/onboarding/{{ brand.id }}/" class="btn-action" title="Complete Onboarding">
+                            <i class="ti ti-checklist"></i>
+                            Onboard
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'brand_voucher_dashboard' brand_id=brand.id %}{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-action" title="Voucher Dashboard">
+                            <i class="ti ti-dashboard"></i>
+                            Dashboard
+                        </a>
+                        <a href="/vouchers/brands/{{ brand.id }}/{% if from_voucherx %}?from=voucherx{% endif %}" class="btn-action">
+                            <i class="ti ti-eye"></i>
+                            View
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center py-16">
+                    <div class="flex flex-col items-center justify-center">
+                        <i class="ti ti-building-store-off text-5xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-900 font-semibold mb-1">No brands found</p>
+                        <p class="text-sm text-gray-500">Get started by creating your first brand</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn-enterprise-outline">
+            <i class="ti ti-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

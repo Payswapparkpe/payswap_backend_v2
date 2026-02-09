@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "orderId": "fastag_order_001",
+  "transactionId": "fastag_txn_001",
+  "vehicleNumber": "DL01AB1234",
+  "amount": 500,
+  "status": "success",
+  "timestamp": "2024-02-05T10:30:00Z",
+  "message": "FASTag recharged successfully",
+  "balanceAfterRecharge": 1500
+}

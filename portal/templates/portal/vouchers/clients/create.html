@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Create Client{% endblock %}
+
+{% block content %}
+<!-- Enterprise Page Header -->
+<div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="ti ti-users text-xl text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="page-title-enterprise">Create Client</h1>
+            <p class="page-description-enterprise">Add a new client under a brand</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        {% if from_voucherx %}
+        <a href="{% url 'voucherx_dashboard' %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to VoucherX
+        </a>
+        {% else %}
+        <a href="/vouchers/clients/" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i>
+            Back to Clients
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Form Card -->
+<div class="card-enterprise max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="form-label-enterprise">Brand <span class="text-red-500">*</span></label>
+                <select name="brand_id" required class="form-select-enterprise" id="brand-select">
+                    <option value="">Select Brand</option>
+                    {% for brand in brands %}
+                    <option value="{{ brand.id }}" {% if selected_brand_id == brand.id|stringformat:"s" %}selected{% endif %}>{{ brand.brand_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Client Name <span class="text-red-500">*</span></label>
+                <input type="text" name="client_name" required class="form-input-enterprise" placeholder="Enter client name">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Person</label>
+                <input type="text" name="contact_person" class="form-input-enterprise" placeholder="Enter contact person name">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Email</label>
+                <input type="email" name="contact_email" class="form-input-enterprise" placeholder="Enter email address">
+            </div>
+            
+            <div>
+                <label class="form-label-enterprise">Contact Phone</label>
+                <input type="text" name="contact_phone" class="form-input-enterprise" placeholder="Enter phone number">
+            </div>
+            
+            <div class="flex items-center">
+                <input type="checkbox" name="is_default" id="is_default" class="form-checkbox-enterprise">
+                <label for="is_default" class="ml-2 text-sm text-gray-700">Set as default Payswap client for this brand</label>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 pt-4">
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-check mr-2"></i>
+                Create Client
+            </button>
+            <a href="/vouchers/clients/" class="btn-enterprise-outline">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

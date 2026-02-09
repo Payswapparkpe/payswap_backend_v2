@@ -1,0 +1,43 @@
+<div class="connect-vehicle-form">
+  <div class="page-head">
+    <h1>{{ isEdit() ? 'Edit vehicle' : 'Add vehicle' }}</h1>
+    <a routerLink="/connect/vehicles" class="btn btn-ghost">Cancel</a>
+  </div>
+
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <div class="field">
+      <label for="reg">Registration number *</label>
+      <input id="reg" type="text" formControlName="registration_number" placeholder="e.g. KA01AB1234" />
+    </div>
+    <div class="field">
+      <label for="brand">Brand</label>
+      <input id="brand" type="text" formControlName="brand" placeholder="e.g. Maruti" />
+    </div>
+    <div class="field">
+      <label for="model">Model</label>
+      <input id="model" type="text" formControlName="model" placeholder="e.g. Swift" />
+    </div>
+    <div class="field">
+      <label for="year">Year</label>
+      <input id="year" type="number" formControlName="year" placeholder="e.g. 2022" min="1990" max="2030" />
+    </div>
+    <div class="field checkbox">
+      <label>
+        <input type="checkbox" formControlName="is_primary" />
+        Set as primary vehicle
+      </label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" [disabled]="form.invalid || loading()">
+        {{ loading() ? 'Saving…' : (isEdit() ? 'Save' : 'Add vehicle') }}
+      </button>
+      <a routerLink="/connect/vehicles" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+
+  <p class="back"><a routerLink="/connect/vehicles">Back to vehicles</a></p>
+</div>
