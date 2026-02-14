@@ -26,6 +26,8 @@ class PayswapConfig(BaseSettings):
     APP_NAME: str = Field(default="Payswap")
     APP_ENV: Literal["development", "staging", "production"] = Field(default="development")
     DEBUG: bool = Field(default=False)
+    # When True, v2 payment/SMS status/delivery endpoints return explicit placeholder responses (BUG-005).
+    V2_PLACEHOLDER_MODE: bool = Field(default=True, description="v2 payment/SMS return placeholder data; set False when real integrations are live")
     SECRET_KEY: SecretStr = Field(..., min_length=50)
     ALLOWED_HOSTS: str = Field(default="localhost,127.0.0.1")
     TIMEZONE: str = Field(default="Asia/Kolkata")
@@ -54,10 +56,13 @@ class PayswapConfig(BaseSettings):
     SIGNING_SECRET: SecretStr = Field(..., min_length=32)
     JWT_SIGNING_KEY: SecretStr = Field(..., min_length=32)
     JWT_ACCESS_TOKEN_LIFETIME: int = Field(
-        default=3600,
-        description="Access token lifetime in seconds. Use 900–3600 (15–60 min) for production.",
+        default=300,
+        description="Access token lifetime in seconds. 300 = 5 min inactivity timeout; active users extend via refresh.",
     )
-    JWT_REFRESH_TOKEN_LIFETIME: int = Field(default=86400)
+    JWT_REFRESH_TOKEN_LIFETIME: int = Field(
+        default=86400 * 7,
+        description="Refresh token lifetime in seconds. 7 days so active users stay logged in.",
+    )
 
     # ============================================================================
     # SMS - KALEYRA (India Region)
@@ -71,7 +76,9 @@ class PayswapConfig(BaseSettings):
     # Base URL for Kaleyra API (without protocol, will be added in code)
     # Example: api.in.kaleyra.io (will become https://api.in.kaleyra.io/v1/{SID})
     KALEYRA_BASE_URL: str = Field(default="api.in.kaleyra.io")
-    
+    # Optional: separate base URL for Kaleyra Voice (click-to-call). If set, used for voice API only.
+    KALEYRA_VOICE_BASE_URL: Optional[str] = Field(default=None, description="Voice API base (e.g. api.in.kaleyra.io) if different from KALEYRA_BASE_URL")
+
     # ============================================================================
     # DOCUMENT VERIFICATION
     # ============================================================================
@@ -85,6 +92,13 @@ class PayswapConfig(BaseSettings):
         default=None,
         description="Path to Cashfree public key file (alternative to CASHFREE_PUBLIC_KEY)"
     )
+    CASHFREE_VERIFICATION_ENVIRONMENT: str = Field(
+        default="PRODUCTION",
+        description="SANDBOX or PRODUCTION for Cashfree Verification APIs (Vehicle RC, etc.). Independent of PG.",
+    )
+    # Optional: use these for Vehicle RC if set; else CASHFREE_API_KEY/SECRET (from Verification Suite dashboard)
+    CASHFREE_VERIFICATION_API_KEY: Optional[SecretStr] = Field(default=None, description="Cashfree Verification API key (Vehicle RC). If not set, CASHFREE_API_KEY is used.")
+    CASHFREE_VERIFICATION_API_SECRET: Optional[SecretStr] = Field(default=None, description="Cashfree Verification API secret. If not set, CASHFREE_API_SECRET is used.")
     INVINCIBLE_OCEAN_API_KEY: Optional[SecretStr] = Field(default=None)
     INVINCIBLE_OCEAN_API_SECRET: Optional[SecretStr] = Field(default=None)
     
@@ -138,6 +152,14 @@ class PayswapConfig(BaseSettings):
     MOBIKWIK_BBPS_TOKEN_PATH: Optional[str] = Field(
         default=None,
         description='Override token API path (e.g. /oauth/token or /v1/token). Set from Mobikwik RT-Recharge & Bill Payment API doc if token fails.'
+    )
+    MOBIKWIK_BBPS_UAT_VERBOSE_LOG: bool = Field(
+        default=False,
+        description='When True, log full request/response (sanitized) and cURL template per API to LogEntry for UAT/onboarding. Off in production.'
+    )
+    MOBIKWIK_BBPS_RETRY_ON_FAILURE: bool = Field(
+        default=True,
+        description='When True, retry once on timeout or 5xx after 2s delay. Both attempts logged when UAT_VERBOSE_LOG is on.'
     )
 
     # ============================================================================
@@ -214,6 +236,15 @@ class PayswapConfig(BaseSettings):
         default=None,
         description="Gift Voucher Brand ID for ParkPe (VoucherX). When set, ParkPe buy-voucher uses this brand to issue vouchers.",
     )
+    # data.gov.in Pincode API (All India Pincode Directory) – for address lookup by pincode
+    DATA_GOV_IN_API_KEY: Optional[str] = Field(
+        default=None,
+        description="API key for data.gov.in (get from https://data.gov.in). Used for pincode-to-address lookup.",
+    )
+    DATA_GOV_IN_PINCODE_RESOURCE_URL: str = Field(
+        default="https://api.data.gov.in/resource/5c2f62fe-5afa-4119-a499-fec9d604d5bd",
+        description="data.gov.in resource URL for All India Pincode Directory.",
+    )
 
     # ============================================================================
     # INSTANTPAY API
@@ -256,6 +287,16 @@ class PayswapConfig(BaseSettings):
     SENTRY_ENABLED: bool = Field(default=False)
     SENTRY_DSN: Optional[SecretStr] = Field(default=None)
     SENTRY_ENVIRONMENT: Optional[str] = Field(default=None)
+
+    # ============================================================================
+    # TRUSTED PROXY (VAPT-002/003)
+    # ============================================================================
+    # Comma-separated IPs or CIDRs of load balancer/WAF. When REMOTE_ADDR is in this list,
+    # client IP is taken from X-Forwarded-For (leftmost). Otherwise X-Forwarded-For is ignored.
+    TRUSTED_PROXY_IPS: str = Field(
+        default="",
+        description="Comma-separated trusted proxy IPs/CIDRs (e.g. 10.0.0.1,172.16.0.0/12)",
+    )
 
     # ============================================================================
     # CORS
@@ -312,6 +353,13 @@ class PayswapConfig(BaseSettings):
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",")]
+
+    @property
+    def trusted_proxy_ips_list(self) -> list[str]:
+        """Trusted proxy IPs/CIDRs for client IP resolution (VAPT-002/003)."""
+        if not self.TRUSTED_PROXY_IPS or not self.TRUSTED_PROXY_IPS.strip():
+            return []
+        return [ip.strip() for ip in self.TRUSTED_PROXY_IPS.split(",") if ip.strip()]
 
     @property
     def is_production(self) -> bool:
