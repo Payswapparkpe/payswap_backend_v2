@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { PaymentGatewayService } from '../../../core/services/payment-gateway.service';
-import { GatewayConfig, PaymentGateway } from '../../../core/models/payment.model';
+import { GatewayConfig, PaymentGateway } from 'shared';
 
 @Component({
   selector: 'app-payment-page',

@@ -1,0 +1,66 @@
+<div class="connect-thread-chat">
+  @if (threadLoading()) {
+  <p class="loading">Loading chat…</p>
+  } @else if (threadError(); as err) {
+  <p class="error">{{ err }}</p>
+  <a routerLink="/connect/chats" class="btn btn-outline">Back to Chats</a>
+  } @else if (thread(); as t) {
+  <div class="chat-page-header">
+    <div class="chat-page-header-top">
+      <a routerLink="/connect/chats" class="back-link">← Chats</a>
+      @if (t.other_participant_id != null) {
+      <button type="button" class="btn btn-ghost btn-sm report-btn" (click)="openReportModal()">Report user</button>
+      }
+    </div>
+    <h1>{{ t.registration_number_masked }}</h1>
+    <p class="chat-subtitle">{{ t.owner_display_name }}</p>
+  </div>
+
+  @if (chatService.error(); as err) {
+  <p class="chat-error">{{ err }}</p>
+  }
+  <div class="chat-messages">
+    @for (msg of chatService.messages(); track msg.id) {
+    <div class="chat-msg" [class.chat-msg-me]="currentUserId() === msg.sender_id"
+      [class.chat-msg-other]="currentUserId() !== msg.sender_id">
+      <span class="chat-msg-body">{{ msg.body }}</span>
+      <span class="chat-msg-time">{{ msg.created_at | date:'shortTime' }}</span>
+    </div>
+    }
+  </div>
+  <div class="chat-predefined">
+    @for (pref of predefined(); track pref.code) {
+    <button type="button" class="btn btn-outline btn-sm" (click)="sendPredefined(pref.code)"
+      [disabled]="chatService.loading()">{{ pref.label_en }}</button>
+    }
+  </div>
+  <div class="chat-input-row">
+    <input type="text" class="chat-input" [value]="messageInput()" (input)="onMessageInput($event)"
+      placeholder="Type a message…" (keydown.enter)="sendMessage()" />
+    <button type="button" class="btn btn-primary" (click)="sendMessage()"
+      [disabled]="!messageInput().trim() || chatService.loading()">
+      {{ chatService.loading() ? '…' : 'Send' }}
+    </button>
+  </div>
+
+  @if (showReportModal()) {
+  <div class="modal-overlay" (click)="closeReportModal()" role="presentation"></div>
+  <div class="report-modal" role="dialog" aria-labelledby="report-modal-title">
+    <h2 id="report-modal-title">Report user</h2>
+    <p class="report-modal-text">Describe why you are reporting this user. Our team will review it.</p>
+    <textarea class="report-reason-input" [value]="reportReason()" (input)="onReportReasonInput($event)"
+      placeholder="Reason…" rows="3"></textarea>
+    @if (reportError(); as err) {
+    <p class="report-error">{{ err }}</p>
+    }
+    <div class="report-modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeReportModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="submitReport()"
+        [disabled]="!reportReason().trim() || reportSubmitting()">
+        {{ reportSubmitting() ? 'Submitting…' : 'Submit report' }}
+      </button>
+    </div>
+  </div>
+  }
+  }
+</div>

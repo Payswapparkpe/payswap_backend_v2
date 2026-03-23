@@ -2,6 +2,9 @@
 export interface FastagRechargeRequest {
   vehicleNumber: string;
   fastagId?: string;
+  operatorId?: string;
+  operatorCode?: string;
+  operatorName?: string;
   amount: number;
   customerName: string;
   customerEmail: string;

@@ -2,12 +2,17 @@
   padding: 1rem;
   max-width: 640px;
   margin: 0 auto;
+
+  &.embedded {
+    max-width: none;
+    padding: 0;
+  }
 }
 
 .page-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -15,6 +20,77 @@
   h1 {
     margin: 0;
     font-size: 1.5rem;
+  }
+}
+
+.page-head-text {
+  min-width: 0;
+}
+
+.page-head-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.btn-add-vehicle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+
+  .material-icons {
+    font-size: 1.1rem;
+  }
+}
+
+.embedded .page-head {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: none;
+  align-items: flex-start;
+
+  h1 {
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+  }
+
+  .page-head-hint {
+    font-size: 0.78rem;
+    opacity: 0.85;
+  }
+
+  .btn-add-vehicle {
+    font-size: 0.78rem;
+    padding: 0.38rem 0.7rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+}
+
+.upgrade-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(79, 70, 229, 0.08);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+
+  .material-icons {
+    font-size: 1.25rem;
+    color: var(--primary-600);
+    flex-shrink: 0;
+  }
+  p {
+    margin: 0;
+    line-height: 1.45;
   }
 }
 
@@ -52,6 +128,24 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.vehicle-list--cards {
+  gap: 1rem;
+}
+
+.embedded .vehicle-list--cards {
+  gap: 0.6rem;
+}
+
+.vehicle-list-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.embedded .vehicle-list-item {
+  border-radius: 0;
 }
 
 .vehicle-card {

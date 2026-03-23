@@ -1,6 +1,7 @@
 """
 Log management views: list, export, detail, resolve.
 """
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -11,6 +12,102 @@ from django.http import JsonResponse
 from django.db import models
 
 from portal.models import LogEntry, User
+
+
+def _parse_bbps_consumer_details(extra_data):
+    """
+    Parse BBPS View Bill / Fetch Bill response from extra_data.response_body
+    and return structured consumer details for display.
+    Returns list of dicts with label/value for template, or None if not parseable.
+    """
+    if not extra_data or not isinstance(extra_data, dict):
+        return None
+    # response_body can be JSON string or response_body_truncated_sanitized
+    raw = extra_data.get("response_body") or extra_data.get("response_body_truncated_sanitized")
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, str):
+            data = json.loads(raw)
+        elif isinstance(raw, dict):
+            data = raw
+        else:
+            return None
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    # BBPS success: {"success": true, "data": [...]} or {"data": {...}} or {"billDetails": [...]}
+    if data.get("success") is False:
+        return None
+    # Extract bill details array/object
+    inner = data.get("data")
+    bill_list = None
+    if isinstance(inner, list) and inner:
+        bill_list = inner
+    elif isinstance(inner, dict):
+        bill_list = inner.get("billDetails") or inner.get("bill_details") or inner.get("data")
+        if isinstance(bill_list, dict):
+            bill_list = [bill_list]
+        elif not isinstance(bill_list, list) or not bill_list:
+            bill_list = [inner]
+    elif inner is None:
+        bill_list = data.get("billDetails") or data.get("bill_details")
+        if isinstance(bill_list, dict):
+            bill_list = [bill_list]
+        elif isinstance(bill_list, list) and bill_list:
+            pass
+        elif any(k in data for k in ("billAmount", "bill_amount", "userName", "user_name", "amount")):
+            bill_list = [data]
+        else:
+            bill_list = None
+    if not bill_list or not isinstance(bill_list, list):
+        return None
+    # Map common BBPS field names to display labels
+    FIELD_MAP = [
+        ("billAmount", "Bill Amount"),
+        ("bill_amount", "Bill Amount"),
+        ("amount", "Amount"),
+        ("dueDate", "Due Date"),
+        ("due_date", "Due Date"),
+        ("userName", "Consumer Name"),
+        ("user_name", "Consumer Name"),
+        ("consumerName", "Consumer Name"),
+        ("customerName", "Customer Name"),
+        ("cellNumber", "Mobile Number"),
+        ("cell_number", "Mobile Number"),
+        ("mobile", "Mobile"),
+        ("billdate", "Bill Date"),
+        ("bill_date", "Bill Date"),
+        ("accountNumber", "Account Number"),
+        ("account_number", "Account Number"),
+        ("customerId", "Customer ID"),
+        ("customer_id", "Customer ID"),
+    ]
+    result = []
+    for item in bill_list:
+        if not isinstance(item, dict):
+            continue
+        rows = []
+        seen = set()
+        for key, label in FIELD_MAP:
+            val = item.get(key)
+            if val is not None and val != "" and label.lower() not in seen:
+                seen.add(label.lower())
+                rows.append({"label": label, "value": val})
+        # Include any other non-empty keys not in FIELD_MAP (generic fallback)
+        for k, v in item.items():
+            if k in ("billAmount", "bill_amount", "amount", "dueDate", "due_date",
+                     "userName", "user_name", "consumerName", "customerName",
+                     "cellNumber", "cell_number", "mobile", "billdate", "bill_date",
+                     "accountNumber", "account_number", "customerId", "customer_id"):
+                continue
+            if v is not None and v != "" and isinstance(v, (str, int, float)):
+                label = k.replace("_", " ").title()
+                rows.append({"label": label, "value": v})
+        if rows:
+            result.append(rows)
+    return result if result else None
 
 
 class LogListView(ListView):
@@ -299,6 +396,47 @@ class LogDetailView(DetailView):
                 context['cashfree_log'] = None
         else:
             context['cashfree_log'] = None
+        # For BBPS logs without api_name (e.g. old Parkpe logs), derive from message so detail page shows which API
+        extra = getattr(log_entry, 'extra_data', None) or {}
+        if (log_entry.category in ('parkpe_bbps', 'mobikwik_bbps', 'euronet_bbps') and
+                not extra.get('api_name') and not extra.get('action') and log_entry.message):
+            msg_lower = log_entry.message.lower()
+            if 'fetch bill' in msg_lower or 'bill fetch' in msg_lower:
+                context['log_display_api_name'] = 'Fetch Bill'
+            elif ('pay' in msg_lower and 'cart' not in msg_lower) or 'pay bill' in msg_lower:
+                context['log_display_api_name'] = 'Pay Bill'
+            elif 'payment status' in msg_lower or 'status fetch' in msg_lower:
+                context['log_display_api_name'] = 'Payment Status'
+            elif 'categor' in msg_lower:
+                context['log_display_api_name'] = 'Categories'
+            elif 'operator' in msg_lower or 'biller' in msg_lower:
+                context['log_display_api_name'] = 'Get Operators'
+            else:
+                context['log_display_api_name'] = (log_entry.message[:50] + '…') if len(log_entry.message) > 50 else log_entry.message
+        else:
+            context['log_display_api_name'] = None
+        # Consumer details for BBPS View Bill / Fetch Bill (parse response_body)
+        bbps_bill_actions = ("view_bill", "validation", "fetch_bill")
+        if (log_entry.category in ("parkpe_bbps", "mobikwik_bbps", "euronet_bbps") and
+                extra.get("action") in bbps_bill_actions and extra.get("success")):
+            context["consumer_details"] = _parse_bbps_consumer_details(extra)
+        else:
+            context["consumer_details"] = None
+        # Related logs with same request_id (ParkPe → Vendor flow: did vendor get hit?)
+        if log_entry.request_id:
+            context["related_logs_same_request"] = list(
+                LogEntry.objects.filter(request_id=log_entry.request_id)
+                .exclude(pk=log_entry.pk)
+                .order_by("timestamp")[:20]
+            )
+            # Whether any of them is a vendor call (mobikwik_bbps / euronet_bbps)
+            context["vendor_was_called"] = any(
+                log.category in ("mobikwik_bbps", "euronet_bbps")
+                for log in context["related_logs_same_request"]
+            )
+        else:
+            context["related_logs_same_request"] = []
+            context["vendor_was_called"] = None
         return context
 
     def post(self, request, *args, **kwargs):

@@ -81,7 +81,6 @@ def send_otp_dual_delivery_task(
             'message': 'OTP sent to both email and SMS',
             'sms_task_id': sms_task.id,
             'email_task_id': email_task.id,
-            'otp_code': otp_code  # For testing only, remove in production
         }
         
     except ValueError as e:

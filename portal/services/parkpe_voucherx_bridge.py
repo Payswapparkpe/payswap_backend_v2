@@ -1,11 +1,10 @@
 """
 ParkPe – VoucherX (Gift Voucher) bridge.
-Replaces the old ParkPe balance service: voucher create = issue Gift Voucher (VoucherService);
-balance = sum of user's Gift Vouchers; debit = redeem voucher by PIN.
+Voucher create = issue Gift Voucher (VoucherService). No wallet/total balance (RBI gift PPI).
+Single-voucher redemption by voucher_id + PIN in RC pay and BBPS.
 Requires PARKPE_VOUCHER_BRAND_ID in config (or a GiftVoucherBrand with api_identifier 'PARKPE').
 """
 from decimal import Decimal
-from django.db.models import Sum
 
 from portal.models import GiftVoucher, GiftVoucherBrand
 from portal.services.voucher_service import VoucherService
@@ -30,25 +29,6 @@ def get_parkpe_brand_id():
 def _get_parkpe_brand_id():
     """Alias for get_parkpe_brand_id (internal use)."""
     return get_parkpe_brand_id()
-
-
-def get_balance(user):
-    """
-    Return current voucher balance for ParkPe user = sum of current_balance of all
-    Gift Vouchers issued for this user (metadata parkpe_user_id) with status ACTIVE or PARTIALLY_REDEEMED.
-    """
-    brand_id = _get_parkpe_brand_id()
-    if not brand_id:
-        return Decimal("0")
-    result = (
-        GiftVoucher.objects.filter(
-            brand_id=brand_id,
-            status__in=["ACTIVE", "PARTIALLY_REDEEMED"],
-            metadata__parkpe_user_id=user.pk,
-        ).aggregate(total=Sum("current_balance"))
-    )
-    total = result.get("total")
-    return total if total is not None else Decimal("0")
 
 
 def credit_voucher_balance(
@@ -103,8 +83,7 @@ def credit_voucher_balance(
             "voucher_id": result.get("voucher_id"),
         },
     )
-    # Return (balance_obj_like, new_balance) for compatibility; we don't have balance_obj, so return (None, get_balance)
-    return None, get_balance(user)
+    return None, None
 
 
 def debit_voucher_balance(
@@ -174,5 +153,4 @@ def debit_voucher_balance(
             "voucher_id": voucher.id,
         },
     )
-    new_balance = get_balance(user)
-    return None, new_balance
+    return None, None

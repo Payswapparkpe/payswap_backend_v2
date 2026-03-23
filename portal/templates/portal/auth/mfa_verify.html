@@ -53,9 +53,16 @@
                     <h2 class="text-2xl font-bold text-gray-900 text-center mb-2">Verify OTP</h2>
                     
                     <!-- Instructions -->
-                    <p class="text-sm text-gray-600 text-center mb-6">
+                    <p class="text-sm text-gray-600 text-center mb-6" x-show="method === 'otp' && otpRequested">
                         Enter the verification code we just sent to your 
                         <span class="text-[#0066CC] font-semibold">{{ user.phone|default:"mobile number" }}</span>
+                    </p>
+                    <p class="text-sm text-gray-600 text-center mb-6" x-show="method === 'otp' && !otpRequested">
+                        Click the <strong>OTP</strong> button above to send a verification code to your 
+                        <span class="text-[#0066CC] font-semibold">{{ user.phone|default:"mobile number" }}</span>
+                    </p>
+                    <p class="text-sm text-gray-600 text-center mb-6" x-show="method === 'authenticator'">
+                        Enter the 6-digit code from your authenticator app.
                     </p>
                     
                     <!-- Method Switch -->
@@ -85,7 +92,19 @@
                         
                         <!-- OTP Input Boxes (6 boxes for 6-digit OTP) -->
                         <div class="mb-6" x-show="method === 'otp'">
-                            <div class="flex justify-center gap-3 mb-4">
+                            <!-- Send OTP button when user has not yet requested OTP -->
+                            <div class="mb-4" x-show="!otpRequested">
+                                <button
+                                    type="button"
+                                    @click="requestOTPFirstTime()"
+                                    :disabled="resending"
+                                    class="w-full py-3 px-4 bg-[#0066CC] text-white rounded-lg font-semibold hover:bg-[#0052A3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <span x-show="!resending">Send OTP</span>
+                                    <span x-show="resending">Sending OTP...</span>
+                                </button>
+                            </div>
+                            <div class="flex justify-center gap-3 mb-4" x-show="otpRequested">
                                 <template x-for="(digit, index) in otpDigits" :key="index">
                                     <input
                                         type="text"
@@ -103,23 +122,27 @@
                                 </template>
                             </div>
                             
-                            <!-- Timer and Resend -->
-                            <div class="flex items-center justify-center gap-3 mb-6">
-                                <div class="flex items-center gap-2" x-show="timer > 0">
+                            <!-- Timer and Resend (only after OTP has been sent) -->
+                            <div class="mb-6" x-show="otpRequested">
+                                <div class="flex items-center justify-center gap-2 mb-2" x-show="timer > 0">
                                     <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
                                     <span class="text-sm font-semibold text-red-600" x-text="formatTime(timer)"></span>
                                 </div>
-                                <button
-                                    type="button"
-                                    @click="resendOTP()"
-                                    x-show="timer === 0"
-                                    :disabled="resending"
-                                    class="text-sm text-[#0066CC] hover:underline font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                                >
-                                    Resend OTP
-                                </button>
+                                <!-- When OTP expires: show message and prominent Resend OTP option -->
+                                <div class="text-center" x-show="timer === 0">
+                                    <p class="text-sm text-amber-700 font-medium mb-3">Verification code expired.</p>
+                                    <button
+                                        type="button"
+                                        @click="resendOTP()"
+                                        :disabled="resending"
+                                        class="w-full py-2.5 px-4 bg-[#0066CC] text-white rounded-lg font-semibold hover:bg-[#0052A3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <span x-show="!resending">Resend OTP</span>
+                                        <span x-show="resending">Sending...</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
@@ -233,7 +256,8 @@ function otpVerification() {
         method: '{{ user.mfa_method|default:"otp" }}',
         otpDigits: ['', '', '', '', '', ''], // 6 digits for 6-digit OTP
         authenticatorCode: '',
-        timer: 120, // 2 minutes in seconds
+        timer: 0, // 2 min countdown starts only after user clicks OTP and code is sent
+        otpRequested: false, // OTP is sent only when user clicks OTP tab, not on page load
         resending: false,
         submitting: false,
         errorMessage: '',
@@ -241,12 +265,7 @@ function otpVerification() {
         intervalId: null,
         
         init() {
-            // Start timer if OTP method
-            if (this.method === 'otp') {
-                this.startTimer();
-            }
-            
-            // Focus first input
+            // Do NOT send OTP or start timer on page load. Timer starts only after user clicks OTP tab.
             this.$nextTick(() => {
                 const firstInput = this.$el.querySelector('input[type="text"]');
                 if (firstInput) firstInput.focus();
@@ -309,14 +328,48 @@ function otpVerification() {
             if (lastInput) lastInput.focus();
         },
         
-        switchMethod(newMethod) {
+        async switchMethod(newMethod) {
             this.method = newMethod;
             this.errorMessage = '';
             this.successMessage = '';
             
-            if (newMethod === 'otp' && this.timer === 0) {
-                this.timer = 120;
-                this.startTimer();
+            // When user clicks OTP tab, send OTP only if not yet requested (no auto-send on page load)
+            if (newMethod === 'otp' && !this.otpRequested) {
+                await this.requestOTPFirstTime();
+            }
+        },
+        
+        async requestOTPFirstTime() {
+            this.resending = true;
+            this.errorMessage = '';
+            this.successMessage = '';
+            try {
+                const response = await fetch('{% url "resend_otp" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.otpRequested = true;
+                    this.successMessage = 'OTP has been sent to your mobile number.';
+                    this.timer = 120;
+                    this.startTimer();
+                    this.otpDigits = ['', '', '', '', '', ''];
+                    this.$nextTick(() => {
+                        const firstInput = this.$el.querySelector('input[type="text"]');
+                        if (firstInput) firstInput.focus();
+                    });
+                } else {
+                    this.errorMessage = data.message || 'Failed to send OTP. Please try again.';
+                }
+            } catch (error) {
+                this.errorMessage = 'An error occurred. Please try again.';
+            } finally {
+                this.resending = false;
             }
         },
         

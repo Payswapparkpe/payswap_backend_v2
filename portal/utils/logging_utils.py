@@ -103,6 +103,9 @@ def categorize_log(
         # Check for voucher-related URLs (before other checks)
         if any(x in url.lower() for x in ['/voucher', '/voucherx', '/batch', '/brand', '/client']):
             return 'gift_voucher'
+        # ParkPe Connect – vehicle CRUD, RC fetch, delete OTP, QR
+        if '/connect/' in url.lower() or (extra_data and extra_data.get('category') == 'connect_vehicle'):
+            return 'connect_vehicle'
         # Mobikwik BBPS (portal test UI and API v2)
         if 'bbps' in url.lower() or 'mobikwik' in url.lower():
             return 'mobikwik_bbps'
@@ -122,6 +125,8 @@ def categorize_log(
         # Check for voucher-related modules (before other checks)
         if any(x in module_name.lower() for x in ['voucher', 'voucherx', 'bulk_voucher', 'voucher_client', 'voucher_export', 'brand_onboarding']):
             return 'gift_voucher'
+        if 'connect.vehicle' in module_name.lower() or 'api.connect' in module_name.lower():
+            return 'connect_vehicle'
         if any(x in module_name.lower() for x in ['mobikwik', 'bbps_service', 'bbps_views']):
             return 'mobikwik_bbps'
         if 'api' in module_name.lower():

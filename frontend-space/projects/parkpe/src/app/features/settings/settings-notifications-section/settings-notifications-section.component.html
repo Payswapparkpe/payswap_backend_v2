@@ -1,0 +1,23 @@
+<section class="settings-section card">
+  <h2 class="section-title">Notifications</h2>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>Push Notifications</h3>
+      <p>Receive notifications about transactions</p>
+    </div>
+    <label class="toggle-switch">
+      <input type="checkbox" [checked]="pushEnabled()" (change)="onPushChange()" />
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>Email Notifications</h3>
+      <p>Receive email updates</p>
+    </div>
+    <label class="toggle-switch">
+      <input type="checkbox" [checked]="emailEnabled()" (change)="onEmailChange()" />
+      <span class="slider"></span>
+    </label>
+  </div>
+</section>

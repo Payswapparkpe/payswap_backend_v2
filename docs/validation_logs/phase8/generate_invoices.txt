@@ -1,0 +1,2 @@
+INFO 2026-02-14 20:33:40,386 handler_registry 41300 8683646016 Registered default step handlers for paypoint (AEPS) and paypoint_dmt (DMT)
+Billing cycle 2026-01: 3 partners, 9 documents, 0 errors.

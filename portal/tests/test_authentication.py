@@ -32,9 +32,9 @@ class AuthenticationTestCase(TestCase):
             hierarchy_level=10,
             mfa_required=True
         )
-        self.super_role = Role.objects.create(
-            name='Super',
-            code='super',
+        self.super_admin_role = Role.objects.create(
+            name='Super Admin',
+            code='super_admin',
             category='b2b',
             hierarchy_level=9,
             mfa_required=True
@@ -349,18 +349,18 @@ class MFATests(AuthenticationTestCase):
 class SuperuserCreationTests(AuthenticationTestCase):
     """Test superuser creation with auto-assigned role"""
     
-    def test_createsuperuser_auto_assigns_super_role(self):
-        """Test that createsuperuser auto-assigns 'super' role"""
+    def test_createsuperuser_auto_assigns_super_admin_role(self):
+        """Test that createsuperuser auto-assigns 'super_admin' role"""
         # Create superuser via UserManager
         user = User.objects.create_superuser(
             username='superadmin',
             password='SuperPass123!'
         )
         
-        # Should have 'super' role
-        self.assertEqual(user.role_code, 'super')
+        # Should have 'super_admin' role
+        self.assertEqual(user.role_code, 'super_admin')
         self.assertIsNotNone(user.role)
-        self.assertEqual(user.role.code, 'super')
+        self.assertEqual(user.role.code, 'super_admin')
     
     def test_createsuperuser_creates_profile(self):
         """Test that createsuperuser creates Profile"""
@@ -384,7 +384,7 @@ class SuperuserCreationTests(AuthenticationTestCase):
         
         # Username should be auto-generated
         self.assertIsNotNone(user.username)
-        self.assertTrue(user.username.startswith('S'))  # Super role prefix
+        self.assertTrue(user.username.startswith('X'))  # Super Admin role prefix
 
 
 class RateLimitingTests(AuthenticationTestCase):

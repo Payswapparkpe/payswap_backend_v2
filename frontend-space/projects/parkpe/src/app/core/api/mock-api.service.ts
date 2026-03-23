@@ -1,16 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, delay, of, map } from 'rxjs';
-import { ApiBackend } from './api-backend.interface';
+import type { ApiBackend, BbpsSavedBillApi, BbpsSavedBillAdd } from './api-backend.interface';
 import {
   User,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  RegisterVerifyRequest,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
-} from '../models/auth.model';
+} from 'shared';
 import {
   PaymentGateway,
   GatewayConfig,
@@ -20,7 +21,7 @@ import {
   RefundDetails,
   PaymentOrder,
   VoucherStatementEntry,
-} from '../models/payment.model';
+} from 'shared';
 import {
   ParkingLocation,
   ParkingSlot,
@@ -44,6 +45,7 @@ import {
   ChallanPaymentRequest,
   ChallanPaymentResponse,
 } from '../models/challan.model';
+import { generateTransactionId } from '../utils/transaction-id';
 
 /**
  * Mock API Service
@@ -78,6 +80,23 @@ export class MockApiService implements ApiBackend {
     return this.http
       .get<RegisterResponse>('assets/mock/auth/register.json')
       .pipe(delay(this.mockDelay));
+  }
+
+  registerSendOtp(_payload: RegisterRequest): Observable<{ message: string; expires_in: number }> {
+    return of({ message: 'OTP sent to your mobile number.', expires_in: 300 }).pipe(delay(this.mockDelay));
+  }
+
+  registerVerify(_payload: RegisterVerifyRequest): Observable<LoginResponse> {
+    return this.http
+      .get<LoginResponse>('assets/mock/auth/login.json')
+      .pipe(delay(this.mockDelay));
+  }
+
+  lookupPincode(pincode: string): Observable<import('../models/auth.model').PincodeLookupResponse> {
+    return of({
+      pincode: pincode,
+      addresses: [{ state: 'Delhi', district: 'Central', city: 'Central', taluk: '', officename: 'GPO', area: 'GPO', pincode }],
+    }).pipe(delay(this.mockDelay));
   }
 
   logout(): Observable<{ success: boolean }> {
@@ -130,10 +149,6 @@ export class MockApiService implements ApiBackend {
       .pipe(delay(this.mockDelay));
   }
 
-  getVoucherBalance(): Observable<{ balance: number; currency: string }> {
-    return of({ balance: 0, currency: 'INR' }).pipe(delay(this.mockDelay));
-  }
-
   getVouchers(_params?: { page?: number; limit?: number }): Observable<{ vouchers: import('../models/voucher.model').VoucherListItem[]; total: number }> {
     return of({ vouchers: [], total: 0 }).pipe(delay(this.mockDelay));
   }
@@ -160,8 +175,8 @@ export class MockApiService implements ApiBackend {
     return of({ orders: [], total: 0 }).pipe(delay(this.mockDelay));
   }
 
-  getVoucherStatement(_params?: { page?: number; limit?: number }): Observable<{ entries: VoucherStatementEntry[]; total: number; balance: number }> {
-    return of({ entries: [], total: 0, balance: 0 }).pipe(delay(this.mockDelay));
+  getVoucherStatement(_params?: { page?: number; limit?: number }): Observable<{ entries: VoucherStatementEntry[]; total: number }> {
+    return of({ entries: [], total: 0 }).pipe(delay(this.mockDelay));
   }
 
   getTransaction(id: string): Observable<Transaction> {
@@ -185,6 +200,8 @@ export class MockApiService implements ApiBackend {
     type?: string;
     status?: string;
     gateway?: PaymentGateway;
+    dateFrom?: string;
+    dateTo?: string;
   }): Observable<{ transactions: Transaction[]; total: number }> {
     return this.http
       .get<{ transactions: Transaction[]; total: number }>(
@@ -200,7 +217,7 @@ export class MockApiService implements ApiBackend {
   ): Observable<RefundDetails> {
     // Mock refund response
     return of({
-      refundId: 'refund_mock_001',
+      refundId: generateTransactionId(),
       amount,
       status: 'processing' as const,
       reason,
@@ -277,7 +294,7 @@ export class MockApiService implements ApiBackend {
     // Mock payment success
     return of({
       success: true,
-      transactionId: 'bbps_txn_mock_001',
+      transactionId: generateTransactionId(),
       billId: payload.billId,
       receiptNumber: 'RCPT_BBPS_001',
       amount: payload.amount,
@@ -285,6 +302,76 @@ export class MockApiService implements ApiBackend {
       timestamp: new Date().toISOString(),
       message: 'Bill paid successfully',
     }).pipe(delay(this.mockDelay));
+  }
+
+  payCart(payload: { bills: { billId: string; operatorId: string; consumerId: string; amount: number }[]; voucher_id: number; pin: string }): Observable<import('./api-backend.interface').BbpsPayCartResponse> {
+    const total = payload.bills.reduce((s, b) => s + b.amount, 0);
+    return of({
+      success: true,
+      message: 'All bills paid successfully.',
+      total,
+      results: payload.bills.map((b) => ({
+        billId: b.billId,
+        operatorId: b.operatorId,
+        consumerId: b.consumerId,
+        amount: b.amount,
+        transactionId: generateTransactionId(),
+        status: 'SUBMITTED',
+      })),
+    }).pipe(delay(this.bbpsDelay));
+  }
+
+  getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]> {
+    return of([]).pipe(delay(this.bbpsDelay));
+  }
+
+  addBbpsFavorite(body: { operatorId: string; operatorName?: string; category?: string; mobikwikOpId?: string }): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }> {
+    return of({
+      operatorId: body.operatorId,
+      operatorName: body.operatorName ?? 'Biller',
+      category: body.category ?? '',
+      mobikwikOpId: body.mobikwikOpId,
+    }).pipe(delay(this.bbpsDelay));
+  }
+
+  removeBbpsFavorite(_operatorId: string): Observable<void> {
+    return of(undefined).pipe(delay(this.bbpsDelay));
+  }
+
+  getBbpsSavedBills(): Observable<BbpsSavedBillApi[]> {
+    return of([]).pipe(delay(this.bbpsDelay));
+  }
+
+  addBbpsSavedBill(bill: BbpsSavedBillAdd): Observable<BbpsSavedBillApi> {
+    return of({
+      id: `saved_${Date.now()}`,
+      nickname: bill.nickname ?? '',
+      operatorId: bill.operatorId,
+      operatorName: bill.operatorName,
+      category: bill.category,
+      mobikwikOpId: bill.mobikwikOpId,
+      consumerId: bill.consumerId,
+      lastAmount: bill.lastAmount,
+      billId: bill.billId,
+      createdAt: new Date().toISOString(),
+    }).pipe(delay(this.bbpsDelay));
+  }
+
+  updateBbpsSavedBill(id: string, body: { nickname?: string }): Observable<BbpsSavedBillApi> {
+    return of({
+      id,
+      nickname: body.nickname ?? '',
+      operatorId: '',
+      operatorName: '',
+      category: '',
+      mobikwikOpId: '',
+      consumerId: '',
+      createdAt: new Date().toISOString(),
+    }).pipe(delay(this.bbpsDelay));
+  }
+
+  removeBbpsSavedBill(_id: string): Observable<void> {
+    return of(undefined).pipe(delay(this.bbpsDelay));
   }
 
   // FASTag API
@@ -321,7 +408,7 @@ export class MockApiService implements ApiBackend {
   ): Observable<ChallanPaymentResponse> {
     return of({
       success: true,
-      transactionId: 'challan_txn_mock_001',
+      transactionId: generateTransactionId(),
       challanId: id,
       receiptNumber: 'RCPT_CHALLAN_001',
       amount: payload.amount,

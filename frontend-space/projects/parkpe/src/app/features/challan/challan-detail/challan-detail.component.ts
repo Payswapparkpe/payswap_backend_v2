@@ -10,7 +10,7 @@ import { Challan } from '../../../core/models/challan.model';
   imports: [CommonModule, RouterLink],
   template: `
     <div class="feature-container">
-      <a routerLink="/challan/list" class="back-link">
+      <a routerLink="/challan" class="back-link">
         <span class="material-icons">arrow_back</span> Back to Challans
       </a>
       @if (loading) {

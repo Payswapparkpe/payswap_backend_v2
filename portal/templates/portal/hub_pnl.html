@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Hub P&amp;L{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center gap-4">
+    <h1 class="text-2xl font-semibold text-gray-900">Hub P&amp;L</h1>
+    <nav class="flex gap-2">
+        <a href="?days=7" class="px-3 py-1.5 rounded text-sm {% if period_days == 7 %}bg-primary-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">7 days</a>
+        <a href="?days=30" class="px-3 py-1.5 rounded text-sm {% if period_days == 30 %}bg-primary-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">30 days</a>
+        <a href="?days=90" class="px-3 py-1.5 rounded text-sm {% if period_days == 90 %}bg-primary-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">90 days</a>
+    </nav>
+    <a href="{% url 'dashboard_business' %}" class="text-sm text-primary-600 hover:underline">← Business overview</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-sm text-gray-500">Total cost ({{ period_days }}d)</p>
+        <p class="text-xl font-semibold text-red-600">₹ {{ total_cost|floatformat:2 }}</p>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-sm text-gray-500">Total income ({{ period_days }}d)</p>
+        <p class="text-xl font-semibold text-green-600">₹ {{ total_income|floatformat:2 }}</p>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-sm text-gray-500">Net P&amp;L</p>
+        <p class="text-xl font-semibold {% if net_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">₹ {{ net_pnl|floatformat:2 }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <h2 class="px-4 py-3 bg-gray-50 border-b border-gray-200 font-medium text-gray-900">Cost breakdown by service</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for code, amount in cost_by_service.items %}
+                    <tr>
+                        <td class="px-4 py-2 text-sm text-gray-900">{{ code }}</td>
+                        <td class="px-4 py-2 text-sm text-right text-red-600">{{ amount|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="px-4 py-4 text-sm text-gray-500">No cost records in this period.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <h2 class="px-4 py-3 bg-gray-50 border-b border-gray-200 font-medium text-gray-900">Income breakdown by service</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for code, amount in income_by_service.items %}
+                    <tr>
+                        <td class="px-4 py-2 text-sm text-gray-900">{{ code }}</td>
+                        <td class="px-4 py-2 text-sm text-right text-green-600">{{ amount|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="2" class="px-4 py-4 text-sm text-gray-500">No income records in this period.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

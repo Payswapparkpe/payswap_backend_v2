@@ -74,6 +74,7 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
+compliance_pack_*/
 static_root/
 static/
 !static/.gitkeep
@@ -355,6 +356,10 @@ test_outputs/
 reports/
 *.pdf
 *.xlsx
+
+# Vendor SDK/docs at project root (optional; code uses portal/services/vendors/)
+Mobikwik/
+Euronet BBPS/
 
 # S3 local cache (if using)
 .s3_cache/

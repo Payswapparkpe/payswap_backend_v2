@@ -4,18 +4,23 @@ API endpoints for vendor-orchestrated service flows.
 - Vendors list and detail (with APIs)
 - Services list
 - Service flow (ordered steps) for frontend to render execution order
+
+Auth: API key (partner) or JWT (internal) – BUG-004.
 """
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from api.v2.authentication import APIKeyAuthentication
+from api.v2.permissions import HasAPIKeyOrAuthenticated
 from portal.models import ApiVendor, VendorApi, Service, ServiceFlowStep
 
 
 class VendorListView(APIView):
     """GET /api/v2/vendors/ – List all API vendors."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [HasAPIKeyOrAuthenticated]
 
     def get(self, request):
         vendors = ApiVendor.objects.filter(is_active=True).order_by('name')
@@ -34,7 +39,8 @@ class VendorListView(APIView):
 
 class VendorDetailView(APIView):
     """GET /api/v2/vendors/<code>/ – Vendor detail with its APIs."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [HasAPIKeyOrAuthenticated]
 
     def get(self, request, vendor_code):
         try:
@@ -66,7 +72,8 @@ class VendorDetailView(APIView):
 
 class ServiceListView(APIView):
     """GET /api/v2/services/ – List services (final products). Optional ?category=AEPS."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [HasAPIKeyOrAuthenticated]
 
     def get(self, request):
         qs = Service.objects.all().order_by('name')
@@ -90,7 +97,8 @@ class ServiceListView(APIView):
 
 class ServiceFlowView(APIView):
     """GET /api/v2/services/<code>/flow/ – Ordered flow steps for a service. Frontend must NOT guess order."""
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication, JWTAuthentication]
+    permission_classes = [HasAPIKeyOrAuthenticated]
 
     def get(self, request, service_code):
         try:

@@ -7,12 +7,29 @@ from typing import Tuple, Optional
 # Re-export normalize_phone_number from validators for backward compatibility
 from portal.utils.validators import normalize_phone_number
 
+
+def phone_lookup_candidates(normalized_phone: str) -> list:
+    """
+    Return list of phone strings to try when looking up Profile.
+    DB may store 10-digit, 91..., or +91... so we try all variants.
+    """
+    candidates = [normalized_phone]
+    if normalized_phone.startswith("+91"):
+        candidates.append(normalized_phone[1:])  # 91XXXXXXXXXX
+        if len(normalized_phone) == 13:  # +91 + 10 digits
+            candidates.append(normalized_phone[3:])  # 10-digit only
+    elif normalized_phone.startswith("91") and len(normalized_phone) == 12:
+        candidates.append(normalized_phone[2:])  # 10-digit only
+    return candidates
+
+
 __all__ = [
     'normalize_phone_number',
     'safe_normalize_phone',
     'format_phone_display',
     'format_phone_for_kaleyra',
     'mask_phone_number',
+    'phone_lookup_candidates',
     'is_valid_indian_mobile'
 ]
 

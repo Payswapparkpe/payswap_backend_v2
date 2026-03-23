@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
 import { NotificationService } from '../../../core/services/notification.service';
 
@@ -58,10 +58,11 @@ import { NotificationService } from '../../../core/services/notification.service
     .btn-block { width: 100%; padding: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
   `],
 })
-export class ChallanSearchComponent {
+export class ChallanSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
   private api = inject(API_BACKEND_TOKEN);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private notification = inject(NotificationService);
 
   searchForm: FormGroup;
@@ -72,6 +73,13 @@ export class ChallanSearchComponent {
       vehicleNumber: ['', Validators.required],
       state: [''],
     });
+  }
+
+  ngOnInit() {
+    const vehicleNumber = this.route.snapshot.queryParams['vehicleNumber'] ?? this.router.getCurrentNavigation()?.extras?.state?.['vehicleNumber'];
+    if (vehicleNumber && typeof vehicleNumber === 'string' && vehicleNumber.trim()) {
+      this.searchForm.patchValue({ vehicleNumber: vehicleNumber.trim() });
+    }
   }
 
   searchChallans() {

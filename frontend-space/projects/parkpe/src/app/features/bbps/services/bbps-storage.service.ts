@@ -1,7 +1,6 @@
-import { Injectable, signal, computed } from '@angular/core';
-
-const FAVORITES_KEY = 'parkpe_bbps_favorites';
-const SAVED_BILLS_KEY = 'parkpe_bbps_saved_bills';
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { tap, catchError, of } from 'rxjs';
+import { API_BACKEND_TOKEN } from '../../../core/constants';
 
 export interface SavedBill {
   id: string;
@@ -9,23 +8,27 @@ export interface SavedBill {
   operatorId: string;
   operatorName: string;
   category: string;
+  mobikwikOpId?: string;
   consumerId: string;
   lastAmount?: number;
   billId?: string;
   createdAt: string;
 }
 
-/** Stored favorite biller so we can show name and category on the category step without loading operators */
+/** Stored favorite biller so we show name and category on the category step (from DB, sync across devices). */
 export interface FavoriteBiller {
   operatorId: string;
   operatorName: string;
   category: string;
+  mobikwikOpId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class BBPSStorageService {
-  private favorites = signal<FavoriteBiller[]>(this.loadFavorites());
-  private savedBills = signal<SavedBill[]>(this.loadSavedBills());
+  private api = inject(API_BACKEND_TOKEN);
+
+  private favorites = signal<FavoriteBiller[]>([]);
+  private savedBills = signal<SavedBill[]>([]);
 
   /** For backward compatibility and star icon state: set of favorite operator IDs */
   favoriteOperatorIds = computed(() => this.favorites().map((f) => f.operatorId));
@@ -37,89 +40,77 @@ export class BBPSStorageService {
     return this.favorites().some((f) => f.operatorId === operatorId);
   }
 
-  toggleFavorite(operatorId: string, operatorName?: string, category?: string): void {
-    const list = this.favorites();
-    const existing = list.find((f) => f.operatorId === operatorId);
-    const next = existing
-      ? list.filter((f) => f.operatorId !== operatorId)
-      : [
-          ...list,
-          {
-            operatorId,
-            operatorName: operatorName ?? 'Biller',
-            category: category ?? '',
-          },
-        ];
-    this.favorites.set(next);
-    this.persistFavorites(next);
+  /** Load favorites from backend (call when BBPS screen loads and user is authenticated). */
+  refreshFavorites(): void {
+    this.api.getBbpsFavorites().pipe(
+      tap((list) => this.favorites.set(list ?? [])),
+      catchError(() => {
+        this.favorites.set([]);
+        return of([]);
+      }),
+    ).subscribe();
+  }
+
+  /** Load saved bills from backend (call when BBPS screen loads and user is authenticated). */
+  refreshSavedBills(): void {
+    this.api.getBbpsSavedBills().pipe(
+      tap((list) => this.savedBills.set(list ?? [])),
+      catchError(() => {
+        this.savedBills.set([]);
+        return of([]);
+      }),
+    ).subscribe();
+  }
+
+  toggleFavorite(operatorId: string, operatorName?: string, category?: string, mobikwikOpId?: string): void {
+    const existing = this.favorites().find((f) => f.operatorId === operatorId);
+    if (existing) {
+      this.api.removeBbpsFavorite(operatorId).pipe(
+        tap(() => this.favorites.set(this.favorites().filter((f) => f.operatorId !== operatorId))),
+        catchError(() => of(undefined)),
+      ).subscribe();
+    } else {
+      this.api.addBbpsFavorite({
+        operatorId,
+        operatorName: operatorName ?? 'Biller',
+        category: category ?? '',
+        mobikwikOpId,
+      }).pipe(
+        tap((one) => this.favorites.set([one, ...this.favorites()])),
+        catchError(() => of(undefined)),
+      ).subscribe();
+    }
   }
 
   addSavedBill(bill: Omit<SavedBill, 'id' | 'createdAt'>): void {
-    const newBill: SavedBill = {
-      ...bill,
-      id: `saved_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      createdAt: new Date().toISOString(),
-    };
-    const next = [newBill, ...this.savedBills()].slice(0, 50);
-    this.savedBills.set(next);
-    this.persistSavedBills(next);
+    this.api.addBbpsSavedBill({
+      nickname: bill.nickname ?? '',
+      operatorId: bill.operatorId,
+      operatorName: bill.operatorName,
+      category: bill.category ?? '',
+      mobikwikOpId: bill.mobikwikOpId,
+      consumerId: bill.consumerId,
+      lastAmount: bill.lastAmount,
+      billId: bill.billId,
+    }).pipe(
+      tap((created) => this.savedBills.set([created, ...this.savedBills()])),
+      catchError(() => of(undefined)),
+    ).subscribe();
   }
 
   updateSavedBillNickname(id: string, nickname: string): void {
-    const next = this.savedBills().map((b) =>
-      b.id === id ? { ...b, nickname: nickname.trim() || b.nickname } : b
-    );
-    this.savedBills.set(next);
-    this.persistSavedBills(next);
+    this.api.updateBbpsSavedBill(id, { nickname: nickname.trim() || '' }).pipe(
+      tap((updated) => {
+        this.savedBills.set(this.savedBills().map((b) => (b.id === id ? updated : b)));
+      }),
+      catchError(() => of(undefined)),
+    ).subscribe();
   }
 
   removeSavedBill(id: string): void {
-    const next = this.savedBills().filter((b) => b.id !== id);
-    this.savedBills.set(next);
-    this.persistSavedBills(next);
-  }
-
-  private loadFavorites(): FavoriteBiller[] {
-    try {
-      const raw = localStorage.getItem(FAVORITES_KEY);
-      if (!raw) return [];
-      const arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return [];
-      // Migrate old format (string[]) to FavoriteBiller[]
-      return arr.map((item) =>
-        typeof item === 'string'
-          ? { operatorId: item, operatorName: 'Biller', category: '' }
-          : {
-              operatorId: item.operatorId ?? '',
-              operatorName: item.operatorName ?? 'Biller',
-              category: item.category ?? '',
-            }
-      ).filter((f) => f.operatorId);
-    } catch {
-      return [];
-    }
-  }
-
-  private loadSavedBills(): SavedBill[] {
-    try {
-      const raw = localStorage.getItem(SAVED_BILLS_KEY);
-      if (!raw) return [];
-      const arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private persistFavorites(list: FavoriteBiller[]): void {
-    try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
-    } catch {}
-  }
-
-  private persistSavedBills(list: SavedBill[]): void {
-    try {
-      localStorage.setItem(SAVED_BILLS_KEY, JSON.stringify(list));
-    } catch {}
+    this.api.removeBbpsSavedBill(id).pipe(
+      tap(() => this.savedBills.set(this.savedBills().filter((b) => b.id !== id))),
+      catchError(() => of(undefined)),
+    ).subscribe();
   }
 }

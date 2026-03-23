@@ -27,6 +27,7 @@ from portal.services.voucher_otp_service import VoucherOTPService
 from portal.utils.phone_utils import normalize_phone_number
 from portal.utils.logging_helper import get_logger
 from portal.utils.voucher_logging import log_voucher_operation
+from portal.utils.transaction_id import generate_transaction_id
 
 logger = get_logger('portal.services.voucher')
 
@@ -219,19 +220,15 @@ class VoucherService:
             )
             raise
     
-    def validate_voucher_code(self, voucher_code: str) -> Optional[GiftVoucher]:
+    def validate_voucher_code(
+        self, voucher_code: str, expected_partner_id: Optional[int] = None
+    ) -> Optional[GiftVoucher]:
         """
-        Validate voucher code format and existence
-        
-        Args:
-            voucher_code: Voucher code (with or without hyphens)
-        
-        Returns:
-            Voucher instance if found, None otherwise
+        Validate voucher code format and existence.
+        VAPT-006: When expected_partner_id is set, voucher must have metadata.partner_id matching it.
+        Legacy vouchers without metadata.partner_id are not accessible to partners (return None).
         """
-        # Remove hyphens and convert to uppercase
         code = unformat_voucher_code(voucher_code)
-        
         if len(code) != 16:
             log_voucher_operation(
                 operation='voucher_validation_failed',
@@ -240,11 +237,8 @@ class VoucherService:
                 extra_data={'voucher_code': voucher_code, 'reason': 'invalid_length'}
             )
             return None
-        
         try:
-            # Try to find by voucher_code (stored without hyphens)
             voucher = GiftVoucher.objects.get(voucher_code=code)
-            return voucher
         except GiftVoucher.DoesNotExist:
             log_voucher_operation(
                 operation='voucher_validation_failed',
@@ -253,6 +247,13 @@ class VoucherService:
                 extra_data={'voucher_code': voucher_code, 'reason': 'not_found'}
             )
             return None
+        if expected_partner_id is not None:
+            stored_id = (voucher.metadata or {}).get('partner_id')
+            if stored_id is None:
+                return None  # Legacy/admin voucher: no partner access via v2
+            if stored_id != expected_partner_id:
+                return None  # Different partner
+        return voucher
     
     def verify_pin(
         self,
@@ -271,6 +272,9 @@ class VoucherService:
         Returns:
             Tuple of (is_valid, error_message)
         """
+        # Guard legacy/null values to avoid type errors during retry bookkeeping.
+        retry_count = int(voucher.pin_retry_count or 0)
+
         # Check if PIN is blocked
         if is_pin_blocked(voucher.pin_blocked_until):
             remaining_minutes = int((voucher.pin_blocked_until - timezone.now()).total_seconds() / 60)
@@ -285,15 +289,16 @@ class VoucherService:
         
         if not is_valid and increment_retry:
             # Increment retry count
-            voucher.pin_retry_count += 1
+            retry_count += 1
+            voucher.pin_retry_count = retry_count
             
             # Block if max retries reached
-            if voucher.pin_retry_count >= self.max_pin_retries:
+            if retry_count >= self.max_pin_retries:
                 voucher.pin_blocked_until = calculate_pin_block_until()
                 voucher.pin_retry_count = 0  # Reset for next block period
                 error_msg = f"Too many failed attempts. PIN is temporarily blocked for {get_pin_block_duration_minutes()} minutes."
             else:
-                attempts_left = self.max_pin_retries - voucher.pin_retry_count
+                attempts_left = self.max_pin_retries - retry_count
                 error_msg = f"Invalid PIN. {attempts_left} attempt(s) remaining."
             
             voucher.save()
@@ -307,7 +312,7 @@ class VoucherService:
             
             return False, error_msg
         
-        if is_valid and voucher.pin_retry_count > 0:
+        if is_valid and retry_count > 0:
             # Reset retry count on successful verification
             voucher.pin_retry_count = 0
             voucher.pin_blocked_until = None
@@ -362,6 +367,9 @@ class VoucherService:
         if amount > voucher.current_balance:
             raise ValueError(get_error_message(INSUFFICIENT_BALANCE))
         
+        if not transaction_ref:
+            transaction_ref = generate_transaction_id()
+
         # Check for duplicate transaction reference
         if transaction_ref:
             if GiftVoucherTransaction.objects.filter(transaction_ref=transaction_ref).exists():
@@ -483,6 +491,9 @@ class VoucherService:
         if amount > voucher.current_balance:
             raise ValueError(get_error_message(INSUFFICIENT_BALANCE))
         
+        if not transaction_ref:
+            transaction_ref = generate_transaction_id()
+
         # Check for duplicate transaction reference
         if transaction_ref:
             if GiftVoucherTransaction.objects.filter(transaction_ref=transaction_ref).exists():

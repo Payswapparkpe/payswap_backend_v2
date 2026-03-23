@@ -24,24 +24,6 @@ from .sms_views import (
 from .bbps_views import (
     BBPSOperatorsView, BBPSFetchBillView, BBPSPayBillView, BBPSPaymentStatusView
 )
-from .aeps_views import (
-    AEPSBalanceEnquiryView,
-    AEPSCashWithdrawalView,
-    AEPSMiniStatementView,
-    AEPSTransactionStatusView,
-    AEPSAgentRegistrationView,
-    AEPSUpdateAgentDetailsView,
-    AEPSAgentServiceStatusView,
-    AEPSAgentAuthenticationView,
-    AEPSTwoFactorAuthenticationView,
-)
-from .dmt_views import (
-    DMTRegisterSenderView,
-    DMTAddBeneficiaryView,
-    DMTRemitView,
-    DMTTransactionStatusView,
-    DMTGetBeneficiariesView,
-)
 from .service_flow_views import (
     VendorListView,
     VendorDetailView,
@@ -102,24 +84,6 @@ urlpatterns = [
     path("bbps/bill/fetch/", BBPSFetchBillView.as_view(), name="v2-bbps-fetch-bill"),
     path("bbps/bill/pay/", BBPSPayBillView.as_view(), name="v2-bbps-pay-bill"),
     path("bbps/bill/status/<str:ref_id>/", BBPSPaymentStatusView.as_view(), name="v2-bbps-payment-status"),
-    
-    # AEPS (PayPoint) APIs
-    path("aeps/balance/", AEPSBalanceEnquiryView.as_view(), name="v2-aeps-balance"),
-    path("aeps/withdrawal/", AEPSCashWithdrawalView.as_view(), name="v2-aeps-withdrawal"),
-    path("aeps/mini-statement/", AEPSMiniStatementView.as_view(), name="v2-aeps-mini-statement"),
-    path("aeps/status/<str:ref_id>/", AEPSTransactionStatusView.as_view(), name="v2-aeps-transaction-status"),
-    path("aeps/agent-registration/", AEPSAgentRegistrationView.as_view(), name="v2-aeps-agent-registration"),
-    path("aeps/update-agent-details/", AEPSUpdateAgentDetailsView.as_view(), name="v2-aeps-update-agent-details"),
-    path("aeps/agent-service-status/", AEPSAgentServiceStatusView.as_view(), name="v2-aeps-agent-service-status"),
-    path("aeps/agent-authentication/", AEPSAgentAuthenticationView.as_view(), name="v2-aeps-agent-authentication"),
-    path("aeps/two-factor-auth/", AEPSTwoFactorAuthenticationView.as_view(), name="v2-aeps-two-factor-auth"),
-    
-    # DMT (PayPoint Domestic Money Transfer) APIs
-    path("dmt/register-sender/", DMTRegisterSenderView.as_view(), name="v2-dmt-register-sender"),
-    path("dmt/add-beneficiary/", DMTAddBeneficiaryView.as_view(), name="v2-dmt-add-beneficiary"),
-    path("dmt/remit/", DMTRemitView.as_view(), name="v2-dmt-remit"),
-    path("dmt/status/<str:ref_id>/", DMTTransactionStatusView.as_view(), name="v2-dmt-transaction-status"),
-    path("dmt/beneficiaries/", DMTGetBeneficiariesView.as_view(), name="v2-dmt-beneficiaries"),
     
     # Vendor-orchestrated service flows (vendors, APIs, ordered steps)
     path("vendors/", VendorListView.as_view(), name="v2-vendors-list"),

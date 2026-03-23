@@ -1,0 +1,202 @@
+import { Component, input, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import type { ConnectVehicle, VehicleRCData } from '../services/connect.service';
+import { getVehicleTypeLabel } from '../data/vehicle-types-data';
+
+export type StatusChip = { label: string; status: 'ok' | 'warning' | 'critical' | 'info'; icon: string };
+
+/** Parse date string (YYYY-MM-DD or DD-MM-YYYY) to Date; null if invalid. */
+function parseDate(s: string): Date | null {
+  if (!s || s === '—' || typeof s !== 'string') return null;
+  const t = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const match = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (match) {
+    const d = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10) - 1;
+    const y = parseInt(match[3], 10);
+    const date = new Date(y, m, d);
+    if (date.getFullYear() === y && date.getMonth() === m && date.getDate() === d) return date;
+  }
+  return null;
+}
+
+function isDateActive(dateStr: string): boolean {
+  const d = parseDate(dateStr);
+  if (!d) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() >= today.getTime();
+}
+
+@Component({
+  selector: 'app-connect-vehicle-card',
+  standalone: true,
+  imports: [CommonModule, RouterLink],
+  templateUrl: './connect-vehicle-card.component.html',
+  styleUrl: './connect-vehicle-card.component.scss',
+})
+export class ConnectVehicleCardComponent {
+  /** The vehicle to display (from Connect API + optional RC data). */
+  vehicle = input.required<ConnectVehicle>();
+  /** Optional FASTag balance (only for car/four_wheeler). When backend sends it, pass here. */
+  fastagBalance = input<number | null>(null);
+  /** Compact mode: hide action bar, smaller padding (e.g. list view). */
+  compact = input<boolean>(false);
+  /**
+   * Dashboard: shorter card, no fixed height, truncated meta, Recharge + Connect only (no Manage).
+   */
+  variant = input<'default' | 'dashboard'>('default');
+  /**
+   * When dashboard + exactly one vehicle on the page: use a horizontal strip on wide screens
+   * (details left, chips + actions right).
+   */
+  dashboardSingleRow = input(false);
+  /** Show "View & QR" as primary; when false, card may be used in dashboard carousel. */
+  showViewLink = input<boolean>(true);
+
+  isDashboard = computed(() => this.variant() === 'dashboard');
+
+  /** Single-vehicle dashboard layout (parent passes true when only one card is shown). */
+  isDashboardRow = computed(() => this.isDashboard() && this.dashboardSingleRow());
+
+  private v = computed(() => this.vehicle());
+  private rc = computed(() => this.v().vehicle_rc ?? this.v().rc_data ?? null);
+
+  getVehicleTypeLabel = getVehicleTypeLabel;
+
+  /** Car = show FASTag; Bike = no FASTag; EV = Coming Soon only. */
+  isCar = computed(() => {
+    const t = (this.v().vehicle_type || '').toLowerCase();
+    return t === 'four_wheeler' || t.includes('car') || t === 'fourwheeler';
+  });
+
+  isBike = computed(() => {
+    const t = (this.v().vehicle_type || '').toLowerCase();
+    return t === 'two_wheeler' || t.includes('two') || t.includes('bike') || t.includes('scooter') || t.includes('motorcycle');
+  });
+
+  isEv = computed(() => {
+    const r = this.rc();
+    if (!r) return false;
+    const rec = r as Record<string, unknown>;
+    const fuel = String(rec['fuel_type'] ?? rec['type'] ?? '').toLowerCase();
+    const maker = String(rec['vehicle_manufacturer_name'] ?? '').toLowerCase();
+    return fuel.includes('electric') || maker.includes('ola') || maker.includes('ather') || maker.includes('electric');
+  });
+
+  /** RC Verified when we have RC data from Cashfree/govt API. */
+  isRcVerified = computed(() => !!this.rc());
+
+  /** No RC data yet (or locked): show "Get your vehicle information" CTA → connect detail page (pay ₹50, then fetch RC). */
+  needsRcInfo = computed(() => !this.rc());
+
+  /** Display fuel type from RC (compliance-safe). */
+  fuelLabel = computed(() => {
+    const r = this.rc();
+    if (!r) return null;
+    const rec = r as Record<string, unknown>;
+    const fuel = rec['fuel_type'] ?? rec['type'];
+    return fuel ? String(fuel) : null;
+  });
+
+  /** Brand + model from RC or vehicle. */
+  brandModel = computed(() => {
+    const v = this.v();
+    const r = this.rc();
+    const brand = (r as VehicleRCData | undefined)?.vehicle_manufacturer_name || v.brand || '';
+    const model = (r as VehicleRCData | undefined)?.model || v.model || '';
+    return [brand, model].filter(Boolean).join(' ') || '—';
+  });
+
+  /** FASTag balance for display (only for car); null = hide. Uses input or vehicle.fastag_balance. */
+  fastagDisplay = computed(() => {
+    if (!this.isCar()) return null;
+    const fromInput = this.fastagBalance();
+    if (fromInput !== null && fromInput !== undefined) return fromInput;
+    const fromVehicle = this.v().fastag_balance;
+    if (fromVehicle !== null && fromVehicle !== undefined) return fromVehicle;
+    return null;
+  });
+
+  /** Low FASTag balance threshold (₹200). */
+  isLowFastagBalance = computed(() => {
+    const b = this.fastagDisplay();
+    return b !== null && b < 200;
+  });
+
+  /** Status chips: PUC, Insurance, FASTag (car), EV placeholder (ev). No fake data. */
+  statusChips = computed(() => {
+    const chips: StatusChip[] = [];
+    const v = this.v();
+    const r = this.rc();
+
+    // EV: only "Charging Coming Soon"
+    if (this.isEv()) {
+      chips.push({ label: 'Charging Coming Soon', status: 'info', icon: 'ev_station' });
+      return chips;
+    }
+
+    // FASTag (car only)
+    const bal = this.fastagDisplay();
+    if (bal !== null) {
+      if (this.isLowFastagBalance()) {
+        chips.push({ label: `₹${bal} · Low balance`, status: 'warning', icon: 'toll' });
+      } else {
+        chips.push({ label: `FASTag ₹${bal}`, status: 'ok', icon: 'toll' });
+      }
+    }
+
+    // PUC
+    const pucc = r?.pucc_upto;
+    if (pucc && pucc !== '—') {
+      const active = isDateActive(pucc);
+      chips.push({
+        label: active ? `PUC till ${formatShortDate(pucc)}` : 'PUC Expired',
+        status: active ? 'ok' : 'critical',
+        icon: 'air',
+      });
+    } else {
+      chips.push({ label: 'Check PUC', status: 'info', icon: 'air' });
+    }
+
+    // Insurance
+    const insUpto = r?.vehicle_insurance_upto;
+    if (insUpto && insUpto !== '—') {
+      const active = isDateActive(insUpto);
+      const daysLeft = parseDate(insUpto) ? Math.ceil(((parseDate(insUpto)!.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+      let status: StatusChip['status'] = active ? 'ok' : 'critical';
+      if (active && daysLeft <= 30) status = 'warning';
+      chips.push({
+        label: status === 'critical' ? 'Ins. Expired' : status === 'warning' ? `Ins. till ${formatShortDate(insUpto)}` : `Ins. till ${formatShortDate(insUpto)}`,
+        status,
+        icon: 'health_and_safety',
+      });
+    } else {
+      chips.push({ label: 'Add Insurance', status: 'warning', icon: 'add_moderator' });
+    }
+
+    return chips;
+  });
+
+  /** RC status line (Active/Inactive) from API. */
+  rcStatusLabel = computed(() => {
+    const r = this.rc();
+    const status = r != null ? (r as Record<string, unknown>)['rc_status'] : undefined;
+    return status != null ? String(status) : null;
+  });
+}
+
+function formatShortDate(s: string): string {
+  const d = parseDate(s);
+  if (!d) return s;
+  const day = d.getDate();
+  const month = d.toLocaleString('en-IN', { month: 'short' });
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}

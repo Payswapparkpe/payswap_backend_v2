@@ -2,15 +2,31 @@
 {% load portal_tags %}
 
 <ul class="space-y-1">
+    <!-- Control Center: Dashboard -->
     <li class="nav-item">
         <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
             <i class="ti ti-layout-dashboard"></i>
             <span>Dashboard</span>
         </a>
     </li>
-    
-    <!-- VoucherX Unified Solution -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
+    {% if user.is_superuser or user.role_code == 'super_admin' %}
+    <li class="nav-item">
+        <a href="{% url 'hub_rbac_dashboard' %}" class="nav-link {% if '/dashboard/hub/' in request.path %}active{% endif %}">
+            <i class="ti ti-shield-lock"></i>
+            <span>Hub RBAC</span>
+        </a>
+    </li>
+    {% endif %}
+    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+    <li class="nav-item">
+        <a href="{% url 'project_management' %}" class="nav-link {% if '/dashboard/projects/' in request.path %}active{% endif %}">
+            <i class="ti ti-apps"></i>
+            <span>Project Management</span>
+        </a>
+    </li>
+    {% endif %}
+    <!-- Other: VoucherX, Users, Profile, Settings, etc. -->
+    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'voucherx_dashboard' %}" class="nav-link {% if '/voucherx/' in request.path %}active{% endif %}">
             <i class="ti ti-gift"></i>
@@ -21,7 +37,7 @@
         </a>
     </li>
     {% endif %}
-    
+
     {% if user|has_permission:'portal.view_user' %}
     <li class="nav-item">
         <a href="{% url 'user_list' %}" class="nav-link {% if '/users/' in request.path %}active{% endif %}">
@@ -30,21 +46,21 @@
         </a>
     </li>
     {% endif %}
-    
+
     <li class="nav-item">
         <a href="{% url 'profile' %}" class="nav-link {% if '/profile/' in request.path %}active{% endif %}">
             <i class="ti ti-user"></i>
             <span>Profile</span>
         </a>
     </li>
-    
+
     <li class="nav-item">
         <a href="{% url 'settings' %}" class="nav-link {% if '/settings/' in request.path %}active{% endif %}">
             <i class="ti ti-settings"></i>
             <span>Settings</span>
         </a>
     </li>
-    
+
     {% if user|has_permission:'portal.view_kyc' %}
     <li class="nav-item">
         <a href="{% url 'kyc_list' %}" class="nav-link {% if '/kyc/' in request.path %}active{% endif %}">
@@ -53,7 +69,7 @@
         </a>
     </li>
     {% endif %}
-    
+
     {% if user|has_permission:'portal.view_wallet' %}
     <li class="nav-item">
         <a href="{% url 'wallet' %}" class="nav-link {% if '/wallet/' in request.path %}active{% endif %}">
@@ -62,7 +78,7 @@
         </a>
     </li>
     {% endif %}
-    
+
     {% if user|has_permission:'portal.view_userpermission' %}
     <li class="nav-item">
         <a href="{% url 'permissions' %}" class="nav-link {% if '/permissions/' in request.path %}active{% endif %}">
@@ -71,35 +87,20 @@
         </a>
     </li>
     {% endif %}
-    
-    <!-- Logs Management -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
+
+    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'log_list' %}" class="nav-link {% if '/logs/' in request.path %}active{% endif %}">
             <i class="ti ti-file-analytics"></i>
             <span>Logs</span>
         </a>
     </li>
-    {% endif %}
-    
-    <!-- API Documentation & Explorer (Postman) -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
     <li class="nav-item">
-        <a href="{% url 'api_docs' %}" class="nav-link {% if request.path == '/api-docs/' %}active{% endif %}">
-            <i class="ti ti-api"></i>
-            <span>API Docs</span>
+        <a href="{% url 'dashboard_parkpe_transactions' %}" class="nav-link {% if '/dashboard/parkpe/transactions/' in request.path %}active{% endif %}">
+            <i class="ti ti-report-analytics"></i>
+            <span>ParkPe Transactions</span>
         </a>
     </li>
-    <li class="nav-item">
-        <a href="{% url 'api_explorer' %}" class="nav-link {% if request.path == '/api-explorer/' %}active{% endif %}">
-            <i class="ti ti-send"></i>
-            <span>API Explorer (Postman)</span>
-        </a>
-    </li>
-    {% endif %}
-
-    <!-- Services Management -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'services_list' %}" class="nav-link {% if request.path == '/services/' %}active{% endif %}">
             <i class="ti ti-server"></i>
@@ -107,28 +108,7 @@
         </a>
     </li>
     {% endif %}
-    
-    <!-- Admin Reseller Partner Management -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
-    <li class="nav-item">
-        <a href="{% url 'admin_reseller_partner_dashboard' %}" class="nav-link {% if '/admin/partners/' in request.path %}active{% endif %}">
-            <i class="ti ti-building-store"></i>
-            <span>Partner Management</span>
-        </a>
-    </li>
-    {% endif %}
 
-    <!-- ParkPe App Management (Voucher + PG config) -->
-    {% if user.role_code in 'super,admin' or user.is_staff %}
-    <li class="nav-item">
-        <a href="{% url 'parkpe_app_management' %}" class="nav-link {% if '/parkpe/app-management/' in request.path %}active{% endif %}">
-            <i class="ti ti-apps"></i>
-            <span>ParkPe App Management</span>
-        </a>
-    </li>
-    {% endif %}
-    
-    <!-- Ticket Management -->
     <li class="nav-item">
         <a href="{% url 'ticket_list' %}" class="nav-link {% if '/tickets/' in request.path %}active{% endif %}">
             <i class="ti ti-ticket"></i>

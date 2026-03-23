@@ -4,6 +4,8 @@ export const environment = {
   appName: 'PARKPE',
   appVersion: '1.0.0',
   apiUrl: 'https://api.parkpe.com',
+  /** Partner API key for Engine (X-API-Key). MUST be injected from CI/ENV at build — e.g. process.env['NG_APP_API_KEY'] or similar. Never hardcode. Required for connect/bbps/payment/voucher. */
+  apiKey: undefined as string | undefined,
   apiTimeout: 30000,
   useMockApi: false, // Use real backend in production
   logLevel: 'info' as 'debug' | 'info' | 'warn' | 'error',
@@ -75,6 +77,7 @@ export const environment = {
     darkMode: true
   },
 
+  /** BBPS uses main apiUrl; this key is legacy/unused. Do not use for requests. */
   bbps: {
     apiUrl: 'https://api.parkpe.com/bbps',
     timeout: 30000,

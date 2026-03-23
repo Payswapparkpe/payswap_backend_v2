@@ -95,7 +95,10 @@
                 "glob": "**/*",
                 "input": "projects/parkpe/src",
                 "output": "/",
-                "ignore": ["**/*.ts", "**/*.scss"]
+                "ignore": [
+                  "**/*.ts",
+                  "**/*.scss"
+                ]
               }
             ],
             "styles": [
@@ -112,8 +115,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
-                  "maximumError": "16kB"
+                  "maximumWarning": "40kB",
+                  "maximumError": "60kB"
                 }
               ],
               "outputHashing": "all"
@@ -130,7 +133,8 @@
           "builder": "@angular/build:dev-server",
           "options": {
             "port": 4201,
-            "proxyConfig": "projects/parkpe/proxy.conf.json"
+            "proxyConfig": "projects/parkpe/proxy.conf.json",
+            "allowedHosts": true
           },
           "configurations": {
             "production": {
@@ -144,6 +148,32 @@
         },
         "test": {
           "builder": "@angular/build:unit-test"
+        }
+      }
+    },
+    "shared": {
+      "projectType": "library",
+      "root": "projects/shared",
+      "sourceRoot": "projects/shared/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/shared/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/shared/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/shared/tsconfig.spec.json"
+          }
         }
       }
     }

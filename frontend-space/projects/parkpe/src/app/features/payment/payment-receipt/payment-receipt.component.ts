@@ -2,7 +2,7 @@ import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PaymentGatewayService } from '../../../core/services/payment-gateway.service';
-import { Transaction } from '../../../core/models/payment.model';
+import { Transaction } from 'shared';
 import { LottieFeedbackComponent } from '../../../shared/components/lottie-feedback/lottie-feedback.component';
 
 @Component({
@@ -16,7 +16,7 @@ import { LottieFeedbackComponent } from '../../../shared/components/lottie-feedb
       } @else if (transaction) {
         <div class="receipt-card card">
           <img class="b-assured-logo" src="assets/bbps/b-assured-logo.png" alt="B Assured" />
-          <app-lottie-feedback type="success" message="Payment successful" />
+          <app-lottie-feedback [type]="receiptFeedbackType" [message]="receiptFeedbackMessage" />
           <div class="receipt-header">
             <h1>Payment Invoice</h1>
             <span class="material-icons">receipt</span>
@@ -26,8 +26,17 @@ import { LottieFeedbackComponent } from '../../../shared/components/lottie-feedb
             <div class="detail-row"><span>Transaction ID:</span><span>{{ transaction.transactionId }}</span></div>
             <div class="detail-row"><span>Order ID:</span><span>{{ transaction.orderId }}</span></div>
             <div class="detail-row"><span>Date:</span><span>{{ transaction.timestamp | date:'medium' }}</span></div>
+            @if (transaction.transactionType) {
+              <div class="detail-row"><span>Type:</span><span>{{ transaction.transactionType | titlecase }}</span></div>
+            }
             <div class="detail-row"><span>Description:</span><span>{{ transaction.description }}</span></div>
+            @if (transaction.status) {
+              <div class="detail-row"><span>Status:</span><span>{{ transaction.status | titlecase }}</span></div>
+            }
             <div class="detail-row"><span>Gateway:</span><span>{{ transaction.gateway | titlecase }}</span></div>
+            @if (transaction.transactionTypeDirection) {
+              <div class="detail-row"><span>Transaction:</span><span>{{ transaction.transactionTypeDirection | titlecase }}</span></div>
+            }
             <div class="detail-row highlight">
               <span>Amount Paid:</span><span class="amount">₹{{ transaction.amount }}</span>
             </div>
@@ -136,6 +145,20 @@ export class PaymentReceiptComponent implements OnInit {
   transaction: Transaction | null = null;
   loading = true;
   fallbackAmount: number | null = null;
+
+  /** Receipt heading and icon by actual transaction status (success / failed / pending). */
+  get receiptFeedbackType(): 'success' | 'error' | 'pending' {
+    const s = (this.transaction?.status ?? '').toLowerCase();
+    if (s === 'success') return 'success';
+    if (s === 'failed') return 'error';
+    return 'pending';
+  }
+  get receiptFeedbackMessage(): string {
+    const s = (this.transaction?.status ?? '').toLowerCase();
+    if (s === 'success') return 'Payment successful';
+    if (s === 'failed') return 'Payment failed';
+    return 'Payment pending';
+  }
 
   /** Defer state update to next frame to avoid NG0100 (ExpressionChangedAfterItHasBeenCheckedError). */
   private setState(transaction: Transaction | null, loading: boolean) {

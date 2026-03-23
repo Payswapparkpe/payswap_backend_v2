@@ -13,24 +13,20 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from portal.models import User, Profile
+from django.core.cache import cache
+
+from api.throttling import AuthOTPRateThrottle, AuthLoginRateThrottle
+from api.auth_parkpe.serializers import user_to_angular
+from portal.models import User, Profile, Wallet
 from portal.utils.logging_helper import get_logger
-from portal.utils.phone_utils import safe_normalize_phone
+from portal.utils.phone_utils import safe_normalize_phone, phone_lookup_candidates
+from portal.utils.masking import redact_email, mask_phone_for_log
 from portal.services.otp_service import OTPService
+from portal.services.notification_service_v2 import NotificationServiceV2
+
+from api.parkpe_logging import log_parkpe
 
 logger = get_logger(__name__)
-
-
-def _phone_lookup_candidates(normalized_phone: str):
-    """Return list of phone strings to try when looking up Profile. DB may store 10-digit, 91..., or +91..."""
-    candidates = [normalized_phone]
-    if normalized_phone.startswith("+91"):
-        candidates.append(normalized_phone[1:])  # 91XXXXXXXXXX
-        if len(normalized_phone) == 13:  # +91 + 10 digits
-            candidates.append(normalized_phone[3:])  # 10-digit only (XXXXXXXXXX)
-    elif normalized_phone.startswith("91") and len(normalized_phone) == 12:
-        candidates.append(normalized_phone[2:])  # 10-digit only
-    return candidates
 
 
 def _resolve_profile_by_phone(phone_raw: str):
@@ -39,53 +35,20 @@ def _resolve_profile_by_phone(phone_raw: str):
     normalized_phone, err = safe_normalize_phone(phone_raw)
     if err:
         return None, {"detail": "Invalid mobile number. Use 10-digit Indian mobile (e.g. 9876543210).", "status": 400}
-    candidates = _phone_lookup_candidates(normalized_phone)
+    candidates = phone_lookup_candidates(normalized_phone)
     profile = (
         Profile.objects.filter(phone__in=candidates).select_related("user").first()
     )
     return profile, None
 
 
-def _redact_email(email: str) -> str:
-    """Redact email for logging (e.g. a***@b.com)."""
-    if not email or "@" not in email:
-        return "***"
-    local, domain = email.split("@", 1)
-    return f"{local[:1]}***@{domain}" if len(local) > 1 else f"***@{domain}"
-
-
-def _user_to_angular(user: User) -> dict:
-    """Map Django User + Profile to Angular User shape."""
-    profile = getattr(user, "profile", None)
-    if profile:
-        name = profile.full_name or f"{getattr(profile, 'first_name', '') or user.username}".strip() or user.username
-        email = profile.email or user.email or ""
-        phone = getattr(profile, "phone", "") or ""
-    else:
-        name = getattr(user, "first_name", "") or user.username
-        email = user.email or ""
-        phone = ""
-    role = "admin" if getattr(user, "role_code", "") in ("admin", "super") else "user"
-    return {
-        "id": str(user.pk),
-        "name": name or user.username,
-        "email": email,
-        "phone": phone or "",
-        "role": role,
-        "avatar": None,
-        "emailVerified": getattr(profile, "email_verified", False) if profile else False,
-        "phoneVerified": getattr(profile, "phone_verified", False) if profile else False,
-        "createdAt": user.date_joined.isoformat() if user.date_joined else None,
-        "updatedAt": None,
-    }
-
-
 @method_decorator(csrf_exempt, name="dispatch")
 class AuthLoginView(APIView):
-    """POST /api/auth/login – body: { email?, phone?, password, rememberMe? }. Login by email or phone + password."""
+    """POST /api/auth/login – body: { email?, phone?, password, rememberMe? }. Login by email or phone + password. Rate-limited per IP."""
     authentication_classes = []  # No SessionAuthentication so DRF does not enforce CSRF
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]
+    throttle_classes = [AuthLoginRateThrottle]
 
     def post(self, request):
         data = request.data or {}
@@ -113,7 +76,7 @@ class AuthLoginView(APIView):
         logger.info(
             "parkpe_auth_login attempt",
             extra_data={
-                "email_redacted": _redact_email(email) if email else None,
+                "email_redacted": redact_email(email) if email else None,
                 "by_phone": bool(phone_raw),
             },
         )
@@ -128,6 +91,7 @@ class AuthLoginView(APIView):
 
         if not profile:
             logger.warning("parkpe_auth_login invalid credentials (no profile)")
+            log_parkpe("parkpe_auth", "Login failed", False, request, {"reason": "no_profile"})
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -135,6 +99,7 @@ class AuthLoginView(APIView):
         user = profile.user
         if not user.is_active:
             logger.warning("parkpe_auth_login account disabled", extra_data={"user_id": user.pk})
+            log_parkpe("parkpe_auth", "Login failed", False, request, {"reason": "account_disabled"})
             return Response(
                 {"detail": "Account is disabled."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -142,12 +107,14 @@ class AuthLoginView(APIView):
 
         if not authenticate(request, username=user.username, password=password):
             logger.warning("parkpe_auth_login invalid credentials (auth failed)")
+            log_parkpe("parkpe_auth", "Login failed", False, request, {"reason": "invalid_password"})
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
         logger.info("parkpe_auth_login success", extra_data={"user_id": user.pk})
+        log_parkpe("parkpe_auth", "Login success", True, request, {"user_id": user.pk})
         refresh = RefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
@@ -160,17 +127,18 @@ class AuthLoginView(APIView):
         return Response({
             "token": access,
             "refreshToken": refresh_str,
-            "user": _user_to_angular(user),
+            "user": user_to_angular(user),
             "expiresIn": expires_seconds,
         })
 
 
 @method_decorator(csrf_exempt, name="dispatch")
 class AuthOTPRequestView(APIView):
-    """POST /api/auth/otp/request – body: { phone }. Sends OTP via Kaleyra to registered mobile. Login only for existing users."""
+    """POST /api/auth/otp/request – body: { phone }. Sends OTP via Kaleyra to registered mobile. Login only for existing users. Rate-limited per IP."""
     authentication_classes = []
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]
+    throttle_classes = [AuthOTPRateThrottle]
 
     def post(self, request):
         data = request.data or {}
@@ -203,6 +171,7 @@ class AuthOTPRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         logger.info("parkpe_auth_otp_request sent", extra_data={"user_id": user.pk})
+        log_parkpe("parkpe_auth", "OTP request sent", True, request, {"user_id": user.pk})
         return Response({
             "message": "OTP sent to your mobile number.",
             "expires_in": otp_service.otp_expiry,
@@ -211,10 +180,11 @@ class AuthOTPRequestView(APIView):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class AuthOTPVerifyView(APIView):
-    """POST /api/auth/otp/verify – body: { phone, otp }. Verifies OTP and returns JWT (same shape as login)."""
+    """POST /api/auth/otp/verify – body: { phone, otp }. Verifies OTP and returns JWT (same shape as login). Rate-limited per IP."""
     authentication_classes = []
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]
+    throttle_classes = [AuthOTPRateThrottle]
 
     def post(self, request):
         data = request.data or {}
@@ -239,8 +209,15 @@ class AuthOTPVerifyView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         otp_service = OTPService()
-        if not otp_service.verify_otp(profile.phone, otp_code):
+        ok, reason = otp_service.verify_otp(profile.phone, otp_code)
+        if not ok:
+            if reason == "locked":
+                return Response(
+                    {"detail": "Too many failed attempts. Try again in 30 minutes."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             logger.warning("parkpe_auth_otp_verify failed", extra_data={"user_id": profile.user_id})
+            log_parkpe("parkpe_auth", "OTP verify failed", False, request, {"reason": "invalid_otp"})
             return Response(
                 {"detail": "Invalid or expired OTP. Please request a new one."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -252,6 +229,7 @@ class AuthOTPVerifyView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         logger.info("parkpe_auth_otp_verify success", extra_data={"user_id": user.pk})
+        log_parkpe("parkpe_auth", "OTP verify success", True, request, {"user_id": user.pk})
         refresh = RefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
@@ -261,7 +239,7 @@ class AuthOTPVerifyView(APIView):
         return Response({
             "token": access,
             "refreshToken": refresh_str,
-            "user": _user_to_angular(user),
+            "user": user_to_angular(user),
             "expiresIn": expires_seconds,
         })
 
@@ -275,7 +253,8 @@ class AuthProfileView(APIView):
 
     def get(self, request):
         logger.info("parkpe_auth_profile get", extra_data={"user_id": request.user.pk})
-        return Response(_user_to_angular(request.user))
+        log_parkpe("parkpe_auth", "Profile get", True, request, {"user_id": request.user.pk})
+        return Response(user_to_angular(request.user))
 
     def patch(self, request):
         user = request.user
@@ -292,7 +271,7 @@ class AuthProfileView(APIView):
             profile.phone = str(data["phone"]).strip()
             profile.save()
         logger.info("parkpe_auth_profile update", extra_data={"user_id": user.pk})
-        return Response(_user_to_angular(user))
+        return Response(user_to_angular(user))
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -304,63 +283,275 @@ class AuthLogoutView(APIView):
 
     def post(self, request):
         logger.info("parkpe_auth_logout", extra_data={"user_id": getattr(request.user, "pk", None)})
+        log_parkpe("parkpe_auth", "Logout", True, request, {"user_id": getattr(request.user, "pk", None)})
         return Response({"success": True})
+
+
+def _validate_register_payload(data, require_phone=True):
+    """Validate registration payload; return (None, error_response) or (dict, None)."""
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    password = data.get("password") or ""
+    confirm = data.get("confirmPassword") or ""
+    accept_terms = data.get("acceptTerms") is True
+    # Optional address from pincode lookup
+    pincode = (data.get("pincode") or "").strip() or None
+    address_line_1 = (data.get("addressLine1") or data.get("address_line_1") or "").strip() or None
+    address_line_2 = (data.get("addressLine2") or data.get("address_line_2") or "").strip() or None
+    city = (data.get("city") or "").strip() or None
+    state = (data.get("state") or "").strip() or None
+
+    if not all([name, email, password]):
+        return None, ({"message": "Name, email and password are required.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if require_phone and not phone:
+        return None, ({"message": "Mobile number is required.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if password != confirm:
+        return None, ({"message": "Password and confirm password do not match.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if len(password) < 6:
+        return None, ({"message": "Password must be at least 6 characters.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if not accept_terms:
+        return None, ({"message": "You must accept the terms.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if Profile.objects.filter(email__iexact=email).exists():
+        return None, ({"message": "An account with this email already exists.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    if phone:
+        normalized_phone, err = safe_normalize_phone(phone)
+        if err:
+            return None, ({"message": "Invalid mobile number. Use 10-digit Indian mobile (e.g. 9876543210).", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+        candidates = phone_lookup_candidates(normalized_phone)
+        if Profile.objects.filter(phone__in=candidates).exists():
+            return None, ({"message": "An account with this phone already exists.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+        phone = normalized_phone
+    return {
+        "name": name,
+        "email": email,
+        "phone": phone or None,
+        "password": password,
+        "accept_terms": accept_terms,
+        "pincode": pincode,
+        "address_line_1": address_line_1,
+        "address_line_2": address_line_2,
+        "city": city,
+        "state": state,
+    }, None
+
+
+PENDING_REGISTER_CACHE_PREFIX = "parkpe_register_pending:"
+PENDING_REGISTER_TTL = 600  # 10 minutes
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AuthRegisterSendOTPView(APIView):
+    """POST /api/auth/register/send-otp – body: same as register. Validates, sends OTP to mobile, stores pending signup in cache. Rate-limited per IP."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+    throttle_classes = [AuthOTPRateThrottle]
+
+    def post(self, request):
+        data = request.data or {}
+        payload, err = _validate_register_payload(data, require_phone=True)
+        if err:
+            body, code = err
+            return Response(body, status=code)
+
+        from portal.models import Role
+        try:
+            Role.objects.get(code="customer")
+        except Role.DoesNotExist:
+            return Response(
+                {"message": "Registration is not configured. Contact support.", "userId": ""},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        normalized_phone = payload["phone"]
+        otp_service = OTPService()
+        success, msg = otp_service.send_otp(normalized_phone, user_id=None, async_send=True)
+        if not success:
+            return Response(
+                {"message": msg or "Failed to send OTP. Please try again.", "userId": ""},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cache_key = f"{PENDING_REGISTER_CACHE_PREFIX}{normalized_phone}"
+        cache.set(cache_key, payload, timeout=PENDING_REGISTER_TTL)
+        logger.info(
+            "parkpe_auth_register_send_otp sent",
+            extra_data={"email_redacted": redact_email(payload["email"]), "phone_masked": mask_phone_for_log(normalized_phone)},
+        )
+        log_parkpe("parkpe_auth", "Register OTP sent", True, request, {"email_redacted": redact_email(payload["email"])})
+        return Response({
+            "message": "OTP sent to your mobile number.",
+            "expires_in": otp_service.otp_expiry,
+        })
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AuthRegisterVerifyView(APIView):
+    """POST /api/auth/register/verify – body: { phone, otp, name, email, password, confirmPassword, acceptTerms }. Verifies OTP, creates user + profile with phone_verified=True, returns JWT. Rate-limited per IP."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+    throttle_classes = [AuthOTPRateThrottle]
+
+    def post(self, request):
+        data = request.data or {}
+        phone_raw = (data.get("phone") or "").strip()
+        otp_code = (data.get("otp") or "").strip()
+        if not phone_raw or not otp_code:
+            return Response(
+                {"message": "Mobile number and OTP are required.", "userId": ""},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        normalized_phone, err = safe_normalize_phone(phone_raw)
+        if err:
+            return Response(
+                {"message": "Invalid mobile number.", "userId": ""},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        otp_service = OTPService()
+        ok, reason = otp_service.verify_otp(normalized_phone, otp_code)
+        if not ok:
+            if reason == "locked":
+                return Response(
+                    {"message": "Too many failed attempts. Try again in 30 minutes.", "userId": ""},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+            logger.warning("parkpe_auth_register_verify otp_failed", extra_data={"phone_masked": mask_phone_for_log(normalized_phone)})
+            log_parkpe("parkpe_auth", "Register verify failed", False, request, {"reason": "invalid_otp"})
+            return Response(
+                {"message": "Invalid or expired OTP. Please request a new one.", "userId": ""},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        cache_key = f"{PENDING_REGISTER_CACHE_PREFIX}{normalized_phone}"
+        payload = cache.get(cache_key)
+        if not payload:
+            return Response(
+                {"message": "Registration session expired. Please start again.", "userId": ""},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if payload.get("phone") != normalized_phone:
+            return Response(
+                {"message": "Mobile number does not match. Please start again.", "userId": ""},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cache.delete(cache_key)
+
+        name = payload["name"]
+        email = payload["email"]
+        password = payload["password"]
+
+        from portal.models import Role
+        from django.db import transaction
+        try:
+            Role.objects.get(code="customer")
+        except Role.DoesNotExist:
+            return Response(
+                {"message": "Registration is not configured. Contact support.", "userId": ""},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        first_name = name.split(None, 1)[0] if name else "User"
+        last_name = name.split(None, 1)[1] if name and len(name.split(None, 1)) > 1 else ""
+
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    email=email,
+                    password=password,
+                    role_code="customer",
+                )
+                user.email = email
+                user.save()
+                Profile.objects.create(
+                    user=user,
+                    first_name=first_name,
+                    last_name=last_name or "",
+                    email=email,
+                    phone=normalized_phone,
+                    type="individual",
+                    email_verified=False,
+                    phone_verified=True,
+                    pincode=payload.get("pincode"),
+                    address_line_1=payload.get("address_line_1"),
+                    address_line_2=payload.get("address_line_2"),
+                    city=payload.get("city"),
+                    state=payload.get("state"),
+                )
+                Wallet.objects.get_or_create(user=user, defaults={"currency": "INR"})
+        except Exception as e:
+            logger.exception("parkpe_auth_register_verify create_user failed", extra_data={"email_redacted": redact_email(email)})
+            return Response(
+                {"message": "Account creation failed. Please try again.", "userId": ""},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # Send welcome email (async, non-blocking)
+        try:
+            NotificationServiceV2.send_email(
+                to_email=email,
+                subject="Welcome to ParkPe",
+                template_name="portal/emails/parkpe_welcome.html",
+                context={
+                    "first_name": first_name,
+                    "signin_url": "",  # Optional: set PARKPE_APP_URL in config and pass login link
+                },
+                user_id=user.pk,
+                async_send=True,
+                use_parkpe=True,
+            )
+        except Exception as mail_err:
+            logger.warning(
+                "parkpe_auth_register_verify welcome_email_failed",
+                extra_data={"user_id": user.pk, "error": str(mail_err)},
+            )
+
+        logger.info("parkpe_auth_register_verify success", extra_data={"user_id": user.pk})
+        log_parkpe("parkpe_auth", "Register success", True, request, {"user_id": user.pk})
+        refresh = RefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+        from rest_framework_simplejwt.settings import api_settings as jwt_settings
+        access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
+        expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
+        return Response({
+            "message": "Registration successful.",
+            "userId": str(user.pk),
+            "token": access,
+            "refreshToken": refresh_str,
+            "user": user_to_angular(user),
+            "expiresIn": expires_seconds,
+        }, status=status.HTTP_201_CREATED)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
 class AuthRegisterView(APIView):
-    """POST /api/auth/register – body: { name, email, phone, password, confirmPassword, acceptTerms }. Creates user + profile."""
+    """POST /api/auth/register – body: { name, email, phone, password, confirmPassword, acceptTerms }. Creates user + profile (no OTP). Prefer register/send-otp + register/verify for mobile verification."""
     authentication_classes = []
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]
 
     def post(self, request):
         data = request.data or {}
-        name = (data.get("name") or "").strip()
-        email = (data.get("email") or "").strip()
-        phone = (data.get("phone") or "").strip()
-        password = data.get("password") or ""
-        confirm = data.get("confirmPassword") or ""
-        accept_terms = data.get("acceptTerms") is True
+        payload, err = _validate_register_payload(data, require_phone=False)
+        if err:
+            body, code = err
+            return Response(body, status=code)
 
-        logger.info("parkpe_auth_register attempt", extra_data={"email_redacted": _redact_email(email)})
+        name = payload["name"]
+        email = payload["email"]
+        phone = payload["phone"]
+        password = payload["password"]
 
-        if not all([name, email, password]):
-            return Response(
-                {"message": "Name, email and password are required.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if password != confirm:
-            return Response(
-                {"message": "Password and confirm password do not match.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if len(password) < 6:
-            return Response(
-                {"message": "Password must be at least 6 characters.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not accept_terms:
-            logger.warning("parkpe_auth_register terms not accepted")
-            return Response(
-                {"message": "You must accept the terms.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if Profile.objects.filter(email__iexact=email).exists():
-            logger.warning("parkpe_auth_register email already exists")
-            return Response(
-                {"message": "An account with this email already exists.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if phone and Profile.objects.filter(phone=phone).exists():
-            return Response(
-                {"message": "An account with this phone already exists.", "userId": ""},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        logger.info("parkpe_auth_register attempt", extra_data={"email_redacted": redact_email(email)})
 
         from portal.models import Role
         try:
-            role = Role.objects.get(code="customer")
+            Role.objects.get(code="customer")
         except Role.DoesNotExist:
             return Response(
                 {"message": "Registration is not configured. Contact support.", "userId": ""},
@@ -389,7 +580,29 @@ class AuthRegisterView(APIView):
             type="individual",
             email_verified=False,
             phone_verified=False,
+            pincode=payload.get("pincode"),
+            address_line_1=payload.get("address_line_1"),
+            address_line_2=payload.get("address_line_2"),
+            city=payload.get("city"),
+            state=payload.get("state"),
         )
+
+        # Send welcome email (async, non-blocking)
+        try:
+            NotificationServiceV2.send_email(
+                to_email=email,
+                subject="Welcome to ParkPe",
+                template_name="portal/emails/parkpe_welcome.html",
+                context={"first_name": first_name, "signin_url": ""},
+                user_id=user.pk,
+                async_send=True,
+                use_parkpe=True,
+            )
+        except Exception as mail_err:
+            logger.warning(
+                "parkpe_auth_register welcome_email_failed",
+                extra_data={"user_id": user.pk, "error": str(mail_err)},
+            )
 
         logger.info("parkpe_auth_register success", extra_data={"user_id": user.pk})
         return Response(
@@ -407,15 +620,17 @@ class AuthForgotPasswordView(APIView):
 
     def post(self, request):
         email = (request.data or {}).get("email") or ""
-        logger.info("parkpe_auth_forgot_password request", extra_data={"email_redacted": _redact_email(email)})
+        logger.info("parkpe_auth_forgot_password request", extra_data={"email_redacted": redact_email(email)})
         if not email:
             logger.warning("parkpe_auth_forgot_password missing email")
             return Response(
                 {"message": "Email is required.", "resetTokenSent": False},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # TODO: integrate with portal forgot-password flow (send reset link)
-        return Response({
-            "message": "If an account exists with this email, you will receive a reset link.",
-            "resetTokenSent": True,
-        })
+        return Response(
+            {
+                "message": "Password reset is not yet available. Please contact support.",
+                "resetTokenSent": False,
+            },
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )

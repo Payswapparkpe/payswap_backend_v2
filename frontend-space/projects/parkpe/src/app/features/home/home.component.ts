@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -50,6 +50,9 @@ export class HomeComponent {
   contactSubmitStatus: 'idle' | 'success' | 'error' = 'idle';
   contactErrorMessage = '';
   contactSubmitting = false;
+  notifyEmail = '';
+  notifySubmitting = false;
+  notifySuccess = false;
 
   readonly problems = [
     { icon: 'warning', title: 'Vehicles block each other with no safe way to contact owners' },
@@ -102,12 +105,26 @@ export class HomeComponent {
     { icon: 'bar_chart', title: 'Parking Analytics', description: 'Data insights for parking operators and municipalities' },
   ];
 
+  /** Hero stats: value + label for consistent display and optional number animation */
+  readonly heroStats = [
+    { value: '10K+', label: 'Verified users' },
+    { value: '100%', label: 'Privacy-first' },
+    { value: '24/7', label: 'Support' },
+    { value: 'Live', label: 'ParkPe Connect' },
+  ];
+
   readonly whyParkPeReasons = [
     { icon: 'shield', title: 'Privacy-first design', description: 'Your personal information is never shared. We use end-to-end encryption and OTP verification.' },
     { icon: 'place', title: 'Built for Indian cities', description: 'Designed specifically for the unique challenges of urban parking in India.' },
     { icon: 'check_circle', title: 'Secure and verified users', description: 'Every user is verified with mobile OTP, ensuring authentic interactions only.' },
     { icon: 'smartphone', title: 'App and web-based access', description: 'Works seamlessly on mobile apps and web browsers. No downloads required to scan.' },
     { icon: 'trending_up', title: 'Scalable and future-ready platform', description: 'Built on modern architecture to support growing urban mobility needs.' },
+  ];
+
+  /** Placeholder testimonials for trust block */
+  readonly testimonials = [
+    { quote: 'Finally, a way to get in touch without sharing my number. ParkPe Connect is a game-changer for parking in crowded areas.', author: 'Vehicle owner, Bangalore' },
+    { quote: 'Setup was quick and the QR sticker is durable. Our fleet uses it daily.', author: 'Fleet manager, Mumbai' },
   ];
 
   /** Full Connect app URL; in-app Connect service is at /connect */
@@ -122,27 +139,44 @@ export class HomeComponent {
 
   private initAnimations(): void {
     const host = this.el.nativeElement as HTMLElement;
+    const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const heroContent = host.querySelector('.hero-content');
     const heroHeadline = host.querySelector('.hero-headline');
     const heroDesc = host.querySelector('.hero-desc');
     const heroCtas = host.querySelector('.hero-ctas');
-    const heroStats = host.querySelector('.hero-stats');
+    const heroStatsSection = host.querySelector('.hero-stats');
+    const heroStatItems = heroStatsSection?.querySelectorAll('.stat');
     const sections = host.querySelectorAll('.section-reveal');
 
-    const heroEls = [heroHeadline, heroDesc, heroCtas, heroStats].filter(
+    const duration = prefersReducedMotion ? 0 : undefined;
+    const yFrom = prefersReducedMotion ? 0 : 24;
+
+    const heroEls = [heroHeadline, heroDesc, heroCtas, heroStatsSection].filter(
       (el): el is Element => el != null
     );
     if (heroEls.length > 0) {
       const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
-      tl.set(heroEls, { opacity: 0, y: 24 })
-        .to(heroHeadline, { opacity: 1, y: 0, duration: 0.6 })
-        .to(heroDesc, { opacity: 1, y: 0, duration: 0.5 }, '-=0.3')
-        .to(heroCtas, { opacity: 1, y: 0, duration: 0.4 }, '-=0.2')
-        .to(heroStats, { opacity: 1, y: 0, duration: 0.5 }, '-=0.2');
+      tl.set(heroEls, { opacity: prefersReducedMotion ? 1 : 0, y: yFrom })
+        .to(heroHeadline, { opacity: 1, y: 0, duration: duration ?? 0.6 })
+        .to(heroDesc, { opacity: 1, y: 0, duration: duration ?? 0.5 }, prefersReducedMotion ? undefined : '-=0.3')
+        .to(heroCtas, { opacity: 1, y: 0, duration: duration ?? 0.4 }, prefersReducedMotion ? undefined : '-=0.2')
+        .to(heroStatsSection, { opacity: 1, y: 0, duration: duration ?? 0.5 }, prefersReducedMotion ? undefined : '-=0.2');
+    }
+    if (heroStatItems?.length && !prefersReducedMotion) {
+      gsap.set(heroStatItems, { opacity: 0, y: 12 });
+      gsap.to(heroStatItems, {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        stagger: 0.1,
+        delay: 0.8,
+        ease: 'power2.out',
+      });
     }
 
     const trustBadge = heroContent?.querySelector('.trust-badge');
-    if (trustBadge) {
+    if (trustBadge && !prefersReducedMotion) {
       gsap.from(trustBadge, {
         opacity: 0,
         y: 12,
@@ -152,21 +186,42 @@ export class HomeComponent {
       });
     }
 
-    sections.forEach((section, i) => {
-      gsap.from(section, {
-        scrollTrigger: {
-          trigger: section,
-          start: 'top 85%',
-          end: 'top 60%',
-          toggleActions: 'play none none none',
-        },
-        opacity: 0,
-        y: 40,
-        duration: 0.6,
-        delay: i * 0.05,
-        ease: 'power2.out',
+    if (prefersReducedMotion) {
+      sections.forEach((section) => {
+        gsap.set(section, { opacity: 1, y: 0 });
       });
-    });
+    } else {
+      sections.forEach((section, i) => {
+        gsap.from(section, {
+          scrollTrigger: {
+            trigger: section,
+            start: 'top 85%',
+            end: 'top 60%',
+            toggleActions: 'play none none none',
+          },
+          opacity: 0,
+          y: 40,
+          duration: 0.6,
+          delay: i * 0.05,
+          ease: 'power2.out',
+        });
+        const cards = section.querySelectorAll('.card');
+        if (cards.length > 0) {
+          gsap.from(cards, {
+            scrollTrigger: {
+              trigger: section,
+              start: 'top 88%',
+              toggleActions: 'play none none none',
+            },
+            opacity: 0,
+            y: 24,
+            duration: 0.5,
+            stagger: 0.08,
+            ease: 'power2.out',
+          });
+        }
+      });
+    }
   }
 
   @HostListener('window:scroll')
@@ -194,15 +249,34 @@ export class HomeComponent {
     window.open(this.payswapUrl, '_blank', 'noopener,noreferrer');
   }
 
-  submitContact() {
+  /** TODO: wire to backend when contact API available (Payswap Hub). Currently mock. */
+  submitContact(form: NgForm) {
+    if (!form.valid) {
+      this.contactSubmitStatus = 'error';
+      this.contactErrorMessage = 'Please fill all required fields correctly.';
+      return;
+    }
     this.contactSubmitting = true;
     this.contactSubmitStatus = 'idle';
     this.contactErrorMessage = '';
     setTimeout(() => {
       this.contactSubmitStatus = 'success';
       this.contactForm = { name: '', mobile: '', email: '', userType: '', message: '' };
+      form.resetForm(this.contactForm);
       this.contactSubmitting = false;
       setTimeout(() => (this.contactSubmitStatus = 'idle'), 5000);
     }, 600);
+  }
+
+  /** TODO: wire to backend when notify API available (Payswap Hub). Currently mock. */
+  submitNotify() {
+    if (!this.notifyEmail) return;
+    this.notifySubmitting = true;
+    this.notifySuccess = false;
+    setTimeout(() => {
+      this.notifySuccess = true;
+      this.notifyEmail = '';
+      this.notifySubmitting = false;
+    }, 400);
   }
 }

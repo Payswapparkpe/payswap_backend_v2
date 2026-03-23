@@ -5,6 +5,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve --project parkpe",
+    "start:lan": "ng serve --project parkpe --host 0.0.0.0 --configuration=development",
     "build": "ng build --project parkpe",
     "build:prod": "ng build --project parkpe --configuration production",
     "watch": "ng build --project parkpe --watch --configuration development",

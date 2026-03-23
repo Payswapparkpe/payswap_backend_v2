@@ -12,7 +12,7 @@ import { Challan } from '../../../core/models/challan.model';
   imports: [CommonModule, RouterLink],
   template: `
     <div class="feature-container">
-      <a [routerLink]="['/challan/detail', challanId]" class="back-link">
+      <a routerLink="/challan" class="back-link">
         <span class="material-icons">arrow_back</span> Back to Challan
       </a>
       <h1 class="feature-title">Pay Challan</h1>
@@ -39,7 +39,7 @@ import { Challan } from '../../../core/models/challan.model';
         </div>
       } @else {
         <div class="empty-state card">
-          <p>Challan not found. <a routerLink="/challan/list">Back to list</a></p>
+          <p>Challan not found. <a routerLink="/challan">Back to list</a></p>
         </div>
       }
     </div>

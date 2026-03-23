@@ -1,18 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { NotificationService } from '../../../core/services/notification.service';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-fastag-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
     <div class="feature-container">
-      <a routerLink="/dashboard" class="back-link">
-        <span class="material-icons">arrow_back</span> Back to Dashboard
-      </a>
       <h1 class="feature-title">FASTag Recharge</h1>
 
       <form [formGroup]="fastagForm" (ngSubmit)="onSubmit()" class="fastag-form card">
@@ -38,13 +34,8 @@ import { NotificationService } from '../../../core/services/notification.service
     </div>
   `,
   styles: [`
-    .feature-container { padding: 2rem; max-width: 600px; margin: 0 auto; }
-    .back-link {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      color: var(--primary-600); text-decoration: none; font-weight: 500; margin-bottom: 1.5rem;
-    }
-    .back-link .material-icons { font-size: 20px; }
-    .feature-title { font-size: 2rem; font-weight: 700; margin-bottom: 2rem; }
+    .feature-container { padding: 0; max-width: 100%; }
+    .feature-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 1.25rem; }
     .fastag-form { padding: 2rem; }
     .form-group { margin-bottom: 1.5rem; }
     .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
@@ -53,10 +44,10 @@ import { NotificationService } from '../../../core/services/notification.service
     .btn-block { width: 100%; padding: 1rem; }
   `],
 })
-export class FastagFormComponent {
+export class FastagFormComponent implements OnInit {
   private fb = inject(FormBuilder);
   private router = inject(Router);
-  private notification = inject(NotificationService);
+  private route = inject(ActivatedRoute);
 
   fastagForm: FormGroup;
   loading = false;
@@ -68,11 +59,17 @@ export class FastagFormComponent {
     });
   }
 
+  ngOnInit() {
+    const reg = this.route.snapshot.queryParams['registration_number'] ?? this.router.getCurrentNavigation()?.extras?.state?.['registration_number'];
+    if (reg && typeof reg === 'string' && reg.trim()) {
+      this.fastagForm.patchValue({ vehicleNumber: reg.trim() });
+    }
+  }
+
   onSubmit() {
     if (this.fastagForm.invalid) return;
-
-    this.router.navigate(['/fastag/confirm'], { 
-      state: { recharge: this.fastagForm.value } 
+    this.router.navigate(['/fastag/confirm'], {
+      state: { recharge: this.fastagForm.value }
     });
   }
 }

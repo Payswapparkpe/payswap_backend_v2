@@ -67,28 +67,44 @@ import type { VoucherDetail } from '../../../core/models/voucher.model';
           @if (voucher()!.transactions.length === 0) {
             <p class="empty-txn">No transactions yet.</p>
           } @else {
-            <table class="txn-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Amount</th>
-                  <th>Balance after</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (t of voucher()!.transactions; track t.id) {
+            <div class="txn-wrap">
+              <table class="txn-table">
+                <thead>
                   <tr>
-                    <td>{{ t.createdAt | date:'short' }}</td>
-                    <td>{{ t.transactionType }}</td>
-                    <td>@if (t.transactionAmount != null) { ₹{{ t.transactionAmount }} } @else { — }</td>
-                    <td>₹{{ t.balanceAfter }}</td>
-                    <td><span class="txn-status" [class.success]="t.transactionStatus === 'SUCCESS'">{{ t.transactionStatus }}</span></td>
+                    <th>Date</th>
+                    <th>Transaction ID</th>
+                    <th>Type</th>
+                    <th>Direction</th>
+                    <th>Amount</th>
+                    <th>Balance after</th>
+                    <th>Status</th>
                   </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  @for (t of voucher()!.transactions; track t.id) {
+                    <tr>
+                      <td>{{ t.createdAt | date:'short' }}</td>
+                      <td class="txn-id">{{ t.transactionId || t.transactionRef || '—' }}</td>
+                      <td>{{ t.transactionDirection === 'credit' && t.transactionType === 'REDEMPTION' ? 'REFUND' : t.transactionType }}</td>
+                      <td>
+                        <span class="txn-dir" [class.credit]="t.transactionDirection === 'credit'" [class.debit]="t.transactionDirection === 'debit'">
+                          {{ (t.transactionDirection || 'debit') | titlecase }}
+                        </span>
+                      </td>
+                      <td>
+                        @if (t.transactionAmount != null) {
+                          <span [class.credit-amt]="t.transactionDirection === 'credit'" [class.debit-amt]="t.transactionDirection !== 'credit'">
+                            ₹{{ t.transactionAmount }}
+                          </span>
+                        } @else { — }
+                      </td>
+                      <td>₹{{ t.balanceAfter }}</td>
+                      <td><span class="txn-status" [class.success]="t.transactionStatus === 'SUCCESS'">{{ t.transactionStatus }}</span></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           }
         </div>
 
@@ -133,13 +149,39 @@ import type { VoucherDetail } from '../../../core/models/voucher.model';
     .status-badge.active { background: var(--success); color: white; }
     .status-badge.partially_redeemed { background: var(--warning); color: #1a1a1a; }
     .status-badge.fully_redeemed { background: var(--text-muted); color: white; }
-    .transactions-section { padding: 1.5rem; }
+    .transactions-section { padding: 1.5rem; overflow: hidden; }
     .section-title { font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; }
     .empty-txn { color: var(--text-muted); font-size: 0.9375rem; margin: 0; }
-    .txn-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .txn-table th, .txn-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border-light); }
+    .txn-wrap { width: 100%; overflow: hidden; }
+    .txn-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.81rem; }
+    .txn-table th, .txn-table td {
+      padding: 0.45rem 0.45rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
     .txn-table th { font-weight: 600; color: var(--text-secondary); }
     .txn-status.success { color: var(--success); font-weight: 600; }
+    .txn-id {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      word-break: break-all;
+      min-width: 0;
+      max-width: none;
+    }
+    .txn-dir {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 68px; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+      background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border-light);
+    }
+    .txn-dir.credit { background: rgba(16, 185, 129, 0.12); color: #047857; border-color: rgba(16, 185, 129, 0.25); }
+    .txn-dir.debit { background: rgba(239, 68, 68, 0.10); color: #b91c1c; border-color: rgba(239, 68, 68, 0.25); }
+    .credit-amt { color: #047857; font-weight: 600; }
+    .debit-amt { color: #b91c1c; font-weight: 600; }
     .actions-footer { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
     .empty-state { text-align: center; padding: 2rem; }
     .empty-state .material-icons { font-size: 48px; color: var(--text-muted); margin-bottom: 1rem; }

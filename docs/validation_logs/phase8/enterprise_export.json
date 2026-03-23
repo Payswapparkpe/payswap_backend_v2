@@ -1,0 +1,39 @@
+{
+  "exported_at": "2026-02-14T15:03:47.005915+00:00",
+  "since": "2026-01-15T15:03:46.910619+00:00",
+  "reporting": {
+    "revenue": "0",
+    "commission": "0",
+    "active_partners": 3,
+    "api_requests": 0
+  },
+  "settlements": [
+    {
+      "id": 1,
+      "partner_id": 5,
+      "settlement_period_start": "2025-12-31T18:30:00+00:00",
+      "settlement_period_end": "2026-01-31T18:29:59.999999+00:00",
+      "status": "PENDING",
+      "settlement_amount": "0.00",
+      "settlement_reference": "STLparkpe20260214S006YK"
+    },
+    {
+      "id": 2,
+      "partner_id": 3,
+      "settlement_period_start": "2025-12-31T18:30:00+00:00",
+      "settlement_period_end": "2026-01-31T18:29:59.999999+00:00",
+      "status": "PENDING",
+      "settlement_amount": "0.00",
+      "settlement_reference": "STLIPWLE018CA20260214S00DUM"
+    },
+    {
+      "id": 3,
+      "partner_id": 2,
+      "settlement_period_start": "2025-12-31T18:30:00+00:00",
+      "settlement_period_end": "2026-01-31T18:29:59.999999+00:00",
+      "status": "PENDING",
+      "settlement_amount": "0.00",
+      "settlement_reference": "STLINTERNAL20260214S000PD"
+    }
+  ]
+}

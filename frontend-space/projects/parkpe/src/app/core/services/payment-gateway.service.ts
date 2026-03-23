@@ -1,12 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from, switchMap, tap, catchError, throwError, map } from 'rxjs';
+import { Observable, from, switchMap, tap, catchError, throwError, map, of } from 'rxjs';
 import { API_BACKEND_TOKEN } from '../constants';
 import {
   PaymentGateway,
   PaymentRequest,
   PaymentResponse,
   GatewayConfig,
-} from '../models/payment.model';
+} from 'shared';
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from './encryption.service';
 import { LoggerService } from './logger.service';
@@ -41,10 +41,6 @@ export class PaymentGatewayService {
 
   getAvailableGateways(): Observable<GatewayConfig[]> {
     return this.api.getGateways();
-  }
-
-  getVoucherBalance(): Observable<{ balance: number; currency: string }> {
-    return this.api.getVoucherBalance();
   }
 
   initiatePayment(
@@ -84,14 +80,21 @@ export class PaymentGatewayService {
     const effectiveGateway = gateway === 'razorpay' ? 'cashfree' : gateway;
     return this.loadScript(effectiveGateway as PaymentGateway).pipe(
       switchMap(() => this.api.createOrder(effectiveGateway as PaymentGateway, request)),
-      tap((orderData) => {
+      switchMap((orderData) => {
         if (effectiveGateway === 'cashfree') {
           const sessionId = orderData.paymentSessionId ?? orderData.payment_session_id;
           const cf = this.getCashfreeInstance();
-          if (sessionId && cf && typeof cf.checkout === 'function') {
-            cf.checkout({ paymentSessionId: sessionId, redirectTarget: '_self' });
+          if (!sessionId || !cf || typeof cf.checkout !== 'function') {
+            return throwError(
+              () =>
+                new Error(
+                  'Cashfree checkout could not start (missing payment session or SDK). Check CASHFREE_PG_* env and script URL.'
+                )
+            );
           }
+          cf.checkout({ paymentSessionId: sessionId, redirectTarget: '_self' });
         }
+        return of(undefined as void);
       }),
       map(() => undefined as void),
       catchError((err) => {
@@ -103,7 +106,7 @@ export class PaymentGatewayService {
 
   private loadScript(gateway: PaymentGateway): Observable<void> {
     const effective = gateway === 'razorpay' ? 'cashfree' : gateway;
-    if (this.scriptsLoaded[effective] || this.scriptsLoaded.cashfree) {
+    if (this.scriptsLoaded[effective] || this.scriptsLoaded['cashfree']) {
       return from(Promise.resolve());
     }
 
@@ -113,7 +116,7 @@ export class PaymentGatewayService {
         const script = document.createElement('script');
         script.src = environment.paymentGateways.cashfree.scriptUrl;
         script.onload = () => {
-          this.scriptsLoaded.cashfree = true;
+          this.scriptsLoaded['cashfree'] = true;
           this.logger.debug('payment script loaded', { service: 'payment', gateway: 'cashfree' });
           resolve();
         };

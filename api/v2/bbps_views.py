@@ -12,7 +12,6 @@ from api.v2.authentication import APIKeyAuthentication
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
 from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
 from api.v2.vendor_router import VendorRouter
-from api_management.product_control import is_product_enabled
 from portal.models import LogEntry
 from portal.services.bbps_service import BBPSService
 from portal.utils.logging_helper import get_logger
@@ -23,10 +22,6 @@ from .serializers import (
 )
 
 logger = get_logger("api.v2.bbps_views")
-
-# Map BBPS vendor code to API product slug (used for product-level toggle)
-BBPS_VENDOR_TO_PRODUCT_SLUG = {"mobikwik": "mobikwik_bbps", "euronet": "euronet_bbps"}
-
 
 def _log_bbps_api(request, action, success, message, extra_data=None, vendor=None):
     """Create LogEntry for API v2 BBPS calls. category: euronet_bbps or mobikwik_bbps."""
@@ -67,13 +62,6 @@ class BBPSOperatorsView(StandardResponseMixin, views.APIView):
         category = request.query_params.get("category") or None
         vendor_obj = VendorRouter.get_vendor_for_request(request, "bbps")
         vendor = vendor_obj.code
-        product_slug = BBPS_VENDOR_TO_PRODUCT_SLUG.get(vendor) or f"{vendor}_bbps"
-        if not is_product_enabled(None, product_slug, request):
-            return self.error_response(
-                message=f"BBPS product ({product_slug}) is disabled for this platform. Contact admin.",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                request=request,
-            )
         service = BBPSService(vendor=vendor)
         if not service.is_available():
             return self.error_response(
@@ -120,33 +108,31 @@ class BBPSFetchBillView(StandardResponseMixin, views.APIView):
                 request=request,
             )
         data = serializer.validated_data
-        vendor_obj = VendorRouter.get_vendor_for_request(request, "bbps")
-        vendor = vendor_obj.code
-        product_slug = BBPS_VENDOR_TO_PRODUCT_SLUG.get(vendor) or f"{vendor}_bbps"
-        if not is_product_enabled(None, product_slug, request):
-            return self.error_response(
-                message=f"BBPS product ({product_slug}) is disabled for this platform. Contact admin.",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                request=request,
-            )
-        service = BBPSService(vendor=vendor)
-        if not service.is_available():
-            return self.error_response(
-                message="BBPS service is not configured or enabled for this vendor",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                request=request,
-            )
         extra = {}
+        for k in ("cir", "circle"):
+            v = data.get(k)
+            if v not in (None, ""):
+                extra["cir"] = str(v).strip()
+                break
         for k in ("ad1", "ad2", "ad3", "ad4", "ad9"):
             v = data.get(k)
             if v not in (None, ""):
                 extra[k] = str(v).strip()
-        result = service.fetch_bill(
-            operator_id=data["operator_id"],
-            customer_id=data["customer_id"],
-            subscriber_id=data.get("subscriber_id") or None,
-            extra=extra if extra else None,
-        )
+
+        def _do_fetch(vendor):
+            code = vendor.code
+            service = BBPSService(vendor=code)
+            if not service.is_available():
+                return {"success": False, "message": "BBPS service not configured", "vendor": code}
+            return service.fetch_bill(
+                operator_id=data["operator_id"],
+                customer_id=data["customer_id"],
+                subscriber_id=data.get("subscriber_id") or None,
+                extra=extra if extra else None,
+            )
+
+        result, vendor_used = VendorRouter.execute_with_failover(request, "bbps", _do_fetch)
+        vendor = vendor_used.code if vendor_used else None
         if not result.get("success"):
             _log_bbps_api(request, "fetch_bill", False, result.get("message", "Bill fetch failed"), {"operator_id": data.get("operator_id")}, vendor=result.get("vendor") or vendor)
             return self.error_response(
@@ -154,10 +140,10 @@ class BBPSFetchBillView(StandardResponseMixin, views.APIView):
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 request=request,
             )
-        _log_bbps_api(request, "fetch_bill", True, "Bill fetched", {"operator_id": data.get("operator_id")}, vendor=result.get("vendor"))
+        _log_bbps_api(request, "fetch_bill", True, "Bill fetched", {"operator_id": data.get("operator_id")}, vendor=result.get("vendor") or vendor)
         return self.success_response(
             message="Bill fetched",
-            data={"bill_details": result["bill_details"], "vendor": result.get("vendor", "mobikwik")},
+            data={"bill_details": result["bill_details"], "vendor": result.get("vendor", vendor or "mobikwik")},
             request=request,
         )
 
@@ -187,13 +173,6 @@ class BBPSPayBillView(StandardResponseMixin, views.APIView):
         data = serializer.validated_data
         vendor_obj = VendorRouter.get_vendor_for_request(request, "bbps")
         vendor = vendor_obj.code
-        product_slug = BBPS_VENDOR_TO_PRODUCT_SLUG.get(vendor) or f"{vendor}_bbps"
-        if not is_product_enabled(None, product_slug, request):
-            return self.error_response(
-                message=f"BBPS product ({product_slug}) is disabled for this platform. Contact admin.",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                request=request,
-            )
         service = BBPSService(vendor=vendor)
         if not service.is_available():
             return self.error_response(
@@ -222,6 +201,18 @@ class BBPSPayBillView(StandardResponseMixin, views.APIView):
                 request=request,
             )
         _log_bbps_api(request, "pay_bill", True, "Payment submitted", {"operator_id": data.get("operator_id"), "ref_id": data.get("ref_id")}, vendor=result.get("vendor"))
+        try:
+            from decimal import Decimal
+            from portal.services.hub_income_service import record_hub_income
+            record_hub_income(
+                'bbps',
+                transaction_amount=Decimal(str(data["amount"])),
+                vendor_code=result.get("vendor") or vendor,
+                reference_id=data["ref_id"],
+                partner=getattr(request, "partner", None),
+            )
+        except Exception:
+            pass
         return self.success_response(
             message="Payment submitted",
             data={
@@ -249,13 +240,6 @@ class BBPSPaymentStatusView(StandardResponseMixin, views.APIView):
     def get(self, request, ref_id):
         vendor_obj = VendorRouter.get_vendor_for_request(request, "bbps")
         vendor = vendor_obj.code
-        product_slug = BBPS_VENDOR_TO_PRODUCT_SLUG.get(vendor) or f"{vendor}_bbps"
-        if not is_product_enabled(None, product_slug, request):
-            return self.error_response(
-                message=f"BBPS product ({product_slug}) is disabled for this platform. Contact admin.",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                request=request,
-            )
         service = BBPSService(vendor=vendor)
         if not service.is_available():
             return self.error_response(

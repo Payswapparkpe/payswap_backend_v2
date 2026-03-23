@@ -10,8 +10,21 @@ from django.conf import settings
 from django.core.cache import cache
 from portal.services.notification_service_v2 import NotificationServiceV2
 from portal.utils.mfa_utils import store_otp_in_cache, verify_otp_from_cache
-from portal.utils.phone_utils import normalize_phone_number
+from portal.utils.phone_utils import normalize_phone_number, mask_phone_number
 from portal.utils.logging_helper import get_logger
+
+# Mask for logs: never log OTP or full phone/email. Use this for all log extra_data.
+def _mask_phone_for_log(phone: str) -> str:
+    if not phone:
+        return "****"
+    return mask_phone_number(phone, show_last_digits=4)
+
+
+def _mask_email_for_log(email: str) -> str:
+    if not email or "@" not in email:
+        return "***"
+    local, domain = email.split("@", 1)
+    return f"{local[:1]}***@{domain}" if len(local) > 1 else f"***@{domain}"
 from portal.tasks.otp_dual_delivery_task import send_otp_dual_delivery_task
 
 logger = get_logger('portal.services.otp')
@@ -46,14 +59,14 @@ class OTPService:
         Returns:
             Tuple of (success, otp_code or error_message)
         """
-        # TEMPORARY: Full details for debugging - no masking
+        # Security: never log full phone or OTP. Mask all PII in logs.
         logger.info(
-            f'OTP send_otp() called - Phone: {phone_number} | User ID: {user_id} | Async: {async_send}',
+            'OTP send_otp() called',
             user=None,
             extra_data={
                 'action': 'otp_send_attempt',
                 'user_id': user_id,
-                'phone_input': phone_number,  # Full phone number
+                'phone_masked': _mask_phone_for_log(phone_number),
                 'async_send': async_send
             }
         )
@@ -62,9 +75,9 @@ class OTPService:
         try:
             normalized_phone = normalize_phone_number(phone_number)
             logger.info(
-                f'OTP - Phone normalized: {normalized_phone}',
+                'OTP - Phone normalized',
                 user=None,
-                extra_data={'action': 'otp_phone_normalized', 'normalized_phone': normalized_phone, 'original_phone': phone_number}
+                extra_data={'action': 'otp_phone_normalized', 'phone_masked': _mask_phone_for_log(normalized_phone)}
             )
         except ValueError as e:
             logger.error(
@@ -76,41 +89,38 @@ class OTPService:
         
         rate_limit_key = f"otp_rate_limit:{normalized_phone}"
         request_count = cache.get(rate_limit_key, 0)
-        
+        # OTP send limit disabled for ParkPe for now (was 3 per window)
+        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 99999)
         logger.info(
-            f'OTP - Rate limit check: {request_count}/3 attempts',
+            'OTP - Rate limit check',
             user=None,
             extra_data={
                 'action': 'otp_rate_limit_check',
                 'request_count': request_count,
-                'rate_limit_key': rate_limit_key,
-                'phone_masked': normalized_phone[:4] + '****'
+                'phone_masked': _mask_phone_for_log(normalized_phone)
             }
         )
-        
-        if request_count >= 3:
+        if request_count >= OTP_SEND_LIMIT:
             logger.warning(
-                f'OTP - Rate limit exceeded for {normalized_phone[:4]}****',
+                'OTP - Rate limit exceeded',
                 user=None,
                 extra_data={
                     'action': 'otp_rate_limit_exceeded',
                     'user_id': user_id,
-                    'phone_masked': normalized_phone[:4] + '****',
+                    'phone_masked': _mask_phone_for_log(normalized_phone),
                     'request_count': request_count
                 }
             )
             return False, "Maximum OTP requests reached. Please try again later."
-        
-        # Generate OTP
+        # Generate OTP (never log the value)
         otp = self.generate_otp()
         logger.info(
-            f'OTP - Generated: {otp}',
+            'OTP - Generated',
             user=None,
             extra_data={
                 'action': 'otp_generated',
                 'user_id': user_id,
-                'phone_full': normalized_phone,  # Full phone number
-                'otp_code': otp,  # Full OTP code
+                'phone_masked': _mask_phone_for_log(normalized_phone),
                 'otp_length': len(otp)
             }
         )
@@ -118,12 +128,11 @@ class OTPService:
         # Store OTP in cache using normalized phone
         store_otp_in_cache(normalized_phone, otp, self.otp_expiry)
         logger.info(
-            f'OTP - Stored in cache for {normalized_phone} | OTP: {otp}',
+            'OTP - Stored in cache',
             user=None,
             extra_data={
                 'action': 'otp_stored_cache',
-                'phone_full': normalized_phone,  # Full phone number
-                'otp_code': otp,  # Full OTP code
+                'phone_masked': _mask_phone_for_log(normalized_phone),
                 'expiry_seconds': self.otp_expiry
             }
         )
@@ -131,7 +140,7 @@ class OTPService:
         # Update rate limit
         cache.set(rate_limit_key, request_count + 1, timeout=600)  # 10 minutes window
         logger.info(
-            f'OTP - Rate limit updated: {request_count + 1}/3',
+            'OTP - Rate limit updated',
             user=None,
             extra_data={'action': 'otp_rate_limit_updated', 'new_count': request_count + 1}
         )
@@ -140,20 +149,19 @@ class OTPService:
         effective_async = async_send and not getattr(settings, 'DEBUG', False)
         if getattr(settings, 'DEBUG', False) and async_send:
             logger.info(
-                f'OTP - DEBUG=True: sending OTP synchronously (no Celery required)',
+                'OTP - DEBUG=True: sending OTP synchronously (no Celery required)',
                 user=None,
-                extra_data={'action': 'otp_sync_in_debug', 'phone_full': normalized_phone}
+                extra_data={'action': 'otp_sync_in_debug', 'phone_masked': _mask_phone_for_log(normalized_phone)}
             )
 
-        # Send OTP via unified notification service
+        # Send OTP via unified notification service (never log OTP)
         try:
             logger.info(
-                f'OTP - Calling notification_service.send_otp() | Phone: {normalized_phone} | OTP: {otp}',
+                'OTP - Calling notification_service.send_otp()',
                 user=None,
                 extra_data={
                     'action': 'otp_calling_notification_service',
-                    'phone_full': normalized_phone,  # Full phone number
-                    'otp_code': otp,  # Full OTP code
+                    'phone_masked': _mask_phone_for_log(normalized_phone),
                     'async_send': effective_async
                 }
             )
@@ -166,54 +174,51 @@ class OTPService:
             )
             
             logger.info(
-                f'OTP - Notification service result: {result}',
+                'OTP - Notification service result',
                 user=None,
                 extra_data={
                     'action': 'otp_notification_service_result',
-                    'result': result,  # Complete result
-                    'phone_full': normalized_phone,  # Full phone number
-                    'otp_code': otp  # Full OTP code
+                    'success': result.get('success'),
+                    'phone_masked': _mask_phone_for_log(normalized_phone)
                 }
             )
             
             if result.get('success'):
                 logger.info(
-                    f'OTP - ✅ Sent successfully to {normalized_phone} | OTP: {otp}',
+                    'OTP - Sent successfully',
                     user=None,
                     extra_data={
                         'action': 'otp_sent_success',
                         'user_id': user_id,
-                        'phone_full': normalized_phone,  # Full phone number
-                        'async_send': async_send,
-                        'otp_code': otp,  # Full OTP code
-                        'result': result
+                        'phone_masked': _mask_phone_for_log(normalized_phone),
+                        'async_send': async_send
                     }
                 )
                 return True, otp
             else:
                 error_msg = result.get('message', 'Failed to send OTP. Please try again.')
                 logger.error(
-                    f'OTP - ❌ Failed to send: {error_msg} | Phone: {normalized_phone} | OTP: {otp}',
+                    'OTP - Failed to send',
                     user=None,
                     extra_data={
                         'action': 'otp_send_failed',
                         'user_id': user_id,
-                        'phone_full': normalized_phone,  # Full phone number
-                        'otp_code': otp,  # Full OTP code
-                        'error': error_msg,
-                        'result': result  # Complete result
+                        'phone_masked': _mask_phone_for_log(normalized_phone),
+                        'error': error_msg
                     }
                 )
+                # So you see the reason in Django runserver console when OTP does not arrive
+                import sys
+                print(f"[OTP] Send failed: {error_msg}", file=sys.stderr)
                 return False, error_msg
         except Exception as e:
             logger.error(
-                f'OTP - ❌ Exception sending OTP: {str(e)} | Phone: {normalized_phone} | OTP: {otp}',
+                'OTP - Exception sending OTP',
                 user=None,
                 extra_data={
                     'action': 'otp_send_exception',
                     'user_id': user_id,
-                    'phone_full': normalized_phone,  # Full phone number
-                    'otp_code': otp,  # Full OTP code
+                    'phone_masked': _mask_phone_for_log(normalized_phone),
                     'error': str(e),
                     'exception_type': type(e).__name__
                 },
@@ -255,33 +260,35 @@ class OTPService:
             logger.error(f'Invalid phone number for dual OTP: {str(e)}', user=None, extra_data={'user_id': user_id})
             return False, f"Invalid phone number: {str(e)}"
         
-        # TEMPORARY: Rate limiting disabled for debugging
-        # TODO: Re-enable rate limiting after debugging
         phone_rate_key = f"otp_rate_limit:{normalized_phone}"
         email_rate_key = f"otp_rate_limit:{email}"
-        
         phone_attempts = cache.get(phone_rate_key, 0)
         email_attempts = cache.get(email_rate_key, 0)
         
         logger.info(
-            f'OTP Dual - Rate limit check (DISABLED): Phone {phone_attempts}/3, Email {email_attempts}/3',
+            'OTP Dual - Rate limit check',
             user=None,
             extra_data={
                 'action': 'otp_dual_rate_limit_check',
                 'phone_attempts': phone_attempts,
                 'email_attempts': email_attempts,
-                'rate_limit_disabled': True
+                'phone_masked': _mask_phone_for_log(normalized_phone),
+                'email_masked': _mask_email_for_log(email)
             }
         )
         
-        # TEMPORARY: Rate limit check disabled
-        # if phone_attempts >= 3 or email_attempts >= 3:
-        #     logger.warning(
-        #         f'OTP rate limit exceeded for {normalized_phone[:4]}**** or {email[:2]}***',
-        #         user=None,
-        #         extra_data={'user_id': user_id}
-        #     )
-        #     return False, "Maximum OTP requests reached. Please try again later."
+        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 99999)
+        if phone_attempts >= OTP_SEND_LIMIT or email_attempts >= OTP_SEND_LIMIT:
+            logger.warning(
+                'OTP dual rate limit exceeded',
+                user=None,
+                extra_data={
+                    'user_id': user_id,
+                    'phone_masked': _mask_phone_for_log(normalized_phone),
+                    'email_masked': _mask_email_for_log(email)
+                }
+            )
+            return False, "Maximum OTP requests reached. Please try again later."
         
         # Generate OTP
         otp = self.generate_otp()
@@ -309,9 +316,14 @@ class OTPService:
                     session_id=session_id
                 )
                 logger.info(
-                    f'OTP dual delivery queued for {normalized_phone[:4]}**** and {email[:2]}***',
+                    'OTP dual delivery queued',
                     user=None,
-                    extra_data={'user_id': user_id, 'async_send': True}
+                    extra_data={
+                        'user_id': user_id,
+                        'async_send': True,
+                        'phone_masked': _mask_phone_for_log(normalized_phone),
+                        'email_masked': _mask_email_for_log(email)
+                    }
                 )
                 return True, otp
             else:
@@ -328,9 +340,14 @@ class OTPService:
                 )
                 if result.get('success'):
                     logger.info(
-                        f'OTP sent to both channels for {normalized_phone[:4]}**** and {email[:2]}***',
+                        'OTP sent to both channels',
                         user=None,
-                        extra_data={'user_id': user_id, 'async_send': False}
+                        extra_data={
+                            'user_id': user_id,
+                            'async_send': False,
+                            'phone_masked': _mask_phone_for_log(normalized_phone),
+                            'email_masked': _mask_email_for_log(email)
+                        }
                     )
                     return True, otp
                 else:
@@ -344,28 +361,45 @@ class OTPService:
             )
             return False, f"Error sending OTP: {str(e)}"
     
-    def verify_otp(self, phone_number: str, otp_code: str) -> bool:
+    # VAPT-004: per-identity failure counter and lockout
+    OTP_VERIFY_FAIL_MAX = 10
+    OTP_VERIFY_FAIL_TTL = 1800  # 30 minutes
+
+    def verify_otp(self, phone_number: str, otp_code: str) -> Tuple[bool, Optional[str]]:
         """
-        Verify OTP code (from phone or email)
-        
-        Args:
-            phone_number: Phone number or email (will be normalized if phone)
-            otp_code: OTP code to verify
+        Verify OTP code (from phone or email). VAPT-004: per-identity lockout after N failures.
         
         Returns:
-            True if OTP is valid, False otherwise
+            (True, None) if valid; (False, None) if invalid; (False, "locked") if lockout.
         """
+        identity = None
         # Try phone number first
         try:
             normalized_phone = normalize_phone_number(phone_number)
+            identity = normalized_phone
+            fail_key = f"otp_verify_fail:{identity}"
+            fail_count = cache.get(fail_key, 0)
+            if fail_count >= self.OTP_VERIFY_FAIL_MAX:
+                return (False, "locked")
             if verify_otp_from_cache(normalized_phone, otp_code):
-                return True
+                cache.delete(fail_key)
+                return (True, None)
+            cache.set(fail_key, fail_count + 1, timeout=self.OTP_VERIFY_FAIL_TTL)
+            return (False, None)
         except ValueError:
             pass
         
         # Try email (if phone normalization failed, might be email)
         if '@' in phone_number:
+            identity = phone_number
+            fail_key = f"otp_verify_fail:{identity}"
+            fail_count = cache.get(fail_key, 0)
+            if fail_count >= self.OTP_VERIFY_FAIL_MAX:
+                return (False, "locked")
             if verify_otp_from_cache(phone_number, otp_code):
-                return True
+                cache.delete(fail_key)
+                return (True, None)
+            cache.set(fail_key, fail_count + 1, timeout=self.OTP_VERIFY_FAIL_TTL)
+            return (False, None)
         
-        return False
+        return (False, None)

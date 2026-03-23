@@ -205,22 +205,17 @@ def check_pin_history(new_pin: str, pin_history: list) -> bool:
 
 def generate_reference_number(prefix: str = 'REF') -> str:
     """
-    Generate unique reference number
-    Format: PREFIX-YYYYMMDD-HHMMSS-XXXXXX (random 6 digits)
-    
+    Generate a unique reference number for vouchers / batches.
+
+    Unified with all ParkPe transaction IDs: fixed 20-char ``T`` + timestamp + entropy
+    (see :func:`portal.utils.transaction_id.generate_transaction_id`).
+
     Args:
-        prefix: Reference prefix (default: 'REF')
-    
-    Returns:
-        Unique reference number
+        prefix: Kept for backward compatibility; ignored (format is always ``T…``).
     """
-    from datetime import datetime
-    timestamp = datetime.now()
-    date_str = timestamp.strftime('%Y%m%d')
-    time_str = timestamp.strftime('%H%M%S')
-    random_suffix = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-    
-    return f"{prefix}-{date_str}-{time_str}-{random_suffix}"
+    from portal.utils.transaction_id import generate_transaction_id
+
+    return generate_transaction_id()
 
 
 def mask_mobile_number(mobile_number: str) -> str:

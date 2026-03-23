@@ -1,6 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { environment } from '../../../../environments/environment';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
 import { BBPSOperator } from '../../../core/models/bbps.model';
 import { StepIndicatorComponent } from '../../../shared/components/step-indicator/step-indicator.component';
@@ -24,8 +25,13 @@ import { StepIndicatorComponent } from '../../../shared/components/step-indicato
         <div class="operators-list">
           @for (operator of operators; track operator.id) {
             <div class="operator-card card" (click)="selectOperator(operator)">
-              <h3>{{ operator.name }}</h3>
-              <p>{{ operator.code }}</p>
+              <div class="operator-head">
+                <img class="operator-icon" [src]="getOperatorIconUrl(operator)" [alt]="operator.name" loading="lazy" />
+                <div>
+                  <h3>{{ operator.name }}</h3>
+                  <p>{{ operator.code }}</p>
+                </div>
+              </div>
             </div>
           }
         </div>
@@ -47,8 +53,20 @@ import { StepIndicatorComponent } from '../../../shared/components/step-indicato
         transform: translateX(4px);
       }
 
-      h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem; }
-      p { font-size: 0.875rem; color: var(--text-secondary); }
+      h3 { font-size: 0.92rem; font-weight: 600; margin-bottom: 0.2rem; line-height: 1.25; }
+      p { font-size: 0.74rem; color: var(--text-secondary); }
+    }
+    .operator-head { display: flex; align-items: center; gap: 0.75rem; }
+    .operator-icon {
+      width: 4rem;
+      height: 2rem;
+      border-radius: 0.4rem;
+      object-fit: contain;
+      border: 1px solid var(--border-light);
+      background: #fff;
+      padding: 0.16rem;
+      image-rendering: -webkit-optimize-contrast;
+      flex-shrink: 0;
     }
   `],
 })
@@ -61,6 +79,8 @@ export class BBPSOperatorSelectComponent implements OnInit {
   category = '';
   operators: BBPSOperator[] = [];
   loading = true;
+
+  private readonly mobikwikOperatorIconBase = environment.mobikwikIconBase;
 
   ngOnInit() {
     this.category = this.route.snapshot.params['category'];
@@ -78,5 +98,29 @@ export class BBPSOperatorSelectComponent implements OnInit {
 
   goBack() {
     this.router.navigate(['/bbps/category']);
+  }
+
+  getOperatorIconUrl(operator?: BBPSOperator | null): string {
+    const explicitLogo = (operator?.logo ?? '').toString().trim();
+    if (explicitLogo && !explicitLogo.includes('bharat-connect-logo')) {
+      return explicitLogo;
+    }
+    const candidates = [operator?.mobikwikOpId];
+    for (const raw of candidates) {
+      const value = (raw ?? '').toString().trim();
+      if (!value) continue;
+      if (value.endsWith('.0') && /^\d+\.0$/.test(value)) {
+        const num = value.slice(0, -2);
+        return `${this.mobikwikOperatorIconBase}/op${num}.png`;
+      }
+      const lower = value.toLowerCase();
+      if (/^op\d+$/.test(lower)) {
+        return `${this.mobikwikOperatorIconBase}/${lower}.png`;
+      }
+      if (/^\d+$/.test(value)) {
+        return `${this.mobikwikOperatorIconBase}/op${value}.png`;
+      }
+    }
+    return 'assets/bbps/bharat-connect-logo.png';
   }
 }

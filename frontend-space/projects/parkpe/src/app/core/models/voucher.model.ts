@@ -14,6 +14,8 @@ export interface VoucherListItem {
 export interface VoucherTransaction {
   id: number;
   transactionType: string;
+  transactionId?: string;
+  transactionDirection?: 'credit' | 'debit';
   transactionAmount: number | null;
   balanceBefore: number;
   balanceAfter: number;

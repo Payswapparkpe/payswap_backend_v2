@@ -4,6 +4,36 @@
 {% block page_title %}Super Dashboard{% endblock %}
 
 {% block content %}
+<!-- Mobikwik Balance Card -->
+<div id="mobikwik-balance-card" class="mb-8">
+    <div class="stat-card-enterprise rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6" style="border-left-color: #f59e0b;">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <p class="stat-label text-amber-800 font-semibold">Mobikwik Retailer Balance</p>
+                    <button type="button" id="mobikwik-balance-refresh" class="p-1 rounded hover:bg-amber-200/60 text-amber-700" title="Refresh balance" aria-label="Refresh">
+                        <i class="ti ti-refresh text-lg"></i>
+                    </button>
+                </div>
+                <div id="mobikwik-balance-value">
+                    {% if mobikwik_balance_available %}
+                        <p class="stat-value text-2xl font-bold text-amber-900">₹{{ mobikwik_balance|floatformat:2 }}</p>
+                        <p class="text-xs text-amber-600 mt-1">BBPS wallet – refreshed on page load</p>
+                    {% elif mobikwik_balance_error %}
+                        <p class="text-sm text-amber-800">{{ mobikwik_balance_error }}</p>
+                        <p class="text-xs text-amber-600 mt-1">Enable Mobikwik BBPS in .env to fetch</p>
+                    {% else %}
+                        <p class="text-sm text-amber-700">—</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="stat-icon" style="color: #f59e0b;">
+                <i class="ti ti-wallet text-3xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Enterprise Stat Cards - 3D Style with Light Colors -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <div class="stat-card-enterprise" data-color="indigo" style="border-left-color: #6366f1;">
@@ -72,17 +102,6 @@
             </div>
         </div>
     </div>
-    <div class="stat-card-enterprise" data-color="orange" style="border-left-color: #f97316;">
-        <div class="flex items-start justify-between">
-            <div class="flex-1">
-                <p class="stat-label">Pending Onboarding</p>
-                <p class="stat-value">{{ pending_partner_onboarding|default:0 }}</p>
-            </div>
-            <div class="stat-icon" style="color: #f97316;">
-                <i class="ti ti-clock text-2xl"></i>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Quick Actions -->
@@ -136,13 +155,52 @@
             <h4 class="text-sm font-semibold text-gray-900 mb-1">Services</h4>
             <p class="text-xs text-gray-600 text-center">API services</p>
         </a>
-        <a href="{% url 'admin_reseller_partner_dashboard' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-lg transition-all group bg-gradient-to-br from-teal-50 to-teal-100/50">
+        <a href="{% url 'project_management' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-lg transition-all group bg-gradient-to-br from-teal-50 to-teal-100/50">
             <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-teal-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <i class="ti ti-building-store text-2xl text-teal-600"></i>
+                <i class="ti ti-apps text-2xl text-teal-600"></i>
             </div>
-            <h4 class="text-sm font-semibold text-gray-900 mb-1">Partners</h4>
-            <p class="text-xs text-gray-600 text-center">Partner management</p>
+            <h4 class="text-sm font-semibold text-gray-900 mb-1">Project Management</h4>
+            <p class="text-xs text-gray-600 text-center">ParkPe & Payswap</p>
         </a>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var btn = document.getElementById('mobikwik-balance-refresh');
+    var valueEl = document.getElementById('mobikwik-balance-value');
+    if (!btn || !valueEl) return;
+    var icon = btn.querySelector('i');
+    btn.addEventListener('click', function() {
+        icon.classList.add('animate-spin');
+        btn.disabled = true;
+        valueEl.innerHTML = '<p class="text-sm text-amber-700">Refreshing…</p>';
+        fetch('{% url "dashboard_mobikwik_balance" %}', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.balance != null) {
+                var bal = Number(data.balance).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                valueEl.innerHTML = '<p class="stat-value text-2xl font-bold text-amber-900">₹' + bal + '</p>' +
+                    '<p class="text-xs text-amber-600 mt-1">BBPS wallet – refreshed just now</p>';
+            } else {
+                valueEl.innerHTML = '<p class="text-sm text-amber-800">' + (data.error || 'Balance fetch failed') + '</p>' +
+                    '<p class="text-xs text-amber-600 mt-1">Enable Mobikwik BBPS in .env to fetch</p>';
+            }
+        })
+        .catch(function() {
+            valueEl.innerHTML = '<p class="text-sm text-amber-800">Network error. Refresh the page to retry.</p>';
+        })
+        .finally(function() {
+            icon.classList.remove('animate-spin');
+            btn.disabled = false;
+        });
+    });
+})();
+</script>
 {% endblock %}

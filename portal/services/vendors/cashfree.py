@@ -147,17 +147,15 @@ class CashfreeClient:
     
     def _generate_verification_id(self, prefix: str = "verif") -> str:
         """
-        Generate unique verification ID for Cashfree API requests
-        
-        Args:
-            prefix: Prefix for verification ID
-        
-        Returns:
-            Unique verification ID (max 50 chars, alphanumeric, dots, hyphens, underscores only)
+        Generate unique verification ID for Cashfree API requests.
+
+        Uses unified ParkPe transaction ID format (20 chars, ``T`` + timestamp + entropy).
+        The ``prefix`` argument is kept for API compatibility but not prepended (Cashfree
+        accepts alphanumeric IDs; length <= 50).
         """
-        unique_id = str(uuid.uuid4()).replace('-', '')[:32]
-        verification_id = f"{prefix}_{unique_id}"[:50]
-        return verification_id
+        from portal.utils.transaction_id import generate_transaction_id
+
+        return generate_transaction_id()
     
     def _get_headers(self) -> Dict[str, str]:
         """Get common headers for API requests"""
@@ -612,6 +610,15 @@ class CashfreeClient:
                 log_entry=None  # LogEntry is created by unified logging service
             )
             logger.debug(f"Cashfree API log created: {api_type} - {endpoint} - {status}")
+            if status == 'success':
+                try:
+                    from portal.services.hub_cost_service import record_hub_cost
+                    if api_type == 'vehicle_rc':
+                        record_hub_cost('cashfree_rc', 'cashfree', unit_count=1, reference_id=verification_id or request_id)
+                    elif api_type not in ('test_connection',):
+                        record_hub_cost('cashfree_kyc', 'cashfree', unit_count=1, reference_id=verification_id or request_id)
+                except Exception:
+                    pass
         except Exception as cashfree_log_error:
             logger.warning(f"Failed to create CashfreeAPILog: {str(cashfree_log_error)}", exc_info=True)
             # Don't fail if Cashfree-specific log fails, unified logging already succeeded

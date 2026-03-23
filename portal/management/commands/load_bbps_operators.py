@@ -1,35 +1,46 @@
-"""
-Load BBPS operators from Mobikwik/Operators.xlsx into portal_bbps_operator table.
-Use for initial load and sync. All BBPS operations (Mobikwik, Euronet) use this data.
-"""
+"""Load BBPS operators workbook into portal_bbps_operator table."""
 import os
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-
-def _val(v, default=None):
-    if v is None:
-        return default
-    if hasattr(v, "__iter__") and not isinstance(v, str):
-        try:
-            import pandas as pd
-            if pd.isna(v):
-                return default
-        except Exception:
-            pass
-    s = str(v).strip()
-    return s if s else default
+from portal.services.bbps_operators_loader import (
+    DEFAULT_OPERATOR_FILES,
+    parse_operator_workbook,
+)
 
 
 class Command(BaseCommand):
-    help = "Load BBPS operators from Mobikwik/Operators.xlsx into DB"
+    help = "Load BBPS operators from Mobikwik Operators.xlsx into portal_bbps_operator"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--path",
             type=str,
             default=None,
-            help="Path to Operators.xlsx (default: <BASE_DIR>/Mobikwik/Operators.xlsx)",
+            help="Path to Operators .xlsx (default: first of mobikwik/Operators (13).xlsx, Mobikwik/Operators.xlsx)",
+        )
+        parser.add_argument(
+            "--sheet",
+            type=str,
+            default="Operator",
+            help="Sheet name (default: Operator)",
+        )
+        parser.add_argument(
+            "--all-sheets",
+            action="store_true",
+            help="Parse all sheets and ingest operator-like rows from each.",
+        )
+        parser.add_argument(
+            "--include-sheets",
+            type=str,
+            default="",
+            help="Comma-separated sheet names to include (used with --all-sheets).",
+        )
+        parser.add_argument(
+            "--exclude-sheets",
+            type=str,
+            default="",
+            help="Comma-separated sheet names to exclude (used with --all-sheets).",
         )
         parser.add_argument(
             "--clear",
@@ -54,15 +65,17 @@ class Command(BaseCommand):
         base = getattr(settings, "BASE_DIR", None)
         path = options.get("path")
         if not path and base:
-            path = os.path.join(base, "Mobikwik", "Operators.xlsx")
+            path = None
+            for rel in DEFAULT_OPERATOR_FILES:
+                candidate = os.path.join(base, rel)
+                if os.path.isfile(candidate):
+                    path = candidate
+                    self.stdout.write(f"Using operators file: {rel}")
+                    break
+        if path and base and not os.path.isabs(path):
+            path = os.path.join(base, path)
         if not path or not os.path.isfile(path):
             self.stdout.write(self.style.ERROR(f"Operators file not found: {path}"))
-            return
-
-        try:
-            import pandas as pd
-        except ImportError:
-            self.stdout.write(self.style.ERROR("pandas required: pip install pandas openpyxl"))
             return
 
         if options.get("clear"):
@@ -71,79 +84,42 @@ class Command(BaseCommand):
             self.stdout.write(f"Cleared {n} existing BBPS operators.")
 
         bbps_only = options.get("bbps_only", True) and not options.get("no_bbps_only")
+        all_sheets = bool(options.get("all_sheets"))
+        include_sheets = [s.strip() for s in str(options.get("include_sheets") or "").split(",") if s.strip()]
+        exclude_sheets = [s.strip() for s in str(options.get("exclude_sheets") or "").split(",") if s.strip()]
+        sheet = (options.get("sheet") or "Operator").strip() or "Operator"
 
-        try:
-            df = pd.read_excel(path, sheet_name="Operator")
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Failed to read Excel: {e}"))
+        parsed = parse_operator_workbook(
+            path,
+            bbps_enabled_only=bbps_only,
+            sheet_names=None if all_sheets else [sheet],
+            include_sheets=include_sheets or None,
+            exclude_sheets=exclude_sheets or None,
+        )
+        operators = parsed.get("operators") or []
+        if not operators:
+            self.stdout.write(self.style.WARNING("No operators parsed from workbook with current filters."))
             return
-
-        if df.empty:
-            self.stdout.write("Sheet 'Operator' is empty.")
-            return
-
-        df.columns = [str(c).strip() for c in df.columns]
-        if bbps_only and "BBPS Enabled" in df.columns:
-            col = df["BBPS Enabled"]
-            mask = col.fillna(False).astype(str).str.upper().str.strip().isin(("TRUE", "1", "YES"))
-            df = df[mask]
-
-        def get_op_value(row):
-            for col in ("op", "Operator Id", "Operator ID", "OperatorId", "Mobikwik Op"):
-                if col not in row:
-                    continue
-                v = row.get(col)
-                if v is None or (hasattr(v, "__iter__") and not isinstance(v, str) and pd.isna(v)):
-                    continue
-                s = str(v).strip()
-                if s.isdigit():
-                    return s
-                if s:
-                    return s
-            return None
 
         created = updated = 0
-        for _, row in df.iterrows():
-            biller_id = row.get("Biller ID")
-            if pd.isna(biller_id) or not str(biller_id).strip():
-                continue
-            biller_id = str(biller_id).strip()
-
-            op_val = get_op_value(row)
-            name = _val(row.get("Operator Name"), "Unknown")
-            cat = _val(row.get("Category"), "")
-            view_bill = _val(row.get("ViewBill"))
-            name_label = _val(row.get("Name")) or _val(row.get("cn")) or "Consumer ID"
-            regex = _val(row.get("Regex"))
-            ad1 = _val(row.get("ad1 with regex")) if "ad1 with regex" in row else _val(row.get("ad1"))
-            ad2 = _val(row.get("ad2"))
-            ad3 = _val(row.get("ad3"))
-            ad4 = _val(row.get("ad4"))
-            ad9 = _val(row.get("ad9"))
-            additional_params = _val(row.get("Additional Params for payment API"))
-
-            bbps_enabled = True
-            if "BBPS Enabled" in row:
-                v = row["BBPS Enabled"]
-                if v is not None and not (hasattr(v, "__iter__") and not isinstance(v, str) and pd.isna(v)):
-                    bbps_enabled = str(v).strip().upper() in ("TRUE", "1", "YES")
-
-            obj, was_created = BBPSOperator.objects.update_or_create(
-                biller_id=biller_id,
+        for op in operators:
+            _, was_created = BBPSOperator.objects.update_or_create(
+                biller_id=str(op.get("biller_id") or "").strip(),
                 defaults={
-                    "op": op_val,
-                    "name": name,
-                    "category": cat,
-                    "view_bill": view_bill,
-                    "customer_label": name_label,
-                    "regex": regex,
-                    "ad1": ad1,
-                    "ad2": ad2,
-                    "ad3": ad3,
-                    "ad4": ad4,
-                    "ad9": ad9,
-                    "additional_params": additional_params,
-                    "bbps_enabled": bbps_enabled,
+                    "op": op.get("op"),
+                    "name": op.get("name") or "Unknown",
+                    "category": op.get("category") or "",
+                    "view_bill": op.get("view_bill") or "",
+                    "circle": op.get("circle") or "",
+                    "customer_label": op.get("customer_label") or "Consumer ID",
+                    "regex": op.get("regex"),
+                    "ad1": op.get("ad1"),
+                    "ad2": op.get("ad2"),
+                    "ad3": op.get("ad3"),
+                    "ad4": op.get("ad4"),
+                    "ad9": op.get("ad9"),
+                    "additional_params": op.get("additional_params"),
+                    "bbps_enabled": bool(op.get("bbps_enabled", True)),
                     "is_active": True,
                 },
             )
@@ -151,6 +127,12 @@ class Command(BaseCommand):
                 created += 1
             else:
                 updated += 1
+
+        sheet_stats = parsed.get("sheet_stats") or {}
+        for sheet_name, stats in sheet_stats.items():
+            self.stdout.write(
+                f"[{sheet_name}] rows={stats.get('rows', 0)} parsed={stats.get('parsed', 0)} skipped={stats.get('skipped', 0)} rejected={stats.get('rejected', 0)}"
+            )
 
         self.stdout.write(self.style.SUCCESS(
             f"BBPS operators: {created} created, {updated} updated. Total in DB: {BBPSOperator.objects.count()}"

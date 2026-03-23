@@ -4,7 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PaymentGatewayService } from '../../../core/services/payment-gateway.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { GatewayConfig, PaymentGateway } from '../../../core/models/payment.model';
+import { GatewayConfig, PaymentGateway } from 'shared';
 
 @Component({
   selector: 'app-buy-voucher',
@@ -123,11 +123,10 @@ export class BuyVoucherComponent implements OnInit {
       customer: { name: 'Customer', email: '', phone: '' },
     };
     this.paymentService.initiatePayment(gateway, request).subscribe({
-      next: (res) => {
+      next: () => {
         this.processing.set(false);
-        const balance = res?.['balance'] ?? res?.['metadata']?.['balance'] ?? '';
         this.router.navigate(['/payment/status'], {
-          queryParams: { status: 'success', balance: balance || undefined },
+          queryParams: { status: 'success' },
         });
       },
       error: () => {

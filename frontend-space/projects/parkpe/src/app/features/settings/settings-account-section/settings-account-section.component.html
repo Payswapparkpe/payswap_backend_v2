@@ -1,0 +1,13 @@
+<section class="settings-section card">
+  <h2 class="section-title">Account</h2>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>Signed in as</h3>
+      <p>{{ user()?.email }}</p>
+    </div>
+  </div>
+  <button type="button" class="btn btn-error" (click)="logout()">
+    <span class="material-icons">logout</span>
+    <span>Sign Out</span>
+  </button>
+</section>

@@ -1,4 +1,10 @@
 """
+DEPRECATED: Prefer ensure_parkpe_partner for ParkPe. Partner identity is now
+ResellerPartner + APIKey per app (e.g. partner_code=parkpe). InternalAPIKey
+is DEPRECATED and not used in any API request path. Auth uses only APIKey
+(X-API-Key) → request.partner. Use ensure_parkpe_partner --create-key instead.
+This command is retained for backward compatibility only.
+
 Create API keys for internal apps (Payswap, Parkpe) and assign default vendors.
 
 Run: python manage.py create_internal_api_keys
@@ -6,8 +12,7 @@ Run: python manage.py create_internal_api_keys
 - Creates or reuses "Internal Applications" partner (partner_code=INTERNAL).
 - Creates API keys for payswap and parkpe with full service permissions.
 - Registers each key in InternalAPIKey.
-- Assigns default vendors for the internal partner: BBPS (Euronet), AEPS/DMT (PayPoint),
-  KYC (Cashfree), SMS (Kaleyra), Payment (Cashfree PG).
+- Assigns default vendors for the internal partner: BBPS (Euronet), KYC (Cashfree), SMS (Kaleyra), Payment (Cashfree PG).
 
 Prerequisites: seed_vendor_apis (ApiVendor records must exist).
 """
@@ -27,11 +32,9 @@ from portal.services.partner_vendor_service import PartnerVendorService
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-# Default vendor codes per service for internal partner
+# Default vendor codes per service for internal partner (AEPS/DMT removed)
 DEFAULT_VENDOR_ASSIGNMENTS = [
     ('bbps', 'euronet'),
-    ('aeps', 'paypoint'),
-    ('dmt', 'paypoint_dmt'),
     ('kyc', 'cashfree'),
     ('sms', 'kaleyra'),
     ('payment', 'cashfree_pg'),
@@ -50,21 +53,6 @@ INTERNAL_APP_PERMISSIONS = {
         'fetch_bill': True,
         'pay_bill': True,
         'payment_status': True,
-    },
-    'aeps': {
-        'balance_enquiry': True,
-        'cash_withdrawal': True,
-        'mini_statement': True,
-        'transaction_status': True,
-        'add_agent': True,
-        'agent_auth': True,
-    },
-    'dmt': {
-        'register_sender': True,
-        'add_beneficiary': True,
-        'remit': True,
-        'transaction_status': True,
-        'get_beneficiaries': True,
     },
     'kyc': {
         'pan': True,
@@ -109,6 +97,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self.stdout.write(
+            self.style.WARNING(
+                "DEPRECATED: Prefer ensure_parkpe_partner. InternalAPIKey is deprecated; "
+                "ParkPe and other apps should use ResellerPartner + APIKey."
+            )
+        )
         env = options['environment']
         skip_vendors = options['skip_vendors']
 

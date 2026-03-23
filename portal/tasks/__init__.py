@@ -9,6 +9,8 @@ from . import clean_old_logs_task
 from . import write_logs_task
 from . import logging_tasks  # Keep for backward compatibility
 from . import notification_tasks  # Keep for backward compatibility
+from . import connect_tasks
+from . import parkpe_tasks
 
 __all__ = [
     'sms_task',
@@ -18,5 +20,7 @@ __all__ = [
     'clean_old_logs_task',
     'write_logs_task',
     'logging_tasks',
-    'notification_tasks'
+    'notification_tasks',
+    'connect_tasks',
+    'parkpe_tasks',
 ]

@@ -18,6 +18,7 @@ export interface BBPSOperator {
   id: string;
   name: string;
   code: string;
+  mobikwikOpId?: string;
   category: BBPSCategory;
   logo?: string;
   description?: string;
@@ -53,6 +54,7 @@ export interface BillFetchResponse {
   billId: string;
   operatorId: string;
   operatorName: string;
+  mobikwikOpId?: string;
   consumerId: string;
   consumerName?: string;
   billNumber: string;
@@ -63,6 +65,10 @@ export interface BillFetchResponse {
   billDetails: BBPSBillDetail[];
   latePaymentCharge?: number;
   additionalInfo?: string;
+  /** When true, biller accepts partial payment; user can enter custom amount (between minBillAmount and amount) */
+  acceptPartPay?: boolean;
+  /** Minimum amount for partial payment (when acceptPartPay is true) */
+  minBillAmount?: number;
 }
 
 // Bill Detail
@@ -82,8 +88,10 @@ export interface BBPSPaymentRequest {
   customerEmail: string;
   customerPhone: string;
   billDetails?: Record<string, any>;
-  /** ParkPe: 'voucher' = use voucher balance; 'pg' = Card/UPI (send orderId, paymentId, gateway) */
+  /** ParkPe: 'voucher' = single voucher + PIN (voucher_id, pin required); 'pg' = Card/UPI (orderId, paymentId, gateway) */
   paymentMethod?: 'voucher' | 'pg';
+  voucher_id?: number;
+  pin?: string;
   orderId?: string;
   paymentId?: string;
   gateway?: string;

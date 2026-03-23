@@ -1,0 +1,6 @@
+INFO 2026-02-14 20:33:39,782 handler_registry 41292 8683646016 Registered default step handlers for paypoint (AEPS) and paypoint_dmt (DMT)
+INTERNAL: OK (keys=2, subs=931, vendors=6, wallet=False)
+IPWLE018CA: issues=['no_subscriptions'] (keys=1, subs=0)
+parkpe: issues=['missing_vendor:voucher'] (keys=1, subs=931)
+
+Partners with issues: 2

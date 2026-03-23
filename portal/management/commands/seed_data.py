@@ -105,14 +105,12 @@ class Command(BaseCommand):
     def _create_seed_data(self):
         """Create seed data"""
         with transaction.atomic():
-            # Get roles
+            # Get roles (only these 7 exist: super_admin, admin, employee, super_distributor, distributor, retailer, customer)
             admin_role = Role.objects.get(code='admin')
-            super_role = Role.objects.get(code='super')
             employee_role = Role.objects.get(code='employee')
             distributor_role = Role.objects.get(code='distributor')
             retailer_role = Role.objects.get(code='retailer')
             customer_role = Role.objects.get(code='customer')
-            vendor_role = Role.objects.get(code='vendor')
             
             # Create Admin User and Profile
             admin_user = User.objects.create_user(
@@ -138,18 +136,18 @@ class Command(BaseCommand):
             admin_wallet = Wallet.objects.create(user=admin_user, balance=Decimal('100000.00'), status='active')
             self.stdout.write(f'  ✓ Created Admin user: {admin_user.username}')
             
-            # Create Super User
+            # Create Super Admin User
             super_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
                 password='Super@123',
-                role_code='super',
+                role_code='super_admin',
                 is_active=True,
                 email_verified=True,
             )
             super_profile = Profile.objects.create(
                 user=super_user,
                 first_name='Super',
-                last_name='User',
+                last_name='Admin',
                 email='super@payswap.in',
                 phone='+919876543211',
                 type='individual',
@@ -158,7 +156,7 @@ class Command(BaseCommand):
                 status='active'
             )
             super_wallet = Wallet.objects.create(user=super_user, balance=Decimal('50000.00'), status='active')
-            self.stdout.write(f'  ✓ Created Super user: {super_user.username}')
+            self.stdout.write(f'  ✓ Created Super Admin user: {super_user.username}')
             
             # Create Employee User
             employee_user = User.objects.create_user(

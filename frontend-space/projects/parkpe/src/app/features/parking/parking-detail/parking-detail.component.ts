@@ -1,8 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, OnDestroy, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
 import { Booking } from '../../../core/models/parking.model';
+import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
+import { RealtimeStatusService } from '../../../core/services/realtime-status.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-parking-detail',
@@ -21,6 +24,11 @@ import { Booking } from '../../../core/models/parking.model';
           </div>
           <h1 class="success-title">Booking Confirmed!</h1>
           <p class="booking-reference">Ref: {{ booking.bookingReference }}</p>
+          @if (fromSnapshot) {
+            <p class="snapshot-note">
+              Showing last saved booking snapshot @if (snapshotTs) { · {{ snapshotTs | date:'short' }} }
+            </p>
+          }
         </div>
 
         <div class="booking-details card">
@@ -98,6 +106,11 @@ import { Booking } from '../../../core/models/parking.model';
       color: var(--text-secondary);
       font-family: monospace;
     }
+    .snapshot-note {
+      margin: 0.35rem 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
     .booking-details { padding: 2rem; margin-bottom: 2rem; }
     .detail-row {
       display: flex;
@@ -137,16 +150,28 @@ import { Booking } from '../../../core/models/parking.model';
     }
   `],
 })
-export class ParkingDetailComponent implements OnInit {
+export class ParkingDetailComponent implements OnInit, OnDestroy {
   private api = inject(API_BACKEND_TOKEN);
   private route = inject(ActivatedRoute);
+  private store = inject(MobilityStateStore);
+  private realtime = inject(RealtimeStatusService);
+  private realtimeSub: Subscription | null = null;
 
   bookingId = '';
   booking: Booking | null = null;
   loading = true;
+  fromSnapshot = false;
+  snapshotTs: number | null = null;
 
   ngOnInit() {
     this.bookingId = this.route.snapshot.params['bookingId'];
+    const snapshot = this.store.activeBooking();
+    if (snapshot && snapshot.id === this.bookingId) {
+      this.booking = snapshot;
+      this.loading = false;
+      this.fromSnapshot = true;
+      this.snapshotTs = this.store.activeBookingTs();
+    }
     this.loadBooking();
   }
 
@@ -154,11 +179,34 @@ export class ParkingDetailComponent implements OnInit {
     this.api.getBooking(this.bookingId).subscribe({
       next: (data) => {
         this.booking = data;
+        this.store.setActiveBooking(data);
         this.loading = false;
+        this.fromSnapshot = false;
+        this.watchRealtimeIfPending();
       },
       error: () => {
+        const snapshot = this.store.activeBooking();
+        if (snapshot && snapshot.id === this.bookingId) {
+          this.booking = snapshot;
+          this.fromSnapshot = true;
+          this.snapshotTs = this.store.activeBookingTs();
+        }
         this.loading = false;
       },
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.realtimeSub?.unsubscribe();
+  }
+
+  private watchRealtimeIfPending(): void {
+    if (!this.booking || this.booking.status !== 'pending') return;
+    this.realtimeSub?.unsubscribe();
+    this.realtimeSub = this.realtime.watchBooking(this.booking.id, 60_000).subscribe((fresh) => {
+      if (!fresh) return;
+      this.booking = fresh;
+      this.store.setActiveBooking(fresh);
     });
   }
 }

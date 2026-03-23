@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 from datetime import timedelta
 from pathlib import Path
+import os
 import sys
 
 from corsheaders.defaults import default_headers as cors_default_headers
@@ -36,9 +37,13 @@ AUTH_USER_MODEL = 'portal.User'
 
 SECRET_KEY = payswap_config.get_secret_key()
 DEBUG = payswap_config.DEBUG
+V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', True)
 ALLOWED_HOSTS = list(payswap_config.allowed_hosts_list)
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')  # Django test client / management command tests
+# In development, allow requests from any host (e.g. LAN IP) so runserver 0.0.0.0 works from other devices
+if DEBUG and '*' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('*')
 
 # Application definition
 
@@ -69,20 +74,22 @@ INSTALLED_APPS = [
     # Local apps (portal must come after django.contrib.auth to override createsuperuser)
     "api",
     "portal.apps.PortalConfig",  # Use explicit app config to ensure command override
-    "api_management.apps.ApiManagementConfig",
+    "rbac.apps.RbacConfig",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",  
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "core.csrf_middleware.CSRFExemptAPIMiddleware",  # CSRF for portal; exempt /api/ for Angular/API clients
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "rbac.middleware.HubContextMiddleware",  # X-Project-Code / X-Department-Code for Hub RBAC scoping
     "simple_history.middleware.HistoryRequestMiddleware",  # User attribution for django-simple-history (after auth)
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
     "api.middleware.request_id_middleware.RequestIDMiddleware",  # Request ID extraction
-    "api_management.middleware.APILoggingMiddleware",  # API request/response logging (APILog)
+    "api.middleware.parkpe_action_audit_middleware.ParkPeActionAuditMiddleware",  # ParkPe service-wise action audit logs
     "api.v2.middleware.APIKeyIPWhitelistMiddleware",  # IP whitelisting for API keys
     "api.v2.middleware.APIKeyUsageLoggingMiddleware",  # API usage logging
     "portal.middleware.RequestLoggingMiddleware",  # Request logging - captures all requests
@@ -332,6 +339,27 @@ CELERY_TASK_TIME_LIMIT = 1800  # 30 minutes
 CELERY_TASK_SOFT_TIME_LIMIT = 1500  # 25 minutes
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Celery Beat periodic task schedule
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'cleanup-expired-voucher-otps': {
+        'task': 'portal.tasks.cleanup_expired_voucher_otps',
+        'schedule': 600,  # every 10 minutes
+    },
+    'unblock-pin-locked-vouchers': {
+        'task': 'portal.tasks.unblock_pin_locked_vouchers',
+        'schedule': 300,  # every 5 minutes
+    },
+    'reconcile-pending-parkpe-orders': {
+        'task': 'portal.tasks.reconcile_pending_parkpe_orders',
+        'schedule': 600,  # every 10 minutes
+    },
+    'clean-old-logs-daily': {
+        'task': 'portal.tasks.clean_old_logs',
+        'schedule': crontab(hour=2, minute=0),  # daily at 2am
+    },
+}
+
 # Celery worker pool settings
 # Use 'solo' pool on macOS to avoid SIGSEGV issues with prefork
 # For production on Linux, use 'prefork' or 'threads'
@@ -361,7 +389,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",  # Override per-view as needed
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
@@ -370,13 +398,18 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "100/hour",
         "user": "1000/hour",
+        "connect_scan": "60/min",
+        "connect_call": "10/min",
+        "connect_scanner_verify": "30/hour",
+        "auth_otp": "100/hour",
+        "auth_login": "30/hour",
     },
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "EXCEPTION_HANDLER": "api_management.exceptions.api_management_exception_handler",
+    "EXCEPTION_HANDLER": "api.exceptions.api_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
@@ -391,6 +424,10 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "user_id",
 }
 
+# Trusted proxy IPs for client IP resolution (VAPT-002/003). When REMOTE_ADDR is in this list,
+# client IP is taken from X-Forwarded-For; otherwise X-Forwarded-For is ignored.
+TRUSTED_PROXY_IPS = getattr(payswap_config, "trusted_proxy_ips_list", None) or []
+
 # API Documentation
 SPECTACULAR_SETTINGS = {
     "TITLE": "Payswap API",
@@ -402,10 +439,11 @@ SPECTACULAR_SETTINGS = {
 }
 
 # Session Authentication Settings (web UI + Django Admin; does NOT affect API key auth)
-# Fintech policy: 5-minute inactivity timeout. User stays logged in while active; logged out after 5 min idle.
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# 15-minute inactivity timeout. User stays logged in while active; logged out after 15 min idle.
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
 SESSION_COOKIE_NAME = 'payswap_sessionid'
-SESSION_COOKIE_AGE = 300  # 5 minutes (inactivity-based: expiry refreshes on every request)
+SESSION_COOKIE_AGE = 900  # 15 minutes (inactivity-based: expiry refreshes on every request)
 SESSION_SAVE_EVERY_REQUEST = True  # Refresh session expiry on any authenticated request → inactivity-based timeout
 SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 SESSION_COOKIE_HTTPONLY = True
@@ -528,10 +566,11 @@ SIMPLE_HISTORY_DATE_INDEX = True  # Index history_date for as_of() and time-rang
 SIMPLE_HISTORY_ENABLED = True  # Set False to disable history recording (e.g. migrations, bulk scripts)
 
 # Sentry settings
-# Temporarily disabled due to version conflict with cashfree_pg
-# cashfree_pg requires sentry-sdk<1.33.0 which has Django signals compatibility issues
-# TODO: Re-enable when cashfree_pg updates or we find a workaround
-if False and payswap_config.SENTRY_ENABLED:
+# Cashfree requires sentry-sdk<1.33.0, which is pinned in requirements.txt
+# Skip Sentry on Python 3.14+: sentry-sdk's Django integration mutates signal receivers
+# (assumes list) but Django returns a tuple on 3.14, causing TypeError.
+_sentry_ok = sys.version_info < (3, 14)
+if payswap_config.SENTRY_ENABLED and _sentry_ok:
     sentry_dsn = payswap_config.get_sentry_dsn()
     if sentry_dsn and sentry_dsn.strip():
         import sentry_sdk
@@ -541,5 +580,5 @@ if False and payswap_config.SENTRY_ENABLED:
             dsn=sentry_dsn.strip(),
             integrations=[DjangoIntegration()],
             environment=payswap_config.SENTRY_ENVIRONMENT,
-            traces_sample_rate=1.0,
+            traces_sample_rate=0.1,
         )

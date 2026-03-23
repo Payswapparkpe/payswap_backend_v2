@@ -10,7 +10,7 @@ import json
 import logging
 from django.conf import settings
 from core.config import payswap_config
-from portal.utils.logging_helper import sanitize_sensitive_data
+from portal.utils.logging_helper import sanitize_sensitive_data, sanitize_log_message
 from portal.utils.logging_utils import categorize_log
 
 
@@ -23,6 +23,7 @@ LOG_CATEGORIES = {
     'notification': 'notification',
     'security': 'security',
     'mobikwik_bbps': 'mobikwik_bbps',
+    'connect_vehicle': 'connect_vehicle',
     'general': 'general'
 }
 
@@ -104,13 +105,15 @@ def write_logs_task(
         time_str = now.strftime('%H:%M:%S.%f')
         timestamp_iso = now.isoformat() + 'Z'
         
+        # VAPT-001: sanitize message so OTP/phone never reach file or DB
+        safe_message = sanitize_log_message(message)
         # Build log entry
         log_entry = {
             'date': date_str,
             'time': time_str,
             'timestamp': timestamp_iso,
             'log_level': log_level.upper(),
-            'message': message,
+            'message': safe_message,
             'module_name': module_name or 'unknown',
             'url': url,
             'request_id': request_id,
@@ -170,12 +173,13 @@ def write_logs_task(
                 except User.DoesNotExist:
                     pass
             
-            # Create database log entry
+            # Create database log entry (sanitize extra_data and message - VAPT-001)
+            sanitized_extra = sanitize_sensitive_data(extra_data) if extra_data else {}
             LogEntry.objects.create(
                 timestamp=now,
                 log_level=log_level.upper(),
                 category=category,
-                message=message,
+                message=safe_message,
                 module_name=module_name or 'unknown',
                 url=url,
                 request_id=request_id,
@@ -184,7 +188,7 @@ def write_logs_task(
                 client_ip=client_ip,
                 user_agent=user_agent,
                 session_id=session_id,
-                extra_data=extra_data if extra_data else {},
+                extra_data=sanitized_extra,
                 traceback=traceback_data,
                 exception_type=exception_type
             )

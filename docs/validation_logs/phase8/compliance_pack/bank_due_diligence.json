@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-02-14T15:03:47.966955+00:00",
+  "platform": "Payswap",
+  "debug_mode": true,
+  "summary": {
+    "partners_count": 3,
+    "api_keys_count": 4
+  },
+  "rbi_summary": {
+    "generated_at": "2026-02-14T15:03:47.966955+00:00",
+    "settlements_total": 3,
+    "settlements_pending": 3,
+    "active_partners": 3
+  }
+}

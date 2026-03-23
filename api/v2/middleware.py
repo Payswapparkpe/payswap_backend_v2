@@ -29,12 +29,9 @@ class APIKeyIPWhitelistMiddleware(MiddlewareMixin):
         
         api_key = request.api_key
         
-        # Get client IP
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            client_ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            client_ip = request.META.get('REMOTE_ADDR')
+        # Get client IP (trusted-proxy aware, VAPT-002)
+        from api.utils.client_ip import get_client_ip
+        client_ip = get_client_ip(request)
         
         # Check IP whitelist
         if not api_key.is_ip_allowed(client_ip):
@@ -79,12 +76,9 @@ class APIKeyUsageLoggingMiddleware(MiddlewareMixin):
             if hasattr(request, '_api_request_start_time'):
                 response_time = (time.time() - request._api_request_start_time) * 1000  # Convert to ms
             
-            # Get client IP
-            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-            if x_forwarded_for:
-                client_ip = x_forwarded_for.split(',')[0].strip()
-            else:
-                client_ip = request.META.get('REMOTE_ADDR')
+            # Get client IP (trusted-proxy aware, VAPT-002)
+            from api.utils.client_ip import get_client_ip
+            client_ip = get_client_ip(request)
             
             # Get request ID
             request_id = request.META.get('HTTP_X_REQUEST_ID') or request.META.get('REQUEST_ID', '')

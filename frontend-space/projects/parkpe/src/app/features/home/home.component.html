@@ -41,22 +41,32 @@
             <span>ParkPe Connect is Now Live</span>
           </a>
           <h1 class="hero-headline">Parking, FASTag, Challans — made effortless.</h1>
+          <p class="hero-subhead">One app. One QR. No number sharing.</p>
           <p class="hero-desc">
             ParkPe brings everyday vehicle services into one clean app. Scan QR to contact owners privately, pay bills,
             book parking, and track every transaction.
           </p>
           <div class="hero-ctas">
-            <button type="button" class="btn btn-primary btn-lg" (click)="navigateToRegister()">
+            <button type="button" class="btn btn-primary btn-hero-primary" (click)="navigateToRegister()">
               Get Started
               <span class="material-icons">arrow_forward</span>
             </button>
             <button type="button" class="btn btn-outline btn-lg" (click)="navigateToLogin()">I already have an account</button>
           </div>
           <div class="hero-stats">
-            <div class="stat"><span class="stat-value">OTP</span><span class="stat-label">Verified users</span></div>
-            <div class="stat"><span class="stat-value">100%</span><span class="stat-label">Privacy-first</span></div>
-            <div class="stat"><span class="stat-value">Fast</span><span class="stat-label">In-app support</span></div>
-            <div class="stat"><span class="stat-value">Live</span><span class="stat-label">ParkPe Connect</span></div>
+            @for (stat of heroStats; track stat.label) {
+              <div class="stat">
+                <span class="stat-value" [attr.data-value]="stat.value">{{ stat.value }}</span>
+                <span class="stat-label">{{ stat.label }}</span>
+              </div>
+            }
+          </div>
+          <!-- Mobile-only key visual: product hook without full preview card -->
+          <div class="hero-mobile-visual" aria-hidden="true">
+            <div class="hero-mobile-visual-inner">
+              <span class="material-icons">qr_code_2</span>
+              <span>Scan to connect securely</span>
+            </div>
           </div>
         </div>
 
@@ -95,10 +105,10 @@
         <h2 class="section-title">Parking and Vehicle Communication is Broken</h2>
         <p class="section-desc">Urban mobility faces critical challenges that affect millions of vehicle owners daily</p>
       </div>
-      <div class="grid grid-4">
+      <div class="grid grid-4 grid-problem">
         @for (p of problems; track p.title) {
           <div class="card">
-            <div class="card-icon"><span class="material-icons">{{ p.icon }}</span></div>
+            <div class="card-icon card-icon-problem"><span class="material-icons">{{ p.icon }}</span></div>
             <p class="card-text">{{ p.title }}</p>
           </div>
         }
@@ -148,10 +158,28 @@
     <div class="container">
       <div class="section-head">
         <span class="pill pill-success">Featured Product - Now Live</span>
-        <h2 class="section-title">ParkPe Connect – Scan QR. Contact Securely.</h2>
+        <h2 class="section-title section-title-display">ParkPe Connect – Scan QR. Contact Securely.</h2>
         <p class="section-desc wide">ParkPe Connect is a QR sticker-based solution that allows anyone to contact a vehicle owner without revealing phone numbers. The system is privacy-first, OTP verified, and designed to prevent spam.</p>
       </div>
-      <div class="grid grid-3">
+      <div class="product-hero">
+        <div class="product-hero-copy">
+          <p class="product-hero-text">Get a unique QR sticker for your vehicle. Anyone can scan to reach you—no phone numbers shared. OTP verified and privacy-first.</p>
+          <div class="product-hero-cta">
+            <button type="button" class="btn btn-primary btn-hero-cta" (click)="navigateToRegister()">
+              Get Started with ParkPe Connect
+              <span class="material-icons">arrow_forward</span>
+            </button>
+            <a href="#how-it-works" class="btn btn-outline btn-lg">See how it works</a>
+          </div>
+        </div>
+        <div class="product-hero-visual" aria-hidden="true">
+          <div class="product-visual-card">
+            <span class="material-icons">qr_code_2</span>
+            <span>Scan · Verify · Connect</span>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-3 product-features">
         @for (f of featuredProductFeatures; track f.title) {
           <div class="card">
             <div class="card-icon"><span class="material-icons">{{ f.icon }}</span></div>
@@ -159,10 +187,6 @@
             <p class="card-desc">{{ f.description }}</p>
           </div>
         }
-      </div>
-      <div class="section-cta">
-        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Get Started <span class="material-icons">arrow_forward</span></button>
-        <a href="#how-it-works" class="btn btn-outline btn-lg">How It Works</a>
       </div>
     </div>
   </section>
@@ -175,26 +199,29 @@
         <h2 class="section-title">How ParkPe Connect Works</h2>
         <p class="section-desc">Get started in minutes with our simple 6-step process</p>
       </div>
-      <div class="grid grid-3 steps">
+      <div class="steps-timeline">
         @for (s of howItWorksSteps; track s.number) {
-          <div class="card">
-            <div class="step-top">
-              <div class="card-icon"><span class="material-icons">{{ s.icon }}</span></div>
-              <span class="step-num">{{ s.number }}</span>
+          <div class="step-item">
+            <div class="card step-card">
+              <div class="step-top">
+                <div class="card-icon step-icon"><span class="material-icons">{{ s.icon }}</span></div>
+                <span class="step-num">{{ s.number }}</span>
+              </div>
+              <h3 class="card-title">{{ s.title }}</h3>
+              <p class="card-desc">{{ s.description }}</p>
             </div>
-            <h3 class="card-title">{{ s.title }}</h3>
-            <p class="card-desc">{{ s.description }}</p>
           </div>
         }
       </div>
       <div class="section-cta">
-        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Get Started Now</button>
+        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToRegister()">Register now</button>
+        <a href="#contact" class="btn btn-outline btn-lg">Contact us</a>
       </div>
     </div>
   </section>
 
   <!-- Who It's For -->
-  <section class="section section-muted section-reveal">
+  <section class="section section-muted section-muted-gradient section-reveal">
     <div class="container">
       <div class="section-head">
         <span class="pill">For Everyone</span>
@@ -212,7 +239,7 @@
       </div>
       <div class="cta-box">
         <h3>Join thousands of users already using ParkPe Connect</h3>
-        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToLogin()">Register Your Vehicle Now</button>
+        <button type="button" class="btn btn-primary btn-lg" (click)="navigateToRegister()">Register your vehicle</button>
       </div>
     </div>
   </section>
@@ -238,6 +265,35 @@
       <div class="notify-box">
         <h3>Get Notified When We Launch</h3>
         <p>Be the first to know when new services go live</p>
+        <form class="notify-form" (ngSubmit)="submitNotify()" #notifyForm="ngForm">
+          <input type="email" name="notifyEmail" [(ngModel)]="notifyEmail" #notifyEmailCtrl="ngModel" required email placeholder="Enter your email" />
+          <button type="submit" class="btn btn-primary" [disabled]="notifySubmitting || notifySuccess">
+            {{ notifySuccess ? 'Subscribed!' : (notifySubmitting ? 'Sending…' : 'Notify me') }}
+          </button>
+        </form>
+        @if (notifySuccess) {
+          <p class="notify-success">We'll email you when we launch new services.</p>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust: testimonials placeholder -->
+  <section class="section section-reveal trust-section">
+    <div class="container">
+      <div class="section-head">
+        <span class="pill pill-muted">What people say</span>
+        <h2 class="section-title">Trusted by Vehicle Owners</h2>
+        <p class="section-desc">Join thousands who use ParkPe Connect for secure, private communication.</p>
+      </div>
+      <div class="trust-grid">
+        @for (t of testimonials; track t.author) {
+          <blockquote class="trust-quote card">
+            <span class="trust-quote-icon material-icons" aria-hidden="true">format_quote</span>
+            <p class="trust-quote-text">"{{ t.quote }}"</p>
+            <cite class="trust-quote-author">{{ t.author }}</cite>
+          </blockquote>
+        }
       </div>
     </div>
   </section>
@@ -284,8 +340,8 @@
     </div>
   </section>
 
-  <!-- Contact -->
-  <section id="contact" class="section section-reveal">
+  <!-- Contact (dark section for visual break) -->
+  <section id="contact" class="section section-dark section-reveal">
     <div class="container">
       <div class="section-head">
         <span class="pill pill-muted">Get In Touch</span>
@@ -310,38 +366,53 @@
             <p>We typically respond within 24 hours during business days.</p>
           </div>
         </div>
-        <form class="contact-form card" (ngSubmit)="submitContact()" #form="ngForm">
+        <form class="contact-form card" (ngSubmit)="submitContact(form)" #form="ngForm">
           <label>
             <span>Name *</span>
-            <input type="text" name="name" [(ngModel)]="contactForm.name" required placeholder="Enter your name" />
+            <input type="text" name="name" [(ngModel)]="contactForm.name" #name="ngModel" required minlength="2" placeholder="Enter your name" />
+            @if ((name.touched || form.submitted) && name.invalid && name.errors) {
+              <span class="field-error">{{ name.errors['required'] ? 'Name is required' : 'Enter at least 2 characters' }}</span>
+            }
           </label>
           <label>
             <span>Mobile Number *</span>
-            <input type="tel" name="mobile" [(ngModel)]="contactForm.mobile" required placeholder="+91 XXXXX XXXXX" />
+            <input type="tel" name="mobile" [(ngModel)]="contactForm.mobile" #mobile="ngModel" required pattern="^[6-9]\d{9}$" placeholder="10-digit mobile number" />
+            @if ((mobile.touched || form.submitted) && mobile.invalid && mobile.errors) {
+              <span class="field-error">{{ mobile.errors['required'] ? 'Mobile number is required' : 'Enter a valid 10-digit Indian mobile number' }}</span>
+            }
           </label>
           <label>
             <span>Email *</span>
-            <input type="email" name="email" [(ngModel)]="contactForm.email" required placeholder="your.email@example.com" />
+            <input type="email" name="email" [(ngModel)]="contactForm.email" #email="ngModel" required email placeholder="your.email@example.com" />
+            @if ((email.touched || form.submitted) && email.invalid && email.errors) {
+              <span class="field-error">{{ email.errors['required'] ? 'Email is required' : 'Enter a valid email address' }}</span>
+            }
           </label>
           <label>
             <span>User Type *</span>
-            <select name="userType" [(ngModel)]="contactForm.userType" required>
+            <select name="userType" [(ngModel)]="contactForm.userType" #userType="ngModel" required>
               <option value="">Select user type</option>
               <option value="vehicle-owner">Vehicle Owner</option>
               <option value="parking-operator">Parking Operator</option>
               <option value="municipality">Municipality</option>
               <option value="other">Other</option>
             </select>
+            @if ((userType.touched || form.submitted) && userType.invalid) {
+              <span class="field-error">Please select a user type</span>
+            }
           </label>
           <label>
             <span>Message *</span>
-            <textarea name="message" [(ngModel)]="contactForm.message" required rows="4" placeholder="Tell us how we can help you..."></textarea>
+            <textarea name="message" [(ngModel)]="contactForm.message" #message="ngModel" required minlength="10" rows="4" placeholder="Tell us how we can help you..."></textarea>
+            @if ((message.touched || form.submitted) && message.invalid && message.errors) {
+              <span class="field-error">{{ message.errors['required'] ? 'Message is required' : 'Enter at least 10 characters' }}</span>
+            }
           </label>
           <button type="submit" class="btn btn-primary full" [disabled]="contactSubmitting">
             <span class="material-icons">send</span> Submit
           </button>
           @if (contactSubmitStatus === 'success') {
-            <p class="form-success"><span class="material-icons">check_circle</span> Thank you for contacting ParkPe! We will get back to you soon.</p>
+            <p class="form-success form-success-animate"><span class="material-icons">check_circle</span> Thank you for contacting ParkPe! We will get back to you soon.</p>
           }
           @if (contactSubmitStatus === 'error') {
             <p class="form-error"><span class="material-icons">cancel</span> {{ contactErrorMessage }}</p>
@@ -361,10 +432,10 @@
           </div>
           <p>Transforming urban parking and vehicle services with smart, privacy-first solutions for modern cities.</p>
           <div class="social">
-            <a href="#" aria-label="Twitter"><span class="material-icons">tag</span></a>
-            <a href="#" aria-label="LinkedIn"><span class="material-icons">work</span></a>
-            <a href="#" aria-label="Instagram"><span class="material-icons">camera_alt</span></a>
-            <a href="#" aria-label="Facebook"><span class="material-icons">facebook</span></a>
+            <a href="https://twitter.com/parkpe_in" target="_blank" rel="noopener noreferrer" aria-label="Twitter / X" class="social-icon social-x"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+            <a href="https://www.linkedin.com/company/parkpe" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" class="social-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+            <a href="https://www.instagram.com/parkpe.in" target="_blank" rel="noopener noreferrer" aria-label="Instagram" class="social-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+            <a href="https://www.facebook.com/parkpe.in" target="_blank" rel="noopener noreferrer" aria-label="Facebook" class="social-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
           </div>
         </div>
         <div class="footer-col">

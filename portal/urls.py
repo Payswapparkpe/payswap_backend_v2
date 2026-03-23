@@ -2,10 +2,9 @@
 Portal URL Configuration
 No "portal" prefix in URLs
 """
-from django.urls import path
+from django.urls import path, include
 from django.views.generic.base import RedirectView
 from portal import views
-
 urlpatterns = [
     # Landing and Auth
     path('', views.LandingPageView.as_view(), name='landing'),
@@ -38,14 +37,37 @@ urlpatterns = [
     
     # Dashboard
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
-    path('dashboard/admin/', views.AdminDashboardView.as_view(), name='dashboard_admin'),
+    path('dashboard/mobikwik-balance/', views.MobikwikBalanceApiView.as_view(), name='dashboard_mobikwik_balance'),
+    path('dashboard/business/', views.BusinessOverviewView.as_view(), name='dashboard_business'),
+    path('dashboard/hub-pnl/', views.HubPnlView.as_view(), name='dashboard_hub_pnl'),
+    path('dashboard/system-map/', RedirectView.as_view(url='/dashboard/', permanent=False), name='system_map'),
+    path('dashboard/partner-quality/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='partner_quality'),
+    path('dashboard/partners/<path:subpath>', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='partner_ops'),
+    path('dashboard/admin/', RedirectView.as_view(url='/dashboard/', permanent=False), name='dashboard_admin'),
     path('dashboard/employee/', views.EmployeeDashboardView.as_view(), name='dashboard_employee'),
     path('dashboard/super/', views.SuperDashboardView.as_view(), name='dashboard_super'),
+    path('dashboard/parkpe/transactions/', views.ParkPeTransactionsReportView.as_view(), name='dashboard_parkpe_transactions'),
     path('dashboard/distributor/', views.DistributorDashboardView.as_view(), name='dashboard_distributor'),
     path('dashboard/retailer/', views.RetailerDashboardView.as_view(), name='dashboard_retailer'),
     path('dashboard/customer/', views.CustomerDashboardView.as_view(), name='dashboard_customer'),
     path('dashboard/vendor/', views.VendorDashboardView.as_view(), name='dashboard_vendor'),
-    
+    # Hub RBAC (Super Admin only)
+    path('dashboard/hub/', views.HubRbacDashboardView.as_view(), name='hub_rbac_dashboard'),
+    path('dashboard/hub/departments/', views.DepartmentListView.as_view(), name='hub_rbac_department_list'),
+    path('dashboard/hub/departments/add/', views.DepartmentCreateView.as_view(), name='hub_rbac_department_create'),
+    path('dashboard/hub/departments/<int:pk>/edit/', views.DepartmentUpdateView.as_view(), name='hub_rbac_department_edit'),
+    path('dashboard/hub/projects/', views.ProjectListView.as_view(), name='hub_rbac_project_list'),
+    path('dashboard/hub/projects/add/', views.ProjectCreateView.as_view(), name='hub_rbac_project_create'),
+    path('dashboard/hub/projects/<int:pk>/edit/', views.ProjectUpdateView.as_view(), name='hub_rbac_project_edit'),
+    path('dashboard/hub/roles/', views.HubRoleListView.as_view(), name='hub_rbac_hubrole_list'),
+    path('dashboard/hub/roles/add/', views.HubRoleCreateView.as_view(), name='hub_rbac_hubrole_create'),
+    path('dashboard/hub/roles/<int:pk>/edit/', views.HubRoleUpdateView.as_view(), name='hub_rbac_hubrole_edit'),
+    path('dashboard/hub/assignments/', views.UserHubAssignmentListView.as_view(), name='hub_rbac_assignment_list'),
+    path('dashboard/hub/assignments/add/', views.UserHubAssignmentCreateView.as_view(), name='hub_rbac_assignment_create'),
+    path('dashboard/hub/assignments/<int:pk>/edit/', views.UserHubAssignmentUpdateView.as_view(), name='hub_rbac_assignment_edit'),
+    # Project Management (Admin / Super Admin) – Parkpe & Payswap
+    path('dashboard/projects/', views.ProjectManagementView.as_view(), name='project_management'),
+    path('dashboard/projects/create-api-key/', views.CreateProjectAPIKeyView.as_view(), name='project_management_create_api_key'),
     # Profile
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile_create'),
@@ -87,25 +109,23 @@ urlpatterns = [
     path('tickets/create/', views.TicketCreateView.as_view(), name='ticket_create'),
     path('tickets/<int:pk>/', views.TicketDetailView.as_view(), name='ticket_detail'),
     
-    # API Documentation (REST API reference for frontend)
-    path('api-docs/', views.APIDocumentationView.as_view(), name='api_docs'),
-    # API Explorer (Postman-style – test all APIs)
-    path('api-explorer/', views.APIExplorerView.as_view(), name='api_explorer'),
+    # API Documentation / Explorer – removed; redirect to dashboard
+    path('api-docs/', RedirectView.as_view(url='/dashboard/', permanent=False), name='api_docs'),
+    path('api-explorer/', RedirectView.as_view(url='/dashboard/', permanent=False), name='api_explorer'),
 
     # Services Management
-    path('services/', views.ServicesListView.as_view(), name='services_list'),
-    # API Vendors: redirect to API Explorer (all APIs managed from /api-explorer/)
-    path('services/api-vendors/', RedirectView.as_view(url='/api-explorer/', permanent=False), name='api_vendor_list'),
+    path('services/', views.ServicesIntegratedView.as_view(), name='services_list'),
+    # API Vendors: redirect to Services (API Explorer removed)
+    path('services/api-vendors/', RedirectView.as_view(url='/services/', permanent=False), name='api_vendor_list'),
     path('services/api-vendors/postman-sync/', views.postman_sync_view, name='postman_sync'),
     path('services/api-vendors/postman-save-key/', views.postman_save_key_view, name='postman_save_key'),
-    path('services/api-vendors/<str:vendor_code>/', RedirectView.as_view(url='/api-explorer/', permanent=False), name='api_vendor_detail'),
+    path('services/api-vendors/<str:vendor_code>/', RedirectView.as_view(url='/services/', permanent=False), name='api_vendor_detail'),
     path('services/api-vendors/<str:vendor_code>/apis/<str:api_code>/try/', views.api_vendor_try_api_view, name='api_vendor_try_api'),
     path('services/<int:service_id>/', views.ServiceDetailView.as_view(), name='service_detail'),
     path('services/<str:service_code>/', views.ServiceDetailByCodeView.as_view(), name='service_detail_by_code'),
     path('services/<int:service_id>/vendor/<str:vendor_code>/', views.VendorDetailView.as_view(), name='vendor_detail'),
     path('services/<int:service_id>/vendor/<str:vendor_code>/save-test-params/', views.save_vendor_test_params_view, name='save_vendor_test_params'),
     path('services/<int:service_id>/vendor/<str:vendor_code>/test-all-apis/', views.test_all_vendor_apis_view, name='test_all_vendor_apis'),
-    path('services/<int:service_id>/instantpay-test-api/', views.instantpay_test_api_view, name='instantpay_test_api'),
     path('services/<int:service_id>/bbps-test/balance/', views.bbps_test_balance_view, name='bbps_test_balance'),
     path('services/<int:service_id>/bbps-test/billers/', views.bbps_test_billers_view, name='bbps_test_billers'),
     path('services/<int:service_id>/bbps-test/operators/', views.bbps_test_operators_view, name='bbps_test_operators'),
@@ -168,33 +188,29 @@ urlpatterns = [
     path('voucherx/brands/onboard/', views.BrandAdminOnboardingView.as_view(), name='voucherx_admin_onboard'),
     path('voucherx/wizard/issue/', views.VoucherXQuickIssueWizard.as_view(), name='voucherx_wizard_issue'),
     
-    # Reseller Partner Dashboard
-    path('reseller/', views.ResellerDashboardView.as_view(), name='reseller_dashboard'),
-    path('reseller/onboarding/', views.ResellerOnboardingView.as_view(), name='reseller_onboarding'),
-    path('reseller/onboarding/step/<int:step>/', views.ResellerOnboardingView.as_view(), name='reseller_onboarding_step'),
-    path('reseller/onboarding/status/', views.ResellerOnboardingStatusView.as_view(), name='reseller_onboarding_status'),
-    path('reseller/api-keys/', views.ResellerAPIKeysView.as_view(), name='reseller_api_keys'),
-    path('reseller/api-keys/create/', views.ResellerAPIKeyCreateView.as_view(), name='reseller_api_key_create'),
-    path('reseller/api-keys/<int:key_id>/', views.ResellerAPIKeyDetailView.as_view(), name='reseller_api_key_detail'),
-    path('reseller/api-keys/<int:key_id>/revoke/', views.ResellerAPIKeyRevokeView.as_view(), name='reseller_api_key_revoke'),
-    path('reseller/usage-stats/', views.ResellerUsageStatsView.as_view(), name='reseller_usage_stats'),
-    
-    # Partner Self-Service Dashboard (for partners to login and manage their own account)
-    path('partners/', views.ResellerDashboardView.as_view(), name='partner_dashboard'),
-    
-    # Admin Reseller Partner Management URLs are in core/urls.py to avoid Django admin conflict
+    # Reseller/Partner UI removed — redirect to Project Management (ParkPe / Payswap)
+    path('reseller/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='reseller_dashboard'),
+    path('reseller/<path:subpath>', RedirectView.as_view(url='/dashboard/projects/', permanent=False)),
+    path('partners/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='partner_dashboard'),
+    path('partner/dashboard/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='partner_console'),
+    path('partner/<path:subpath>', RedirectView.as_view(url='/dashboard/projects/', permanent=False)),
 
-    # ParkPe App Management (Voucher + Payment Gateway config) – Backend UI only, no Django admin
-    path('parkpe/app-management/', views.ParkPeAppManagementView.as_view(), name='parkpe_app_management'),
-    path('parkpe/app-management/service-config/add/', views.ParkPeServiceConfigCreateView.as_view(), name='parkpe_service_config_add'),
-    path('parkpe/app-management/service-config/<int:pk>/edit/', views.ParkPeServiceConfigUpdateView.as_view(), name='parkpe_service_config_edit'),
-    path('parkpe/app-management/gateway-config/add/', views.ParkPePaymentGatewayConfigCreateView.as_view(), name='parkpe_gateway_config_add'),
-    path('parkpe/app-management/gateway-config/<int:pk>/edit/', views.ParkPePaymentGatewayConfigUpdateView.as_view(), name='parkpe_gateway_config_edit'),
+    # ParkPe App Management – removed; redirect to dashboard
+    path('parkpe/app-management/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_app_management'),
+    path('parkpe/connect/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_connect_dashboard'),
+    path('parkpe/app-management/service-config/add/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_service_config_add'),
+    path('parkpe/app-management/service-config/<int:pk>/edit/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_service_config_edit'),
+    path('parkpe/app-management/gateway-config/add/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_gateway_config_add'),
+    path('parkpe/app-management/gateway-config/<int:pk>/edit/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_gateway_config_edit'),
 
-    # API Management (Admin only) – product-level ON/OFF per platform (Parkpe / Payswap)
-    path('dashboard/admin/api-registry/', views.APIProductListView.as_view(), name='api_product_list'),
-    path('dashboard/admin/api-registry/product/<int:pk>/toggle/', views.APIProductToggleView.as_view(), name='api_product_toggle'),
-    path('dashboard/admin/api-registry/endpoints/', views.APIRegistryListView.as_view(), name='api_registry_list'),
-    path('dashboard/admin/api-registry/endpoints/<int:pk>/toggle/', views.APIRegistryToggleView.as_view(), name='api_registry_toggle'),
-    path('dashboard/admin/api-registry/logs/', views.APILogListView.as_view(), name='api_registry_logs'),
+    # API registry removed (internal apps – no external partners)
+    path('dashboard/admin/api-registry/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='api_product_list'),
+    path('dashboard/admin/api-registry/<path:subpath>', RedirectView.as_view(url='/dashboard/projects/', permanent=False)),
+
+    # Super Admin / Analytics – removed; redirect to dashboard
+    path('dashboard/super-admin/', RedirectView.as_view(url='/dashboard/', permanent=False)),
+    path('dashboard/super-admin/<path:subpath>', RedirectView.as_view(url='/dashboard/', permanent=False)),
+    path('super-admin/', RedirectView.as_view(url='/dashboard/', permanent=False)),
+    path('super-admin/<path:subpath>', RedirectView.as_view(url='/dashboard/', permanent=False)),
+    path('analytics/', RedirectView.as_view(url='/dashboard/', permanent=False), name='analytics_dashboard'),
 ]

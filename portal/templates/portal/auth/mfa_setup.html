@@ -4,10 +4,13 @@
 {% block auth_subtitle %}Multi-Factor Authentication{% endblock %}
 
 {% block auth_content %}
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
+    <!-- Centered card: mobile-style max width -->
+    <div class="w-full max-w-[420px] mx-auto">
 <div x-data="{ method: 'otp', showRemoveVerification: false }">
     {% if messages %}
         {% for message in messages %}
-            <div class="mb-4 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% elif message.tags == 'success' %}bg-green-50 border border-green-200 text-green-800{% elif message.tags == 'warning' %}bg-yellow-50 border border-yellow-200 text-yellow-800{% else %}bg-blue-50 border border-blue-200 text-blue-800{% endif %}">
+            <div class="mb-4 p-4 rounded-xl text-sm {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% elif message.tags == 'success' %}bg-green-50 border border-green-200 text-green-800{% elif message.tags == 'warning' %}bg-yellow-50 border border-yellow-200 text-yellow-800{% else %}bg-blue-50 border border-blue-200 text-blue-800{% endif %}">
                 {{ message }}
             </div>
         {% endfor %}
@@ -15,11 +18,12 @@
 
     {% if mfa_configured and show_status %}
     <!-- MFA Status and Management -->
-    <div class="space-y-6">
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div class="p-5 sm:p-6">
         <!-- Back Button -->
         <div class="mb-4">
             <a href="{% if user.is_authenticated %}/settings/{% else %}/dashboard/{% endif %}" 
-               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold transition">
+               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold text-sm transition">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
@@ -27,7 +31,7 @@
             </a>
         </div>
         
-        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+        <div class="bg-green-50 border border-green-200 rounded-xl p-5">
             <h2 class="text-2xl font-bold text-green-900 mb-2 text-center">MFA Status</h2>
             <div class="text-center space-y-4">
                 <div>
@@ -56,15 +60,16 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
     
     {% elif show_remove_verification %}
     <!-- Remove MFA - OTP Verification -->
-    <div class="space-y-6">
-        <!-- Back Button -->
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div class="p-5 sm:p-6">
         <div class="mb-4">
             <a href="/mfa/setup/" 
-               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold transition">
+               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold text-sm transition">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
@@ -72,7 +77,7 @@
             </a>
         </div>
         
-        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
             <h2 class="text-2xl font-bold text-yellow-900 mb-2 text-center">Verify Identity to Remove MFA</h2>
             <p class="text-yellow-800 text-center mb-6">
                 Please verify your identity using your current MFA method to remove it.
@@ -122,15 +127,16 @@
                 </div>
             </form>
         </div>
+        </div>
     </div>
     
     {% elif show_remove_confirmation %}
     <!-- Remove MFA - Confirmation -->
-    <div class="space-y-6">
-        <!-- Back Button -->
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div class="p-5 sm:p-6">
         <div class="mb-4">
             <a href="/mfa/setup/?action=remove" 
-               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold transition">
+               class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold text-sm transition">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
@@ -138,7 +144,7 @@
             </a>
         </div>
         
-        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-5">
             <h2 class="text-2xl font-bold text-red-900 mb-2 text-center">Confirm MFA Removal</h2>
             <p class="text-red-800 text-center mb-6">
                 Are you sure you want to remove MFA from your account? This action cannot be undone.
@@ -164,15 +170,17 @@
                 </div>
             </form>
         </div>
+        </div>
     </div>
     
     {% else %}
-    <!-- New MFA Setup -->
+    <!-- New MFA Setup - Card -->
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div class="p-5 sm:p-6">
     {% if user.is_authenticated %}
-    <!-- Back Button -->
     <div class="mb-4">
         <a href="/settings/" 
-           class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold transition">
+           class="inline-flex items-center text-[#0066CC] hover:text-[#0052A3] font-semibold text-sm transition">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
             </svg>
@@ -181,18 +189,18 @@
     </div>
     {% endif %}
     
-    <h2 class="text-2xl font-bold text-gray-900 mb-2 text-center">MFA Setup</h2>
-    <p class="text-gray-600 text-center mb-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-1 text-center">MFA Setup</h2>
+    <p class="text-gray-600 text-center text-sm mb-5">
         {% if mfa_configured %}
             Setup a new MFA method for your account.
         {% else %}
-            Your role requires Multi-Factor Authentication. Please choose a method to secure your account.
+            Your role requires Multi-Factor Authentication. Choose a method to secure your account.
         {% endif %}
     </p>
     
     {% if not mfa_configured %}
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <p class="text-sm text-blue-800">
+    <div class="bg-[#0066CC]/10 border border-[#0066CC]/20 rounded-xl px-4 py-3 mb-5">
+        <p class="text-sm text-[#0066CC]">
             <strong>Note:</strong> You must complete MFA setup before you can access your dashboard.
         </p>
     </div>
@@ -203,91 +211,91 @@
         <div id="mfa-form">
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-3">Choose MFA Method</label>
-                    <div class="space-y-3">
-                        <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer" :class="method === 'otp' ? 'border-[#0066CC] bg-blue-50' : 'border-gray-200'">
-                            <input type="radio" name="mfa_method" value="otp" x-model="method" class="mr-3" required>
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Choose MFA Method</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center p-3.5 border-2 rounded-xl cursor-pointer transition" :class="method === 'otp' ? 'border-[#0066CC] bg-[#0066CC]/5' : 'border-slate-200 hover:border-slate-300'">
+                            <input type="radio" name="mfa_method" value="otp" x-model="method" class="mr-3 w-4 h-4 text-[#0066CC]" required>
                             <div>
-                                <div class="font-semibold text-gray-900">OTP via SMS</div>
-                                <div class="text-sm text-gray-600">Receive verification codes via SMS</div>
+                                <div class="font-medium text-gray-900">OTP via SMS</div>
+                                <div class="text-xs text-gray-500">Receive verification codes via SMS</div>
                             </div>
                         </label>
                         
-                        <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer" :class="method === 'authenticator' ? 'border-[#0066CC] bg-blue-50' : 'border-gray-200'">
-                            <input type="radio" name="mfa_method" value="authenticator" x-model="method" class="mr-3" required>
+                        <label class="flex items-center p-3.5 border-2 rounded-xl cursor-pointer transition" :class="method === 'authenticator' ? 'border-[#0066CC] bg-[#0066CC]/5' : 'border-slate-200 hover:border-slate-300'">
+                            <input type="radio" name="mfa_method" value="authenticator" x-model="method" class="mr-3 w-4 h-4 text-[#0066CC]" required>
                             <div>
-                                <div class="font-semibold text-gray-900">Authenticator App</div>
-                                <div class="text-sm text-gray-600">Use Google Authenticator or similar app</div>
+                                <div class="font-medium text-gray-900">Authenticator App</div>
+                                <div class="text-xs text-gray-500">Use Google Authenticator or similar app</div>
                             </div>
                         </label>
                     </div>
                 </div>
                 
-                <!-- OTP Setup -->
                 <div x-show="method === 'otp'" x-transition>
                     <div>
-                        <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                        <label for="phone" class="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
                         <input 
                             type="tel" 
                             id="phone" 
                             name="phone" 
                             :required="method === 'otp'"
                             x-bind:required="method === 'otp'"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
-                            placeholder="Enter your phone number"
+                            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC]/20 transition"
+                            placeholder="e.g. 9876543210"
                         >
                     </div>
                 </div>
                 
-                <!-- Authenticator Setup -->
                 <div x-show="method === 'authenticator'" x-transition>
                     {% if qr_code %}
-                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                        <p class="text-sm text-gray-600 mb-4 text-center">
+                    <div class="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-100">
+                        <p class="text-xs text-gray-600 mb-3 text-center">
                             Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.)
                         </p>
-                        <div class="flex justify-center mb-4">
-                            <img src="{{ qr_code }}" alt="QR Code" class="border-2 border-gray-300 rounded-lg p-2 bg-white" style="max-width: 250px;">
+                        <div class="flex justify-center mb-3">
+                            <img src="{{ qr_code }}" alt="QR Code" class="rounded-xl border border-slate-200 p-2 bg-white w-[200px] h-[200px] object-contain">
                         </div>
-                        <p class="text-xs text-gray-500 text-center">
-                            Can't scan? Enter this code manually: <code class="bg-gray-200 px-2 py-1 rounded">{{ totp_secret }}</code>
-                        </p>
+                        <p class="text-xs text-slate-500 text-center mb-1">Can't scan? Enter manually:</p>
+                        <code class="block text-xs bg-slate-200/80 text-slate-700 px-3 py-2 rounded-lg break-all select-all">{{ totp_secret }}</code>
                     </div>
                     {% else %}
-                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                        <p class="text-sm text-yellow-800">
-                            Please refresh the page to generate QR code.
-                        </p>
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+                        <p class="text-sm text-amber-800">Please refresh the page to generate QR code.</p>
                     </div>
                     {% endif %}
                     <div>
-                        <label for="totp_code" class="block text-sm font-medium text-gray-700 mb-2">Enter Verification Code</label>
+                        <label for="totp_code" class="block text-sm font-medium text-gray-700 mb-1.5">Enter Verification Code</label>
                         <input 
                             type="text" 
                             id="totp_code" 
                             name="totp_code" 
                             maxlength="6"
                             pattern="[0-9]{6}"
+                            inputmode="numeric"
                             :required="method === 'authenticator'"
                             x-bind:required="method === 'authenticator'"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20"
+                            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC]/20 transition text-center text-lg tracking-widest"
                             placeholder="000000"
                         >
-                        <p class="text-xs text-gray-500 mt-1">Enter the 6-digit code from your authenticator app</p>
+                        <p class="text-xs text-gray-500 mt-1.5">6-digit code from your authenticator app</p>
                     </div>
                 </div>
                 
                 <button 
                     type="submit" 
                     id="mfa-submit-btn"
-                    class="w-full bg-[#0066CC] text-white py-3 rounded-lg font-semibold hover:bg-[#0052A3] transition"
+                    class="w-full bg-[#0066CC] text-white py-3.5 rounded-xl font-semibold hover:bg-[#0052A3] active:scale-[0.98] transition shadow-md shadow-[#0066CC]/20"
                 >
                     Complete Setup
                 </button>
             </div>
         </div>
     </form>
+        </div>
+    </div>
     {% endif %}
+</div>
+</div>
 </div>
 
 <script>

@@ -5,9 +5,12 @@ import {
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  RegisterSendOtpResponse,
+  RegisterVerifyRequest,
+  PincodeLookupResponse,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
-} from '../models/auth.model';
+} from 'shared';
 import {
   PaymentGateway,
   GatewayConfig,
@@ -17,7 +20,7 @@ import {
   RefundDetails,
   PaymentOrder,
   VoucherStatementEntry,
-} from '../models/payment.model';
+} from 'shared';
 import {
   ParkingLocation,
   ParkingSlot,
@@ -43,6 +46,40 @@ import {
   ChallanPaymentResponse,
 } from '../models/challan.model';
 
+/** BBPS saved bill as returned from API (GET/POST/PATCH) */
+export interface BbpsSavedBillApi {
+  id: string;
+  nickname: string;
+  operatorId: string;
+  operatorName: string;
+  category: string;
+  mobikwikOpId?: string;
+  consumerId: string;
+  lastAmount?: number;
+  billId?: string;
+  createdAt: string;
+}
+
+/** BBPS saved bill payload for POST (add) */
+export interface BbpsSavedBillAdd {
+  nickname?: string;
+  operatorId: string;
+  operatorName: string;
+  category: string;
+  mobikwikOpId?: string;
+  consumerId: string;
+  lastAmount?: number;
+  billId?: string;
+}
+
+/** BBPS pay-cart success response */
+export interface BbpsPayCartResponse {
+  success: boolean;
+  message: string;
+  total: number;
+  results: { billId: string; operatorId: string; consumerId: string; amount: number; transactionId: string; status: string }[];
+}
+
 /**
  * API Backend Interface
  * Defines the contract for all API operations
@@ -59,6 +96,9 @@ export interface ApiBackend {
   requestLoginOtp(phone: string): Observable<OtpRequestResponse>;
   verifyLoginOtp(phone: string, otp: string): Observable<LoginResponse>;
   register(payload: RegisterRequest): Observable<RegisterResponse>;
+  registerSendOtp(payload: RegisterRequest): Observable<RegisterSendOtpResponse>;
+  registerVerify(payload: RegisterVerifyRequest): Observable<LoginResponse>;
+  lookupPincode(pincode: string): Observable<PincodeLookupResponse>;
   logout(): Observable<{ success: boolean }>;
   forgotPassword(payload: ForgotPasswordRequest): Observable<ForgotPasswordResponse>;
   getProfile(): Observable<User>;
@@ -81,6 +121,8 @@ export interface ApiBackend {
     type?: string;
     status?: string;
     gateway?: PaymentGateway;
+    dateFrom?: string;
+    dateTo?: string;
   }): Observable<{ transactions: Transaction[]; total: number }>;
   requestRefund(
     transactionId: string,
@@ -88,12 +130,11 @@ export interface ApiBackend {
     reason: string
   ): Observable<RefundDetails>;
   downloadReceipt(transactionId: string): Observable<Blob | string>;
-  getVoucherBalance(): Observable<{ balance: number; currency: string }>;
   getVouchers(params?: { page?: number; limit?: number }): Observable<import('../models/voucher.model').VoucherListResponse>;
   getVoucherDetail(id: number): Observable<import('../models/voucher.model').VoucherDetail>;
   revealVoucherPin(id: number): Observable<import('../models/voucher.model').VoucherRevealPinResponse>;
   getPaymentOrders(params?: { page?: number; limit?: number; status?: string }): Observable<{ orders: PaymentOrder[]; total: number }>;
-  getVoucherStatement(params?: { page?: number; limit?: number }): Observable<{ entries: VoucherStatementEntry[]; total: number; balance: number }>;
+  getVoucherStatement(params?: { page?: number; limit?: number }): Observable<{ entries: VoucherStatementEntry[]; total: number }>;
 
   // Parking API
   getLocations(): Observable<ParkingLocation[]>;
@@ -106,6 +147,14 @@ export interface ApiBackend {
   getOperators(category: string): Observable<BBPSOperator[]>;
   fetchBill(request: BillFetchRequest): Observable<BillFetchResponse>;
   payBill(payload: BBPSPaymentRequest): Observable<BBPSPaymentResponse>;
+  payCart(payload: { bills: { billId: string; operatorId: string; consumerId: string; amount: number }[]; voucher_id: number; pin: string }): Observable<BbpsPayCartResponse>;
+  getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]>;
+  addBbpsFavorite(body: { operatorId: string; operatorName?: string; category?: string; mobikwikOpId?: string }): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }>;
+  removeBbpsFavorite(operatorId: string): Observable<void>;
+  getBbpsSavedBills(): Observable<BbpsSavedBillApi[]>;
+  addBbpsSavedBill(bill: BbpsSavedBillAdd): Observable<BbpsSavedBillApi>;
+  updateBbpsSavedBill(id: string, body: { nickname?: string }): Observable<BbpsSavedBillApi>;
+  removeBbpsSavedBill(id: string): Observable<void>;
 
   // FASTag API
   createRechargeOrder(

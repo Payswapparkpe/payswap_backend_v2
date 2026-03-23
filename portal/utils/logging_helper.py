@@ -107,7 +107,7 @@ class SecureLogger:
     
     def _sanitize_message(self, message: str) -> str:
         """
-        Sanitize log message string
+        Sanitize log message string (VAPT-001: redact OTP, phone, secrets).
         
         Args:
             message: Log message
@@ -118,12 +118,16 @@ class SecureLogger:
         if not isinstance(message, str):
             return str(message)
         
-        # Replace sensitive patterns (simplified to avoid regex group issues)
         sanitized = message
-        # Simple replacement for common patterns
+        # Redact OTP-like patterns (4-8 digit codes, "OTP: 1234")
+        sanitized = re.sub(r'\bOTP\s*[:=]\s*["\']?\d{4,8}["\']?', 'OTP=***REDACTED***', sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r'\|\s*OTP:\s*\d{4,8}\b', '| OTP:***REDACTED***', sanitized, flags=re.IGNORECASE)
+        # Indian mobile: 10 digits, optional +91 prefix
+        sanitized = re.sub(r'\+91\s*\d{10}\b', '+91**********', sanitized)
+        sanitized = re.sub(r'\b\d{10}\b(?!\d)', '**********', sanitized)
+        # Simple replacement for common secret patterns
         sensitive_words = ['password', 'token', 'secret', 'api_key', 'api_secret']
         for word in sensitive_words:
-            # Replace word=value patterns
             pattern = rf'{word}\s*[:=]\s*["\']?([^"\'\s]+)'
             sanitized = re.sub(pattern, f'{word}=***REDACTED***', sanitized, flags=re.IGNORECASE)
         
@@ -215,8 +219,8 @@ class SecureLogger:
         # Get module name from caller
         module_name = get_module_name(skip_frames=3)
         
-        # Extract user ID
-        user_id = user.id if user else None
+        # Extract user ID (defensive: user may be wrong type e.g. string from misplaced positional)
+        user_id = getattr(user, "id", None) if user else None
         
         # Call write_logs_task (async)
         write_logs_task.delay(
@@ -304,6 +308,31 @@ class SecureLogger:
     ):
         """Log critical message"""
         self._write_log('CRITICAL', message, user, extra_data, request_id, traceback, client_ip, user_agent, session_id, url)
+
+    def exception(
+        self,
+        message: str,
+        user: Optional[Any] = None,
+        extra_data: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        session_id: Optional[str] = None,
+        url: Optional[str] = None
+    ):
+        """Log exception (ERROR level with current traceback)."""
+        import traceback as tb
+        self.error(
+            message,
+            user=user,
+            extra_data=extra_data,
+            request_id=request_id,
+            traceback=tb.format_exc(),
+            client_ip=client_ip,
+            user_agent=user_agent,
+            session_id=session_id,
+            url=url,
+        )
     
     def log_user_action(
         self,
@@ -470,6 +499,15 @@ def sanitize_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     logger = SecureLogger()
     return logger._sanitize_dict(data)
+
+
+def sanitize_log_message(message: str) -> str:
+    """
+    Sanitize a log message string (VAPT-001). Redacts OTP, phone numbers, and secret patterns.
+    Use for both file and DB log message fields.
+    """
+    logger = SecureLogger()
+    return logger._sanitize_message(message)
 
 
 def get_logger(name: str = 'portal') -> SecureLogger:

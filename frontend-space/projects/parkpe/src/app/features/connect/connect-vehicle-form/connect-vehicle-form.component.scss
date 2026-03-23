@@ -21,6 +21,34 @@
   margin-bottom: 1rem;
 }
 
+.limit-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  color: #92400e;
+
+  .material-icons {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+  a {
+    color: var(--primary-600);
+    font-weight: 600;
+  }
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
 .field {
   margin-bottom: 1rem;
 
@@ -31,17 +59,41 @@
     margin-bottom: 0.35rem;
   }
   input[type='text'],
-  input[type='number'] {
+  input[type='number'],
+  select {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid rgba(226, 232, 240, 0.9);
     border-radius: 0.5rem;
+    font-size: 1rem;
+  }
+  select {
+    cursor: pointer;
+    appearance: auto;
+  }
+  .field-other {
+    margin-top: 0.5rem;
   }
   &.checkbox label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-weight: 500;
+  }
+}
+
+.declaration {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+
+  .declaration-text {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-secondary, #475569);
   }
 }
 

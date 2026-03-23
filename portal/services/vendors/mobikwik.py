@@ -8,6 +8,17 @@ New integration uses:
 
 Credentials and base URL from .env (MOBIKWIK_BBPS_*).
 Exact endpoint paths and encryption algorithm must be confirmed from Mobikwik API Kit.
+
+Token policy (backend-only; never exposed to frontend):
+- Doc: token valid 24 hours; max 100 tokens per day. Prefer one token until Mobikwik expiryTime.
+- We parse expiryTime (or similar) from the token API and store mobikwik_expires_at + refresh_before
+  (refresh_before = mobikwik expiry minus MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER seconds).
+- _ensure_token uses the token only while time.time() < refresh_before; before that moment we call
+  get_token() again to fetch a new token from Mobikwik.
+- On API "token expired" responses we invalidate cache and call get_token(force_refresh=True).
+- Token is stored only on backend (Django cache / Redis). All workers share the same token.
+- Frontend never receives or manages Mobikwik token; it only calls our backend APIs
+  (categories, operators, fetch-bill, pay-bill). Backend handles token internally.
 """
 import copy
 import hashlib
@@ -38,6 +49,12 @@ def _mask_value(val: str, show_last: int = 0) -> str:
     if len(val) <= show_last:
         return "***"
     return "*" * (len(val) - show_last) + val[-show_last:]
+
+# Cache key for Mobikwik BBPS token (shared across workers; 100 tokens/day limit)
+MOBIKWIK_BBPS_TOKEN_CACHE_KEY = "mobikwik_bbps_token"
+# Refresh this many seconds before Mobikwik expiryTime (doc: 24h validity; avoid using token until last second)
+# 600 = 10 min buffer — reduces "Token is expired" when server invalidates slightly before our parsed expiry
+MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER = 600
 
 # Default API paths from Mobikwik RT-Recharge & Bill Payment API Documentation
 # Base URL (testing): https://alpha3.mobikwik.com
@@ -98,6 +115,12 @@ class MobikwikBBPSClient:
             if use_encryption is not None
             else getattr(cfg, "MOBIKWIK_BBPS_USE_ENCRYPTION", False)
         )
+        # UAT: optional override to force plain JSON (set PLAIN_JSON_UAT=True only if Mobikwik allows). Default False = use encryption when USE_ENCRYPTION=True per doc.
+        env_name = getattr(cfg, "MOBIKWIK_BBPS_ENVIRONMENT", "UAT") or "UAT"
+        if (str(env_name).upper() == "UAT" and getattr(cfg, "MOBIKWIK_BBPS_PLAIN_JSON_UAT", False)):
+            self.use_encryption = False
+        self.member_id = getattr(cfg, "MOBIKWIK_BBPS_MEMBER_ID", None)
+        self.agent_id = getattr(cfg, "MOBIKWIK_BBPS_AGENT_ID", None)
         self.public_key_pem = public_key_pem or _secret_value(
             getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY", None)
         )
@@ -105,14 +128,26 @@ class MobikwikBBPSClient:
             key_path = getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY_PATH", None)
             if key_path:
                 self.public_key_pem = self._load_public_key_from_path(key_path)
-        self.key_version = key_version or getattr(cfg, "MOBIKWIK_BBPS_KEY_VERSION", "1.0")
+        # Key version: Mobikwik README in zip says "Key Version: 1.0" – must match. Wrong value causes "Unsupported Tag" / 900.
+        _kv = key_version or getattr(cfg, "MOBIKWIK_BBPS_KEY_VERSION", "1.0")
+        _kv_str = str(_kv).strip() if _kv is not None else "1.0"
+        if _kv_str in ("1.0", "1"):
+            self.key_version = _kv_str
+        else:
+            if self.use_encryption:
+                logger.warning("Mobikwik BBPS KEY_VERSION=%s ignored – README says 1.0; sending 1.0 to avoid 'Unsupported Tag'", _kv_str)
+            self.key_version = "1.0"
         self._paths = getattr(cfg, "MOBIKWIK_BBPS_PATHS", None) or DEFAULT_PATHS
         self._token: Optional[str] = None
+        # refresh_before: unix time after which we must obtain a new token (Mobikwik expiry minus buffer)
         self._token_expires_at: float = 0.0
-        self._token_ttl_seconds = 300  # refresh 5 min before expiry if we had expiry from response
+        # mobikwik_expires_at: actual expiry from Mobikwik token response (unix); 0 if unknown
+        self._token_mobikwik_expires_at: float = 0.0
         self._last_token_error: Optional[str] = None  # actual error when token fails (for logging/UI)
         self._uat_verbose = getattr(cfg, "MOBIKWIK_BBPS_UAT_VERBOSE_LOG", False)
+        self._log_sanitize = getattr(cfg, "MOBIKWIK_BBPS_LOG_SANITIZE", True)
         self._retry_on_failure = getattr(cfg, "MOBIKWIK_BBPS_RETRY_ON_FAILURE", True)
+        self._request_timeout = float(getattr(cfg, "MOBIKWIK_BBPS_REQUEST_TIMEOUT", 60) or 60)
 
     def is_configured(self) -> bool:
         """Return True if credentials are set and integration is enabled."""
@@ -183,6 +218,76 @@ class MobikwikBBPSClient:
                 s = str(data)
         return (s[:max_len] + "...") if len(s) > max_len else s
 
+    # Human-readable names for vendor API (log list/detail: Parkpe vs Mobikwik call diff)
+    _VENDOR_ACTION_DISPLAY = {
+        "balance_check": "Balance Check",
+        "validation": "Validation",
+        "view_bill": "View Bill",
+        "recharge": "Pay/Recharge",
+        "transaction_status": "Transaction Status",
+        "operators": "Get Operators",
+        "token": "Token",
+    }
+
+    def _create_vendor_call_log_entry(
+        self,
+        action: str,
+        url: str,
+        method: str,
+        request_plain_sanitized: Optional[Dict[str, Any]],
+        request_encrypted_summary: Optional[Dict[str, Any]],
+        response_status_code: Optional[int],
+        response_body_sanitized: str,
+        success: bool,
+        log_context: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+        error_code: Optional[str] = None,
+    ) -> None:
+        """Write one LogEntry for every call to Mobikwik API so Hub log shows Parkpe vs Vendor call. Never raises."""
+        try:
+            from portal.models import LogEntry
+            api_display = self._VENDOR_ACTION_DISPLAY.get(action, action.replace("_", " ").title())
+            extra = {
+                "action": action,
+                "api_name": f"Mobikwik: {api_display}",
+                "api_url": url[:500] if url else None,
+                "request_method": method,
+                "response_status": response_status_code,
+                "response_body": response_body_sanitized,
+                "success": success,
+                "vendor": "mobikwik",
+            }
+            if error:
+                extra["error"] = str(error)[:1000]
+            if error_code:
+                extra["error_code"] = str(error_code)
+            if request_plain_sanitized is not None:
+                extra["request_body"] = request_plain_sanitized
+            if request_encrypted_summary is not None:
+                extra["request_encrypted_summary"] = request_encrypted_summary
+            ctx = log_context or {}
+            if ctx.get("request_id"):
+                extra["request_id"] = ctx["request_id"]
+            if ctx.get("response_id"):
+                extra["response_id"] = ctx["response_id"]
+            if ctx.get("source"):
+                extra["source"] = ctx["source"]
+            if ctx.get("api_name"):
+                extra["upstream_api_name"] = ctx["api_name"]
+            LogEntry.objects.create(
+                log_level="INFO" if success else "ERROR",
+                category="mobikwik_bbps",
+                message=f"[Mobikwik] {api_display}",
+                module_name="portal.services.vendors.mobikwik",
+                url=url[:500] if url else None,
+                extra_data=extra,
+                request_id=ctx.get("request_id"),
+                response_id=ctx.get("response_id"),
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to create Mobikwik vendor log entry: %s", e)
+
     def _create_uat_log_entry(
         self,
         action: str,
@@ -225,31 +330,179 @@ class MobikwikBBPSClient:
             pass
 
     def _load_public_key_from_path(self, key_path: str) -> Optional[str]:
-        """Load PEM content from file path. Path can be absolute or relative to project root (BASE_DIR)."""
+        """Load PEM content from file path. Path can be absolute or relative to project root (BASE_DIR).
+        If exact path fails (e.g. Mobikwik vs mobikwik folder name), tries alternate casing for first segment.
+        """
         import os
         from django.conf import settings
-        if not key_path:
+        if not key_path or not str(key_path).strip():
             return None
+        key_path = key_path.strip()
         path = key_path
         if not os.path.isabs(path):
             base = getattr(settings, "BASE_DIR", None)
             if base:
                 path = os.path.join(base, key_path)
+        to_try = [path]
+        # Agar file nahi mili to folder name ka case try karo (Mobikwik vs mobikwik)
+        if not os.path.isabs(key_path):
+            parts = key_path.replace("\\", "/").split("/")
+            if len(parts) >= 1 and parts[0]:
+                alt = parts[0].lower() if parts[0][:1].isupper() else (parts[0][:1].upper() + (parts[0][1:] if len(parts[0]) > 1 else ""))
+                if alt != parts[0] and base:
+                    alt_path = os.path.join(base, alt, *parts[1:])
+                    to_try.append(alt_path)
+        for p in to_try:
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    pem = f.read()
+                pem = pem.strip()
+                if "-----BEGIN" in pem and "-----END" in pem:
+                    return pem
+                logger.warning("Mobikwik BBPS: PEM file missing BEGIN/END markers", extra_data={"path": p})
+                return pem or None
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                logger.error("Mobikwik BBPS: failed to load public key from path", extra_data={"path": p, "error": str(e)})
+                if p == path:
+                    continue
+                return None
+        logger.error("Mobikwik BBPS: public key file not found (tried: {})".format(", ".join(to_try)))
+        return None
+
+    def _extract_token_from_response(self, data: Dict[str, Any], data_obj: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract token string from token API response. Tries config path first, then common shapes.
+        """
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception as e:
-            logger.error("Mobikwik BBPS: failed to load public key from path", extra_data={"path": key_path, "error": str(e)})
+            from core.config import payswap_config
+            path_conf = getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_RESPONSE_PATH", None)
+            if path_conf and isinstance(path_conf, str) and path_conf.strip():
+                parts = [p.strip() for p in path_conf.strip().split(".") if p.strip()]
+                if parts:
+                    obj = data
+                    for key in parts:
+                        if not isinstance(obj, dict):
+                            break
+                        obj = obj.get(key)
+                    if isinstance(obj, str) and obj:
+                        return obj
+        except Exception:
+            pass
+        token = (
+            data_obj.get("token")
+            or data.get("token")
+            or data.get("accessToken")
+            or data.get("access_token")
+        )
+        if token and isinstance(token, str):
+            return token
+        for key in ("result", "response", "body"):
+            obj = data.get(key) if isinstance(data, dict) else None
+            if isinstance(obj, dict):
+                token = obj.get("token") or obj.get("accessToken") or obj.get("access_token")
+                if token and isinstance(token, str):
+                    return token
+        return None
+
+    def _parse_mobikwik_expiry_string(self, expiry_str: str) -> Optional[float]:
+        """
+        Parse Mobikwik expiryTime (e.g. 'YYYY-MM-DD HH:mm:ss') to unix timestamp.
+        Naive strings are interpreted as Asia/Kolkata (Mobikwik India docs); fallback to local.
+        """
+        if not expiry_str or not isinstance(expiry_str, str):
             return None
+        s = expiry_str.strip()
+        if not s:
+            return None
+        from datetime import datetime as dt
+
+        if len(s) >= 19 and s[4] == "-" and s[7] == "-" and s[10] in " T":
+            core = s[:19].replace("T", " ")
+            try:
+                from zoneinfo import ZoneInfo
+
+                from core.config import payswap_config
+
+                tz_name = getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE", None) or "Asia/Kolkata"
+                nd = dt.strptime(core, "%Y-%m-%d %H:%M:%S")
+                nd = nd.replace(tzinfo=ZoneInfo(str(tz_name)))
+                return nd.timestamp()
+            except Exception:
+                try:
+                    nd = dt.strptime(core, "%Y-%m-%d %H:%M:%S")
+                    return nd.timestamp()
+                except Exception:
+                    return None
+        return None
+
+    def _extract_mobikwik_expiry_unix(self, data: Dict[str, Any], data_obj: Dict[str, Any]) -> Optional[float]:
+        """Read Mobikwik token expiry from response (several possible keys / numeric epoch)."""
+        keys_str = (
+            "expiryTime",
+            "expiresAt",
+            "expireTime",
+            "tokenExpiry",
+            "expiry_time",
+            "token_expiry",
+        )
+        for d in (data_obj, data):
+            if not isinstance(d, dict):
+                continue
+            for k in keys_str:
+                v = d.get(k)
+                if v is None:
+                    continue
+                if isinstance(v, (int, float)):
+                    ts = float(v)
+                    if ts > 1e15:  # microseconds
+                        ts /= 1e6
+                    elif ts > 1e12:  # milliseconds
+                        ts /= 1000.0
+                    if ts > 1e9:
+                        return ts
+                if isinstance(v, str) and v.strip():
+                    parsed = self._parse_mobikwik_expiry_string(v.strip())
+                    if parsed is not None:
+                        return parsed
+        return None
+
+    def _hydrate_token_from_cache_dict(self, cached: Dict[str, Any]) -> bool:
+        """
+        Load token from cache payload. Returns True if token is still valid (before refresh_before).
+        Supports legacy shape: {'token', 'expires_at'} where expires_at was already refresh_before.
+        """
+        token = cached.get("token")
+        refresh_before = cached.get("refresh_before")
+        if refresh_before is None:
+            refresh_before = cached.get("expires_at") or 0
+        mobikwik_exp = float(cached.get("mobikwik_expires_at") or 0.0)
+        try:
+            refresh_before = float(refresh_before)
+        except (TypeError, ValueError):
+            refresh_before = 0.0
+        if not token or not isinstance(token, str):
+            return False
+        if time.time() >= refresh_before:
+            return False
+        self._token = token
+        self._token_expires_at = refresh_before
+        self._token_mobikwik_expires_at = mobikwik_exp
+        self._last_token_error = None
+        return True
 
     # -------------------------------------------------------------------------
     # Token (new API)
     # -------------------------------------------------------------------------
 
-    def get_token(self) -> Dict[str, Any]:
+    def get_token(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Token Generation API – get access token using Client ID + Client Secret.
         Required before Balance Check, Validation, View Bill, Recharge, Transaction Status.
+        Parses Mobikwik expiryTime (and variants), stores mobikwik_expires_at and refresh_before
+        (refresh MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER seconds before that). Uses shared cache until
+        refresh_before. force_refresh=True skips cache (use after invalidate / token-expired API response).
         """
         if not self.client_id or not self.client_secret:
             return {
@@ -257,13 +510,23 @@ class MobikwikBBPSClient:
                 "error": "MOBIKWIK_BBPS_CLIENT_ID and MOBIKWIK_BBPS_CLIENT_SECRET are required for token",
                 "error_code": "CONFIG_MISSING",
             }
+        # Shared cache: use token only while time.time() < refresh_before (see _hydrate_token_from_cache_dict)
+        if not force_refresh:
+            try:
+                from django.core.cache import cache
+
+                cached = cache.get(MOBIKWIK_BBPS_TOKEN_CACHE_KEY)
+                if isinstance(cached, dict) and self._hydrate_token_from_cache_dict(cached):
+                    return {"success": True, "data": {}, "token": self._token}
+            except Exception:
+                pass
         # Token path: override via MOBIKWIK_BBPS_TOKEN_PATH (per Mobikwik RT-Recharge & Bill Payment API doc) or use default
         from core.config import payswap_config
         token_path = getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_PATH", None)
-        path = (token_path or self._get_path("token")).strip().lstrip("/")
+        path = (token_path or self._get_path("token")).strip().strip("/")
         base = self.base_url.rstrip("/")
-        # Some servers require trailing slash for POST
-        url = f"{base}/{path}/" if path else (base + "/")
+        # Postman/UAT: no trailing slash – /recharge/v1/verify/retailer
+        url = f"{base}/{path}" if path else base
         payload = {
             "clientId": self.client_id,
             "clientSecret": self.client_secret,
@@ -314,17 +577,64 @@ class MobikwikBBPSClient:
                     "status_code": resp.status_code,
                     "response": data,
                 }
-            # PDF: success response has data.token and data.expiryTime
+            # PDF: success response has data.token and data.expiryTime; support other shapes via _extract_token
             data_obj = data.get("data") or {}
-            token = data_obj.get("token") or data.get("token") or data.get("accessToken") or data.get("access_token")
+            token = self._extract_token_from_response(data, data_obj)
             if not token:
-                self._last_token_error = "Token not found in response"
+                # Prefer Mobikwik's message when present (e.g. success: false, message: "..." or message: {code, text})
+                vendor_msg = None
+                if isinstance(data, dict):
+                    for key in ("message", "error", "msg", "Message", "Error", "errorMessage", "error_message"):
+                        v = data.get(key)
+                        if v is None:
+                            continue
+                        if isinstance(v, str) and v.strip():
+                            vendor_msg = v.strip()[:500]
+                            break
+                        if isinstance(v, dict):
+                            # e.g. {"code": "1308", "text": "allowed token limit exceeded"}
+                            text = (v.get("text") or v.get("message") or v.get("msg") or v.get("description"))
+                            if isinstance(text, str) and text.strip():
+                                code = v.get("code") or v.get("error_code")
+                                vendor_msg = (f"{code}: " if code else "") + text.strip()[:480]
+                            else:
+                                vendor_msg = str(v).strip()[:500]
+                            break
+                        vendor_msg = str(v).strip()[:500]
+                        break
+                if vendor_msg:
+                    self._last_token_error = vendor_msg
+                else:
+                    keys_hint = ", ".join(str(k) for k in (data.keys() if isinstance(data, dict) else []))[:180]
+                    self._last_token_error = "Token not found in response" + (f"; top-level keys: {keys_hint}" if keys_hint else "")
+                sanitized_body = self._sanitize_response_for_log(data)
+                logger.warning(
+                    "Mobikwik BBPS token not found in response",
+                    extra_data={"response_preview": sanitized_body[:1500], "url": url, "status_code": resp.status_code},
+                )
+                try:
+                    from portal.models import LogEntry
+                    LogEntry.objects.create(
+                        log_level="WARNING",
+                        category="mobikwik_bbps",
+                        message="Token not found in response",
+                        module_name="portal.services.vendors.mobikwik",
+                        url=url[:500] if url else None,
+                        extra_data={
+                            "action": "token",
+                            "response_status_code": resp.status_code,
+                            "response_body_sanitized": sanitized_body,
+                            "top_level_keys": list(data.keys()) if isinstance(data, dict) else None,
+                        },
+                    )
+                except Exception:
+                    pass
                 if self._uat_verbose:
                     req_sanitized = self._sanitize_for_log(payload)
                     curl_tpl = f"curl -X POST '{url}' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{json.dumps(req_sanitized)}'"
                     self._create_uat_log_entry(
                         "token", url, "POST", req_sanitized, None,
-                        resp.status_code, self._sanitize_response_for_log(data), False, curl_tpl,
+                        resp.status_code, sanitized_body, False, curl_tpl,
                     )
                 return {
                     "success": False,
@@ -333,17 +643,55 @@ class MobikwikBBPSClient:
                 }
             self._token = token
             self._last_token_error = None
-            # PDF: token valid 24 hours; expiryTime "YYYY-MM-DD HH:mm:ss". Refresh 5 min before expiry.
-            expiry_str = data_obj.get("expiryTime") or data.get("expiryTime")
-            if expiry_str and isinstance(expiry_str, str):
-                try:
-                    from datetime import datetime as dt
-                    et = dt.strptime(expiry_str.strip()[:19], "%Y-%m-%d %H:%M:%S")
-                    self._token_expires_at = et.timestamp() - 300
-                except Exception:
-                    self._token_expires_at = time.time() + (86400 - 300)
-            else:
-                self._token_expires_at = time.time() + (86400 - 300)
+            now = time.time()
+            mobikwik_expires_at = self._extract_mobikwik_expiry_unix(data, data_obj)
+            if mobikwik_expires_at is None:
+                mobikwik_expires_at = now + 86400.0
+                logger.debug(
+                    "Mobikwik BBPS: no expiryTime in token response; assuming 24h validity from now",
+                    extra_data={"url": url},
+                )
+            elif mobikwik_expires_at <= now:
+                logger.warning(
+                    "Mobikwik BBPS: token expiryTime is in the past or clock skew; assuming 24h from now",
+                    extra_data={"url": url, "parsed_expiry_ts": mobikwik_expires_at},
+                )
+                mobikwik_expires_at = now + 86400.0
+            # Stop using this token this many seconds before Mobikwik's real expiry
+            refresh_before = mobikwik_expires_at - MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER
+            if refresh_before <= now:
+                refresh_before = now + 120.0
+                logger.warning(
+                    "Mobikwik BBPS: refresh_before was not in the future; using 120s grace window",
+                    extra_data={"mobikwik_expires_at": mobikwik_expires_at},
+                )
+            self._token_mobikwik_expires_at = mobikwik_expires_at
+            self._token_expires_at = refresh_before
+            logger.debug(
+                "Mobikwik BBPS: token stored (mobikwik_expires_at, refresh_before)",
+                extra_data={
+                    "mobikwik_expires_at": mobikwik_expires_at,
+                    "refresh_before": refresh_before,
+                    "buffer_sec": MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER,
+                },
+            )
+            # Store in cache so all workers reuse same token (100 tokens/day limit)
+            try:
+                from django.core.cache import cache
+
+                cache_ttl = max(60, int(mobikwik_expires_at - now) + 120)
+                cache.set(
+                    MOBIKWIK_BBPS_TOKEN_CACHE_KEY,
+                    {
+                        "token": self._token,
+                        "mobikwik_expires_at": mobikwik_expires_at,
+                        "refresh_before": refresh_before,
+                        "expires_at": refresh_before,  # legacy: same as refresh_before
+                    },
+                    timeout=cache_ttl,
+                )
+            except Exception:
+                pass
             if self._uat_verbose:
                 req_sanitized = self._sanitize_for_log(payload)
                 curl_tpl = f"curl -X POST '{url}' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{json.dumps(req_sanitized)}'"
@@ -364,10 +712,64 @@ class MobikwikBBPSClient:
                 )
             return {"success": False, "error": self._last_token_error, "error_code": "TOKEN_FAILED"}
 
+    def _invalidate_cached_token(self) -> None:
+        """Clear in-memory and Django cache token so next call fetches a fresh token from Mobikwik."""
+        self._token = None
+        self._token_expires_at = 0.0
+        self._token_mobikwik_expires_at = 0.0
+        try:
+            from django.core.cache import cache
+            cache.delete(MOBIKWIK_BBPS_TOKEN_CACHE_KEY)
+        except Exception:
+            pass
+
+    def _is_token_expired_response(self, last_result: Optional[Dict[str, Any]]) -> bool:
+        """
+        True if Mobikwik rejected the call due to expired/invalid token.
+        They often return HTTP 200 with body success:false, message.code 401, text 'Token is expired'.
+        """
+        if not last_result or last_result.get("success"):
+            return False
+        status = last_result.get("status_code") or 0
+        if status == 401:
+            return True
+        data = last_result.get("response") or last_result.get("data") or {}
+        if not isinstance(data, dict):
+            return False
+        msg = data.get("message")
+        if isinstance(msg, dict):
+            code = str(msg.get("code", "")).strip().lower()
+            text = (msg.get("text") or msg.get("message") or "").lower()
+            if code in ("401", "token_expired", "unauthorized"):
+                return True
+            if "token" in text and "expir" in text:
+                return True
+            if "invalid" in text and "token" in text:
+                return True
+        if isinstance(msg, str) and "expir" in msg.lower():
+            return True
+        err = str(last_result.get("error") or "").lower()
+        if "token" in err and "expir" in err:
+            return True
+        return False
+
     def _ensure_token(self) -> bool:
-        """Ensure we have a valid token; refresh if expired. Returns True if token is available."""
+        """
+        Ensure we have a valid token. Returns True if token is available.
+        Uses in-memory token until refresh_before, then shared cache, then get_token() which
+        calls Mobikwik only when cache says token is past refresh_before.
+        """
         if self._token and time.time() < self._token_expires_at:
             return True
+        # Try cache first (shared across workers)
+        try:
+            from django.core.cache import cache
+
+            cached = cache.get(MOBIKWIK_BBPS_TOKEN_CACHE_KEY)
+            if isinstance(cached, dict) and self._hydrate_token_from_cache_dict(cached):
+                return True
+        except Exception:
+            pass
         result = self.get_token()
         return result.get("success") is True
 
@@ -390,8 +792,9 @@ class MobikwikBBPSClient:
 
     def _encrypt_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Build encrypted request body per Mobikwik PDF: encryptedSessionKey, encryptedPayload, keyVersion, iv.
-        Uses AES-256-GCM with 12-byte nonce (NIST standard); session key encrypted with Mobikwik RSA public key.
+        Build encrypted request body per Mobikwik RT-Recharge doc: encryptedSessionKey, encryptedPayload, keyVersion, iv.
+        - Session key: 256-bit AES random. Payload: AES-256-GCM, 16-byte IV, 128-bit GCM tag (ciphertext+tag then Base64).
+        - Session key encrypted with RSA-2048 PKCS1Padding (Mobikwik public key). keyVersion from readme (e.g. "1.0").
         """
         if not self.use_encryption or not self.public_key_pem:
             return payload
@@ -399,10 +802,11 @@ class MobikwikBBPSClient:
             from Crypto.Cipher import AES
             from Crypto.Random import get_random_bytes
 
-            session_key = get_random_bytes(32)
-            nonce = get_random_bytes(12)  # AES-GCM standard: 12-byte (96-bit) nonce
-            plaintext = json.dumps(payload, sort_keys=True).encode("utf-8")
-            cipher = AES.new(session_key, AES.MODE_GCM, nonce=nonce)
+            session_key = get_random_bytes(32)  # 256-bit AES session key per doc
+            nonce = get_random_bytes(16)  # IV 16 bytes per Mobikwik doc (Encryption Protocol / Java sample)
+            # Doc sample order: cn, op, cir, adParams (cir may be ""). No sort_keys.
+            plaintext = json.dumps(payload, sort_keys=False, separators=(',', ':')).encode("utf-8")
+            cipher = AES.new(session_key, AES.MODE_GCM, nonce=nonce, mac_len=16)  # 128-bit GCM tag per doc
             ciphertext, tag = cipher.encrypt_and_digest(plaintext)
             # encryptedPayload = Base64( ciphertext + tag ); iv sent separately
             encrypted_payload_b64 = b64encode(ciphertext + tag).decode("ascii")
@@ -418,11 +822,15 @@ class MobikwikBBPSClient:
             return {
                 "encryptedSessionKey": encrypted_session_key_b64,
                 "encryptedPayload": encrypted_payload_b64,
-                "keyVersion": self.key_version,
+                "keyVersion": str(self.key_version),
                 "iv": iv_b64,
             }
         except Exception as e:
-            logger.warning("Mobikwik payload encryption failed, sending plain", extra={"error": str(e)})
+            import traceback
+            logger.warning(
+                "Mobikwik payload encryption failed, sending plain",
+                extra_data={"error": str(e), "traceback": traceback.format_exc()[:1500]},
+            )
             return payload
 
     def _checksum(self, params: Dict[str, Any]) -> str:
@@ -441,142 +849,275 @@ class MobikwikBBPSClient:
         json_data: Optional[Dict] = None,
         params: Optional[Dict] = None,
         require_token: bool = True,
-        timeout: float = 30.0,
+        timeout: Optional[float] = None,
         action: Optional[str] = None,
+        log_context: Optional[Dict[str, Any]] = None,
+        _token_retry: int = 0,
     ) -> Dict[str, Any]:
-        """Make HTTP request to Mobikwik BBPS API. Optionally encrypt body. Retry once on timeout/5xx when enabled."""
+        """Make HTTP request to Mobikwik BBPS API. Optionally encrypt body. Retry once on timeout/5xx when enabled.
+        On token-expired (HTTP 401 or body message.code 401), invalidate cache, refresh token, retry once."""
+        timeout = timeout if timeout is not None else self._request_timeout
         if not self.is_configured():
             return {
                 "success": False,
                 "error": "MOBIKWIK_BBPS is not configured or enabled",
                 "error_code": "CONFIG_MISSING",
             }
-        if require_token and (self.client_id and self.client_secret) and not self._ensure_token():
-            detail = f": {self._last_token_error}" if self._last_token_error else ""
-            return {
-                "success": False,
-                "error": f"Failed to obtain Mobikwik BBPS token{detail}",
-                "error_code": "TOKEN_FAILED",
-                "response": {"detail": self._last_token_error} if self._last_token_error else None,
-            }
+        if require_token and (self.client_id and self.client_secret):
+            try:
+                if not self._ensure_token():
+                    detail = f": {self._last_token_error}" if self._last_token_error else ""
+                    return {
+                        "success": False,
+                        "error": f"Failed to obtain Mobikwik BBPS token{detail}",
+                        "error_code": "TOKEN_FAILED",
+                        "response": {"detail": self._last_token_error} if self._last_token_error else None,
+                    }
+            except Exception as e:
+                logger.exception("Mobikwik BBPS _ensure_token failed")
+                return {
+                    "success": False,
+                    "error": f"Token error: {e!s}"[:500],
+                    "error_code": "TOKEN_FAILED",
+                }
         url = f"{self.base_url}{path}"
-        plain_copy = copy.deepcopy(json_data) if (method.upper() == "POST" and json_data is not None) else None
+        try:
+            plain_copy = copy.deepcopy(json_data) if (method.upper() == "POST" and json_data is not None) else None
+        except Exception:
+            plain_copy = None
         if method.upper() == "POST" and json_data is not None:
-            json_data = self._encrypt_payload(json_data)
+            try:
+                json_data = self._encrypt_payload(json_data)
+                if "encryptedSessionKey" in json_data:
+                    logger.info("Mobikwik BBPS: sending encrypted payload", extra_data={"action": action})
+                else:
+                    logger.info("Mobikwik BBPS: sending plain JSON (encryption disabled)", extra_data={"action": action})
+            except Exception as e:
+                logger.warning("Mobikwik encrypt_payload failed, sending plain", extra_data={"error": str(e)})
         encrypted_summary = None
         if json_data and "encryptedSessionKey" in json_data:
-            encrypted_summary = {
-                k: (len(v) if isinstance(v, str) else v) for k, v in json_data.items()
-            }
+            # Log me keyVersion actual value dikhe (1.0), baaki lengths (sensitive na ho)
+            encrypted_summary = {}
+            for k, v in json_data.items():
+                if k == "keyVersion":
+                    encrypted_summary[k] = v  # "1.0" – actual value for debugging
+                elif isinstance(v, str):
+                    encrypted_summary[k] = len(v)
+                else:
+                    encrypted_summary[k] = v
 
         attempts_log: List[Dict[str, Any]] = []
         last_result: Optional[Dict[str, Any]] = None
-        for attempt in (1, 2):
-            if attempt == 2:
-                time.sleep(2)
-            try:
-                with httpx.Client(timeout=timeout) as client:
-                    resp = client.request(
-                        method,
-                        url,
-                        json=json_data,
-                        params=params,
-                        headers=self._headers(),
-                    )
-            except httpx.TimeoutException as e:
-                logger.warning("Mobikwik BBPS request timeout", extra={"url": url, "error": str(e)})
-                last_result = {"success": False, "error": "Request timeout", "error_code": "TIMEOUT"}
+        try:
+            for attempt in (1, 2):
+                if attempt == 2:
+                    time.sleep(2)
+                try:
+                    with httpx.Client(timeout=timeout) as client:
+                        resp = client.request(
+                            method,
+                            url,
+                            json=json_data,
+                            params=params,
+                            headers=self._headers(),
+                        )
+                except httpx.TimeoutException as e:
+                    logger.warning("Mobikwik BBPS request timeout", extra_data={"url": url, "error": str(e)})
+                    last_result = {"success": False, "error": "Request timeout", "error_code": "TIMEOUT"}
+                    if self._uat_verbose:
+                        attempts_log.append({
+                            "attempt": attempt,
+                            "response_status_code": None,
+                            "response_body": "Request timeout",
+                        })
+                    if attempt == 1 and self._retry_on_failure:
+                        continue
+                    break
+                except Exception as e:
+                    logger.error("Mobikwik BBPS request failed", extra_data={"error": str(e)})
+                    last_result = {"success": False, "error": str(e), "error_code": "REQUEST_FAILED"}
+                    if self._uat_verbose:
+                        attempts_log.append({
+                            "attempt": attempt,
+                            "response_status_code": None,
+                            "response_body": str(e)[:2000],
+                        })
+                    break
+                try:
+                    data = resp.json() if resp.content else {}
+                except (ValueError, json.JSONDecodeError):
+                    data = {"_raw": (resp.text or (resp.content.decode("utf-8", errors="replace") if resp.content else ""))[:500]}
                 if self._uat_verbose:
                     attempts_log.append({
                         "attempt": attempt,
-                        "response_status_code": None,
-                        "response_body": "Request timeout",
+                        "response_status_code": resp.status_code,
+                        "response_body": self._sanitize_response_for_log(data),
                     })
-                if attempt == 1 and self._retry_on_failure:
-                    continue
-                break
-            except Exception as e:
-                logger.error("Mobikwik BBPS request failed", extra_data={"error": str(e)})
-                last_result = {"success": False, "error": str(e), "error_code": "REQUEST_FAILED"}
-                if self._uat_verbose:
-                    attempts_log.append({
-                        "attempt": attempt,
-                        "response_status_code": None,
-                        "response_body": str(e)[:2000],
-                    })
-                break
-            try:
-                data = resp.json() if resp.content else {}
-            except (ValueError, json.JSONDecodeError):
-                data = {"_raw": (resp.text or (resp.content.decode("utf-8", errors="replace") if resp.content else ""))[:500]}
-            if self._uat_verbose:
-                attempts_log.append({
-                    "attempt": attempt,
-                    "response_status_code": resp.status_code,
-                    "response_body": self._sanitize_response_for_log(data),
-                })
-            if resp.status_code >= 400:
+                if resp.status_code >= 400:
+                    last_result = {
+                        "success": False,
+                        "error": data.get("message", data.get("error", resp.text)),
+                        "status_code": resp.status_code,
+                        "response": data,
+                    }
+                    if resp.status_code >= 500 and attempt == 1 and self._retry_on_failure:
+                        continue
+                    break
+                # HTTP 200 but body can have success: false (e.g. Mobikwik 900)
+                # Treat missing "success" as True – some APIs return responseCode/data without success key
+                body_success = data.get("success") if isinstance(data, dict) else True
+                is_success = False if body_success is False else True
                 last_result = {
-                    "success": False,
-                    "error": data.get("message", data.get("error", resp.text)),
+                    "success": is_success,
+                    "data": data,
                     "status_code": resp.status_code,
                     "response": data,
                 }
-                if resp.status_code >= 500 and attempt == 1 and self._retry_on_failure:
-                    continue
+                if body_success is False and isinstance(data, dict):
+                    msg = data.get("message")
+                    if isinstance(msg, dict):
+                        msg = msg.get("text") or msg.get("message") or str(msg)
+                    last_result["error"] = msg or data.get("error") or "Request failed"
                 break
-            last_result = {"success": True, "data": data, "status_code": resp.status_code}
-            break
+        except Exception as e:
+            logger.exception("Mobikwik BBPS _request unexpected error")
+            last_result = {"success": False, "error": str(e)[:500], "error_code": "REQUEST_FAILED"}
 
         if last_result is None:
             last_result = {"success": False, "error": "No response", "error_code": "REQUEST_FAILED"}
 
-        if self._uat_verbose:
-            req_sanitized = self._sanitize_for_log(plain_copy) if plain_copy else {}
-            response_status_code = last_result.get("status_code")
-            response_body_sanitized = self._sanitize_response_for_log(
-                last_result.get("response") or last_result.get("data") or ""
-            )
-            attempts_extra = None
-            if attempts_log:
-                attempts_extra = {f"attempt_{a['attempt']}": a for a in attempts_log}
-            if method.upper() == "GET":
-                curl_tpl = (
-                    f"curl -X GET '{url}' "
-                    f"-H 'Content-Type: application/json' -H 'Accept: application/json' -H 'Authorization: ***'"
+        # Mobikwik often returns HTTP 200 with success:false and message.code 401 "Token is expired" — refresh and retry once
+        if (
+            last_result
+            and not last_result.get("success")
+            and _token_retry < 1
+            and require_token
+            and self.client_id
+            and self.client_secret
+            and self._is_token_expired_response(last_result)
+        ):
+            post_needs_plain = method.upper() == "POST" and json_data is not None
+            if post_needs_plain and plain_copy is None:
+                logger.warning(
+                    "Mobikwik BBPS: token expired but cannot retry without plain payload copy",
+                    extra_data={"url": url, "action": action},
                 )
             else:
-                curl_body = json.dumps(req_sanitized) if req_sanitized else "{}"
-                curl_tpl = (
-                    f"curl -X {method.upper()} '{url}' "
-                    f"-H 'Content-Type: application/json' -H 'Accept: application/json' -H 'Authorization: ***' "
-                    f"-d '{curl_body}'"
+                logger.warning(
+                    "Mobikwik BBPS: token rejected; invalidating cache, fetching new token, retrying once",
+                    extra_data={"url": url, "action": action},
                 )
-            self._create_uat_log_entry(
+                self._invalidate_cached_token()
+                refresh = self.get_token(force_refresh=True)
+                if refresh.get("success"):
+                    retry_body = plain_copy if plain_copy is not None else json_data
+                    return self._request(
+                        method,
+                        path,
+                        retry_body,
+                        params,
+                        require_token,
+                        timeout,
+                        action,
+                        log_context,
+                        _token_retry=_token_retry + 1,
+                    )
+
+        # Always log vendor API call so Hub shows Parkpe log vs Mobikwik call (dono ka diff)
+        try:
+            if self._log_sanitize:
+                req_for_log = self._sanitize_for_log(plain_copy) if plain_copy else {}
+                resp_body = self._sanitize_response_for_log(
+                    last_result.get("response") or last_result.get("data") or ""
+                )
+            else:
+                req_for_log = copy.deepcopy(plain_copy) if plain_copy else {}
+                _resp_data = last_result.get("response") or last_result.get("data") or ""
+                try:
+                    resp_body = json.dumps(_resp_data, default=str, ensure_ascii=False)[:5000]
+                except Exception:
+                    resp_body = str(_resp_data)[:5000]
+            resp_status = last_result.get("status_code")
+            # When no HTTP response (timeout, connection error), include error/error_code so log shows why it failed
+            err_msg = last_result.get("error")
+            err_code = last_result.get("error_code")
+            if not resp_body and err_msg:
+                resp_body = f"[No response] {err_code or 'ERROR'}: {err_msg}"
+            self._create_vendor_call_log_entry(
                 action or "request",
                 url,
                 method,
-                req_sanitized,
+                req_for_log,
                 encrypted_summary,
-                response_status_code,
-                response_body_sanitized,
+                resp_status,
+                resp_body,
                 last_result.get("success", False),
-                curl_tpl,
-                attempts=attempts_extra,
+                log_context=log_context,
+                error=err_msg,
+                error_code=err_code,
             )
+        except Exception:
+            pass
+
+        if self._uat_verbose:
+            try:
+                if self._log_sanitize:
+                    req_sanitized = self._sanitize_for_log(plain_copy) if plain_copy else {}
+                    response_body_sanitized = self._sanitize_response_for_log(
+                        last_result.get("response") or last_result.get("data") or ""
+                    )
+                else:
+                    req_sanitized = copy.deepcopy(plain_copy) if plain_copy else {}
+                    _rd = last_result.get("response") or last_result.get("data") or ""
+                    try:
+                        response_body_sanitized = json.dumps(_rd, default=str, ensure_ascii=False)[:5000]
+                    except Exception:
+                        response_body_sanitized = str(_rd)[:5000]
+                response_status_code = last_result.get("status_code")
+                attempts_extra = None
+                if attempts_log:
+                    attempts_extra = {f"attempt_{a['attempt']}": a for a in attempts_log}
+                if method.upper() == "GET":
+                    curl_tpl = (
+                        f"curl -X GET '{url}' "
+                        f"-H 'Content-Type: application/json' -H 'Accept: application/json' -H 'Authorization: ***'"
+                    )
+                else:
+                    curl_body = json.dumps(req_sanitized) if req_sanitized else "{}"
+                    curl_tpl = (
+                        f"curl -X {method.upper()} '{url}' "
+                        f"-H 'Content-Type: application/json' -H 'Accept: application/json' -H 'Authorization: ***' "
+                        f"-d '{curl_body}'"
+                    )
+                self._create_uat_log_entry(
+                    action or "request",
+                    url,
+                    method,
+                    req_sanitized,
+                    encrypted_summary,
+                    response_status_code,
+                    response_body_sanitized,
+                    last_result.get("success", False),
+                    curl_tpl,
+                    attempts=attempts_extra,
+                )
+            except Exception:
+                pass
         return last_result
 
     # -------------------------------------------------------------------------
     # New APIs (per UAT: Balance Check, Validation, View Bill, Recharge, Transaction Status)
     # -------------------------------------------------------------------------
 
-    def balance_check(self) -> Dict[str, Any]:
-        """Balance Check API – get wallet/account balance."""
+    def balance_check(self, log_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Balance Check API – get wallet/account balance. Per doc: use memberId (onboarded email) when set, else merchantId."""
         path = self._get_path("balance")
         payload = {}
-        if self.merchant_id:
+        if self.member_id:
+            payload["memberId"] = self.member_id
+        elif self.merchant_id:
             payload["merchantId"] = self.merchant_id
-        return self._request("POST", path, json_data=payload if payload else None, action="balance_check")
+        return self._request("POST", path, json_data=payload if payload else None, action="balance_check", log_context=log_context)
 
     def validation(
         self,
@@ -584,24 +1125,31 @@ class MobikwikBBPSClient:
         customer_id: str,
         subscriber_id: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Validation API – validate consumer (prepaid). Payload per PDF: amt, cn, op, cir, planCode?, adParams.
         For bill fetch use view_bill() instead.
         """
         path = self._get_path("validation")
-        cir = (extra_params or {}).get("cir", "") if extra_params else ""
-        ad_params = {k: v for k, v in (extra_params or {}).items() if k != "cir"}
+        extra = extra_params or {}
+        cir = extra.get("cir", "")
+        ad_params = {k: v for k, v in extra.items() if k not in ("cir", "amt", "planCode", "agentId")}
+        op_val = self._op_int(operator_id)
         payload = {
-            "amt": (extra_params or {}).get("amt", "1"),
+            "amt": extra.get("amt", "1"),
             "cn": customer_id,
-            "op": self._op_int(operator_id),
+            "op": str(op_val) if op_val is not None else operator_id,
             "cir": cir or "",
             "adParams": ad_params,
         }
-        if (extra_params or {}).get("planCode"):
-            payload["planCode"] = extra_params["planCode"]
-        return self._request("POST", path, json_data=payload, action="validation")
+        if extra.get("planCode"):
+            payload["planCode"] = extra["planCode"]
+        # Postman UAT: agentId required in Validation payload
+        agent_id = extra.get("agentId") or self.agent_id
+        if agent_id:
+            payload["agentId"] = agent_id
+        return self._request("POST", path, json_data=payload, action="validation", log_context=log_context)
 
     def view_bill(
         self,
@@ -609,21 +1157,27 @@ class MobikwikBBPSClient:
         customer_id: str,
         subscriber_id: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        View Bill API – get bill details. Payload per PDF: cn, op, cir, adParams.
+        View Bill API – POST /recharge/v3/retailerViewbill.
+        - Plain body (encrypted when enabled): cn, op, cir, adParams — **cir key hamesha**; value tabhi bhejo
+          jab operator/ request / sheet se circle mile. Circle na ho to **cir: ""** (empty string), placeholder
+          jaise "1" mat bhejo (galat circle par BLR016).
+        - Response: {"success": true, "data": [{"billAmount", "billdate", "dueDate", "userName", ...}]}
         """
-        path = self._get_path("view_bill")
-        # PDF: View Bill plain JSON before encryption: cn, op, cir, adParams
+        path = self._get_path("view_bill")  # /recharge/v3/retailerViewbill
         extra = dict(extra_params) if extra_params else {}
-        cir = extra.pop("cir", "")
-        payload = {
-            "cn": customer_id,
-            "op": self._op_int(operator_id),
-            "cir": cir or "",
-            "adParams": extra,
-        }
-        return self._request("POST", path, json_data=payload, action="view_bill")
+        cir_raw = extra.pop("cir", None)
+        if cir_raw is None or (isinstance(cir_raw, str) and not cir_raw.strip()):
+            cir_raw = extra.pop("circle", None)
+        cir_val = str(cir_raw).strip() if cir_raw not in (None, "") else ""
+        op_val = self._op_int(operator_id)
+        op_str = str(op_val) if op_val is not None else operator_id
+        ad_params = extra if isinstance(extra, dict) else {}
+        # Field order per doc: cn, op, cir (always present; empty when no circle), adParams
+        payload = {"cn": customer_id, "op": op_str, "cir": cir_val, "adParams": ad_params}
+        return self._request("POST", path, json_data=payload, action="view_bill", log_context=log_context)
 
     def recharge(
         self,
@@ -633,43 +1187,53 @@ class MobikwikBBPSClient:
         ref_id: str,
         subscriber_id: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Recharge API – pay bill / recharge (maps to BBPS pay).
+        Recharge/Payment API – POST /recharge/v3/retailerPayment.
+        Payload per Postman UAT: cn, op, cir, amt, reqid, remitterName, customerMobile,
+        paymentRefID, paymentMode, agentId, paymentAccountInfo (all optional except cn, op, amt, reqid).
         """
         path = self._get_path("recharge")
+        extra = extra_params or {}
+        op_val = self._op_int(operator_id)
         payload = {
-            "merchantId": self.merchant_id or "",
-            "operatorId": self._op_int(operator_id),
-            "customerId": customer_id,
-            "amount": amount,
-            "refId": ref_id,
+            "cn": customer_id,
+            "op": str(op_val) if op_val is not None else operator_id,
+            "cir": extra.get("cir", ""),
+            "amt": amount,
+            "reqid": ref_id,
+            "remitterName": extra.get("remitterName", ""),
+            "customerMobile": extra.get("customerMobile", ""),
+            "paymentRefID": extra.get("paymentRefID", ref_id),
+            "paymentMode": extra.get("paymentMode", "UPI"),
+            "agentId": extra.get("agentId") or self.agent_id or "",
+            "paymentAccountInfo": extra.get("paymentAccountInfo", ""),
         }
-        if subscriber_id:
-            payload["subscriberId"] = subscriber_id
-        if extra_params:
-            payload.update(extra_params)
-        payload["timestamp"] = int(time.time())
-        if self.secret_key:
-            payload["checksum"] = self._checksum(payload)
-        return self._request("POST", path, json_data=payload, action="recharge")
+        # Allow extra_params to override any key
+        for k, v in extra.items():
+            if k not in payload and v is not None:
+                payload[k] = v
+        return self._request("POST", path, json_data=payload, action="recharge", log_context=log_context)
 
-    def transaction_status(self, ref_id: str) -> Dict[str, Any]:
-        """Transaction Status Check API – get status by reference id. Uses POST with refId in body (Mobikwik UAT)."""
+    def transaction_status(self, ref_id: str, log_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Transaction Status Check API – POST /recharge/v3/retailerStatus. Body: txId (reqid from Recharge) or refId."""
         path = self._get_path("transaction_status")
-        return self._request("POST", path, json_data={"refId": ref_id}, action="transaction_status")
+        # Postman UAT: body is { "txId": "<reqid from Recharge>" }; refId accepted as fallback
+        body = {"txId": ref_id}
+        return self._request("POST", path, json_data=body, action="transaction_status", log_context=log_context)
 
     # -------------------------------------------------------------------------
     # Legacy / compatibility (operators, fetch_bill, pay_bill, pay_status)
     # -------------------------------------------------------------------------
 
-    def get_operators(self, category: Optional[str] = None) -> Dict[str, Any]:
+    def get_operators(self, category: Optional[str] = None, log_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Get list of operators/billers (BBPS). Uses operators path or balance/validation params per API Kit."""
         path = self._get_path("operators")
         params = {}
         if category:
             params["category"] = category
-        return self._request("GET", path, params=params, require_token=True, action="operators")
+        return self._request("GET", path, params=params, require_token=True, action="operators", log_context=log_context)
 
     def fetch_bill(
         self,
@@ -677,6 +1241,7 @@ class MobikwikBBPSClient:
         customer_id: str,
         subscriber_id: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Fetch bill – uses View Bill API (bill details); Validation is for prepaid only."""
         return self.view_bill(
@@ -684,6 +1249,7 @@ class MobikwikBBPSClient:
             customer_id=customer_id,
             subscriber_id=subscriber_id,
             extra_params=extra_params,
+            log_context=log_context,
         )
 
     def pay_bill(
@@ -694,6 +1260,7 @@ class MobikwikBBPSClient:
         ref_id: str,
         subscriber_id: Optional[str] = None,
         extra_params: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Pay bill – uses Recharge API (new)."""
         return self.recharge(
@@ -703,8 +1270,9 @@ class MobikwikBBPSClient:
             ref_id=ref_id,
             subscriber_id=subscriber_id,
             extra_params=extra_params,
+            log_context=log_context,
         )
 
-    def pay_status(self, ref_id: str) -> Dict[str, Any]:
+    def pay_status(self, ref_id: str, log_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Check payment status – uses Transaction Status Check API (new)."""
-        return self.transaction_status(ref_id=ref_id)
+        return self.transaction_status(ref_id=ref_id, log_context=log_context)

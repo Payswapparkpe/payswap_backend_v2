@@ -17,6 +17,7 @@ type NavItem = {
   path: string;
   icon: string;
   exact?: boolean;
+  comingSoon?: boolean;
 };
 
 @Component({
@@ -37,11 +38,11 @@ export class AppLayoutComponent {
   drawerOpen = signal(false);
 
   readonly navItems: NavItem[] = [
-    { label: 'Parking', path: '/parking', icon: 'local_parking' },
+    { label: 'Parking', path: '/parking', icon: 'local_parking', comingSoon: true },
     { label: 'Bills (BBPS)', path: '/bbps', icon: 'receipt_long' },
     { label: 'Vouchers', path: '/vouchers', icon: 'card_giftcard' },
-    { label: 'FASTag', path: '/fastag', icon: 'toll' },
-    { label: 'Challan', path: '/challan', icon: 'gavel' },
+    { label: 'FASTag', path: '/fastag', icon: 'toll', comingSoon: true },
+    { label: 'Challan', path: '/challan', icon: 'gavel', comingSoon: true },
     { label: 'Payments', path: '/payment/history', icon: 'account_balance_wallet' },
     { label: 'Reports', path: '/payment/reports', icon: 'assessment' },
     { label: 'Connect', path: '/connect', icon: 'qr_code_2' },

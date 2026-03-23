@@ -13,6 +13,7 @@ from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
 from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
 from api.v2.vendor_router import VendorRouter
 from django.utils import timezone
+from django.conf import settings
 from portal.utils.logging_helper import get_logger
 from .serializers import (
     PaymentInitiateSerializer, PaymentStatusSerializer,
@@ -72,16 +73,19 @@ class PaymentInitiateView(StandardResponseMixin, views.APIView):
             # Placeholder - implement actual payment gateway integration
             payment_id = f"PAY_{partner.partner_code}_{timezone.now().timestamp()}"
             
+            data = {
+                'payment_id': payment_id,
+                'amount': str(payment_data.get('amount', '')),
+                'currency': payment_data.get('currency', 'INR'),
+                'status': 'PENDING',
+                'payment_url': f'/payment/{payment_id}/',  # Placeholder
+                'status_url': f'{_api_prefix_from_request(request)}/payments/{payment_id}/status/'
+            }
+            if getattr(settings, 'V2_PLACEHOLDER_MODE', True):
+                data['mode'] = 'placeholder'
             return self.success_response(
                 message="Payment initiated successfully",
-                data={
-                    'payment_id': payment_id,
-                    'amount': str(payment_data.get('amount', '')),
-                    'currency': payment_data.get('currency', 'INR'),
-                    'status': 'PENDING',
-                    'payment_url': f'/payment/{payment_id}/',  # Placeholder
-                    'status_url': f'{_api_prefix_from_request(request)}/payments/{payment_id}/status/'
-                },
+                data=data,
                 request=request
             )
             
@@ -116,15 +120,17 @@ class PaymentStatusView(StandardResponseMixin, views.APIView):
             api_key = request.api_key
             
             # TODO: Implement payment status check
-            # Placeholder response
+            data = {
+                'payment_id': payment_id,
+                'status': 'PENDING',  # SUCCESS, FAILED, PENDING
+                'amount': '0.00',
+                'currency': 'INR'
+            }
+            if getattr(settings, 'V2_PLACEHOLDER_MODE', True):
+                data['mode'] = 'placeholder'
             return self.success_response(
                 message="Payment status retrieved",
-                data={
-                    'payment_id': payment_id,
-                    'status': 'PENDING',  # SUCCESS, FAILED, PENDING
-                    'amount': '0.00',
-                    'currency': 'INR'
-                },
+                data=data,
                 request=request
             )
             
@@ -171,14 +177,17 @@ class PaymentRefundView(StandardResponseMixin, views.APIView):
             # TODO: Implement payment refund
             refund_amount = serializer.validated_data.get('amount')
             
+            data = {
+                'payment_id': payment_id,
+                'refund_id': f"REF_{payment_id}",
+                'amount': str(refund_amount) if refund_amount else 'Full',
+                'status': 'PENDING'
+            }
+            if getattr(settings, 'V2_PLACEHOLDER_MODE', True):
+                data['mode'] = 'placeholder'
             return self.success_response(
                 message="Refund initiated successfully",
-                data={
-                    'payment_id': payment_id,
-                    'refund_id': f"REF_{payment_id}",
-                    'amount': str(refund_amount) if refund_amount else 'Full',
-                    'status': 'PENDING'
-                },
+                data=data,
                 request=request
             )
             
@@ -213,15 +222,12 @@ class PaymentListView(StandardResponseMixin, views.APIView):
             api_key = request.api_key
             
             # TODO: Implement payment listing with filters
-            # Placeholder response
+            data = {'payments': [], 'total': 0, 'page': 1, 'page_size': 20}
+            if getattr(settings, 'V2_PLACEHOLDER_MODE', True):
+                data['mode'] = 'placeholder'
             return self.success_response(
                 message="Payments retrieved successfully",
-                data={
-                    'payments': [],
-                    'total': 0,
-                    'page': 1,
-                    'page_size': 20
-                },
+                data=data,
                 request=request
             )
             

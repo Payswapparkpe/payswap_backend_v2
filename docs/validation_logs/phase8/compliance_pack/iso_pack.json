@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-02-14T15:03:47.966955+00:00",
+  "processes": [
+    "partner_onboarding",
+    "billing_settlement",
+    "api_governance",
+    "fraud_scan"
+  ],
+  "roles": [
+    "partner",
+    "staff",
+    "superuser",
+    "enterprise_api"
+  ]
+}

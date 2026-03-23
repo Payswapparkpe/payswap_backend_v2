@@ -4,6 +4,7 @@ Admin assigns vendors to partners; this module resolves which vendor to use for 
 """
 from rest_framework.exceptions import PermissionDenied
 
+from api.exceptions import VendorNotAssigned
 from portal.models import ApiVendor
 from portal.services.partner_vendor_service import PartnerVendorService
 
@@ -17,15 +18,15 @@ class VendorRouter:
         Determine which vendor to use for this request based on partner's assignment.
         Requires request.api_key and request.api_key.partner (set by APIKeyAuthentication).
         Returns ApiVendor instance.
-        Raises PermissionDenied if no API key or no vendor assigned.
+        Raises PermissionDenied if no API key; VendorNotAssigned (400) if no vendor assigned.
         """
         if not getattr(request, "api_key", None) or not request.api_key:
             raise PermissionDenied("API key required")
         partner = request.api_key.partner
         vendor = PartnerVendorService.get_partner_vendor(partner, service_code)
         if not vendor:
-            raise PermissionDenied(
-                f"No vendor assigned for service '{service_code}'. Contact admin to assign a vendor."
+            raise VendorNotAssigned(
+                detail=f"No vendor assigned for service '{service_code}'. Contact admin to assign a vendor."
             )
         return vendor
 
@@ -40,3 +41,22 @@ class VendorRouter:
             return vendor.code if vendor else None
         except PermissionDenied:
             raise
+
+    @staticmethod
+    def execute_with_failover(request, service_code, fn, is_success=None):
+        """
+        Execute fn(vendor) with failover: try each allowed vendor in priority order
+        until one succeeds. fn(vendor) should return a result (e.g. dict with 'success')
+        or raise. Returns (result, vendor_used). Raises PermissionDenied if no partner/vendors.
+        """
+        if not getattr(request, "api_key", None) or not request.api_key:
+            raise PermissionDenied("API key required")
+        partner = request.api_key.partner
+        result, vendor_used = PartnerVendorService.execute_with_failover(
+            partner, service_code, fn, is_success=is_success
+        )
+        if vendor_used is None:
+            raise VendorNotAssigned(
+                detail=f"No vendor assigned for service '{service_code}'. Contact admin to assign a vendor."
+            )
+        return result, vendor_used

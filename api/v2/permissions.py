@@ -72,6 +72,18 @@ class HasServicePermission(permissions.BasePermission):
         return True
 
 
+class HasAPIKeyOrAuthenticated(permissions.BasePermission):
+    """
+    Allow access if request has valid API key (v2 partner) or authenticated user (JWT/session).
+    Used for endpoints that serve both partner API and internal/admin clients.
+    """
+
+    def has_permission(self, request, view):
+        if getattr(request, "api_key", None):
+            return True
+        return request.user and request.user.is_authenticated
+
+
 class HasVendorAccess(permissions.BasePermission):
     """
     Check if partner has access to the vendor being requested.

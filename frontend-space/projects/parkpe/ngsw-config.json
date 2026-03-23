@@ -31,13 +31,16 @@
     {
       "name": "api-performance",
       "urls": [
-        "/api/*/locations",
-        "/api/*/categories",
-        "/api/*/operators"
+        "/api/bbps/categories",
+        "/api/bbps/operators**",
+        "/api/bbps/favorites**",
+        "/api/bbps/saved-bills**",
+        "/api/connect/vehicles/**/qr/**",
+        "/api/dashboard/summary"
       ],
       "cacheConfig": {
         "maxSize": 100,
-        "maxAge": "1h",
+        "maxAge": "12h",
         "timeout": "10s",
         "strategy": "performance"
       }
@@ -45,13 +48,16 @@
     {
       "name": "api-freshness",
       "urls": [
-        "/api/*/transactions",
-        "/api/*/profile",
-        "/api/*/dashboard"
+        "/api/payment/transactions**",
+        "/api/payment/orders**",
+        "/api/payment/voucher-statement**",
+        "/api/auth/profile",
+        "/api/connect/vehicles/**",
+        "/api/parking/**"
       ],
       "cacheConfig": {
-        "maxSize": 50,
-        "maxAge": "5m",
+        "maxSize": 80,
+        "maxAge": "15m",
         "timeout": "5s",
         "strategy": "freshness"
       }

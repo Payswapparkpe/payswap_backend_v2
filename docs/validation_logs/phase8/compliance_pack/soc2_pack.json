@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-02-14T15:03:47.966955+00:00",
+  "scope": "Payswap platform",
+  "access_control": {
+    "partners_count": 3,
+    "api_keys_count": 4
+  },
+  "audit_logging": {
+    "api_logs_indexed": true,
+    "history_tracking": true
+  }
+}

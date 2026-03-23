@@ -9,18 +9,14 @@ import type {
 } from '../../../core/models/voucher.model';
 
 /**
- * ParkPe customer voucher service – list, detail, reveal PIN, balance.
- * Uses VoucherX (Gift Voucher) APIs.
+ * ParkPe customer voucher service – list, detail, reveal PIN.
+ * No total balance (RBI gift PPI). Use single voucher + PIN for payments.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class VoucherService {
   private api = inject(API_BACKEND_TOKEN);
-
-  getBalance(): Observable<{ balance: number; currency: string }> {
-    return this.api.getVoucherBalance();
-  }
 
   getVouchers(params?: { page?: number; limit?: number }): Observable<VoucherListResponse> {
     return this.api.getVouchers(params);

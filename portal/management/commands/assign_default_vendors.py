@@ -5,8 +5,6 @@ Run: python manage.py assign_default_vendors
 
 Default assignments (same for all partners that have none):
 - bbps -> mobikwik
-- aeps -> paypoint
-- dmt -> paypoint_dmt
 - kyc -> cashfree
 - sms -> kaleyra
 - payment -> cashfree_pg
@@ -24,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_VENDOR_ASSIGNMENTS = [
     ('bbps', 'mobikwik'),
-    ('aeps', 'paypoint'),
-    ('dmt', 'paypoint_dmt'),
     ('kyc', 'cashfree'),
     ('sms', 'kaleyra'),
     ('payment', 'cashfree_pg'),

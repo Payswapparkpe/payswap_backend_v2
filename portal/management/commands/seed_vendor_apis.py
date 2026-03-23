@@ -14,10 +14,8 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 
 
-# (vendor_code, vendor_name, description)
+# (vendor_code, vendor_name, description) — AEPS/DMT (PayPoint) removed; on Payswap Frontend
 VENDORS = [
-    ("paypoint", "PayPoint", "PayPoint AEPS – agent, balance, withdrawal, mini statement, 2FA"),
-    ("paypoint_dmt", "PayPoint DMT", "PayPoint DMT – sender, beneficiary, remit"),
     ("euronet", "Euronet", "Euronet BBPS / EnService"),
     ("cashfree", "Cashfree", "Cashfree Verification (PAN, Aadhaar, Bank, etc.)"),
     ("cashfree_pg", "Cashfree PG", "Cashfree Payment Gateway"),
@@ -29,31 +27,6 @@ VENDORS = [
 
 # vendor_code -> list of (api_code, name, api_type, purpose)
 VENDOR_APIS = {
-    "paypoint": [
-        ("add_agent", "Add Agent", "SETUP", "Register PayPoint AEPS agent"),
-        ("update_agent", "Update Agent Details", "SETUP", "Update agent details"),
-        ("agent_authentication", "Agent Authentication", "AUTH", "Check agent authentication"),
-        ("agent_service_status", "Agent Service Status", "VALIDATION", "Check agent service status"),
-        ("balance_enquiry", "AEPS Balance Enquiry", "TRANSACTION", "Balance enquiry via Aadhaar/biometric"),
-        ("cash_withdrawal", "AEPS Cash Withdrawal", "TRANSACTION", "Cash withdrawal"),
-        ("mini_statement", "AEPS Mini Statement", "TRANSACTION", "Last transactions"),
-        ("transaction_status", "Transaction Status", "QUERY", "Get transaction status by ref id"),
-        ("two_factor_authentication", "Two Factor Authentication", "2FA", "2FA / OTP verification"),
-        ("agent_registration", "Agent Registration", "SETUP", "Alias for add_agent"),
-        ("update_agent_details", "Update Agent Details", "SETUP", "Alias for update_agent"),
-        ("check_agent_service_status", "Check Agent Service Status", "VALIDATION", "Alias for agent_service_status"),
-        ("check_agent_authentication", "Check Agent Authentication", "AUTH", "Alias for agent_authentication"),
-        ("2fa", "Two Factor Auth", "2FA", "Alias for two_factor_authentication"),
-    ],
-    "paypoint_dmt": [
-        ("register_sender", "Register Sender", "SETUP", "DMT sender/remitter registration"),
-        ("add_beneficiary", "Add Beneficiary", "SETUP", "Add DMT beneficiary"),
-        ("remit", "Remit", "TRANSACTION", "Execute DMT money transfer"),
-        ("transaction_status", "Transaction Status", "QUERY", "DMT transaction status by ref id"),
-        ("status", "Status", "QUERY", "Alias for transaction_status"),
-        ("get_beneficiaries", "Get Beneficiaries", "QUERY", "List beneficiaries for sender"),
-        ("beneficiaries", "Beneficiaries", "QUERY", "Alias for get_beneficiaries"),
-    ],
     "euronet": [
         ("operators", "Get Operators / Billers", "QUERY", "BBPS operators/billers"),
         ("fetch_bill", "Fetch Bill", "VALIDATION", "Fetch bill details"),

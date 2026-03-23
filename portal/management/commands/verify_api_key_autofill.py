@@ -54,24 +54,8 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"3. test_api_and_check_logs: {e}"))
 
-        # 4) APIExplorerView context: explorer_default_api_key passed to template?
-        try:
-            from portal.views import APIExplorerView
-            request = RequestFactory().get("/api-explorer/")
-            request.user = User.objects.filter(is_superuser=True).first() or User.objects.first()
-            if not request.user:
-                request.user = User.objects.first()
-            view = APIExplorerView()
-            view.request = request
-            view.object = None
-            ctx = view.get_context_data()
-            ctx_key = (ctx.get("explorer_default_api_key") or "").strip()
-            if ctx_key:
-                self.stdout.write(self.style.SUCCESS(f"4. APIExplorerView get_context_data(): explorer_default_api_key = YES (length {len(ctx_key)})"))
-            else:
-                self.stdout.write(self.style.WARNING("4. APIExplorerView get_context_data(): explorer_default_api_key = EMPTY (set in .env or profile)"))
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"4. APIExplorerView: {e}"))
+        # 4) API Explorer view removed; autofill was for /api-explorer/ (no longer available)
+        self.stdout.write(self.style.WARNING("4. API Explorer: removed (page no longer available)"))
 
         self.stdout.write("")
         if not key_from_config:

@@ -183,7 +183,12 @@ export interface Transaction {
   description: string;
   receipt?: string;
   refund?: RefundDetails;
+  created_at?: string; // Alias for timestamp
   metadata?: Record<string, any>;
+  /** Credit or debit (from ParkPeVoucherTransaction.transaction_type). */
+  transactionTypeDirection?: 'credit' | 'debit';
+  /** Balance after this transaction (when available). */
+  balanceAfter?: number;
 }
 
 // Refund Details
@@ -250,6 +255,33 @@ export interface PaymentOrder {
   createdAt: string;
 }
 
+// Gateway Order Creation Response (for createOrder)
+export interface RazorpayOrderResponse {
+  id: string; // razorpay_order_id
+  entity: string;
+  amount: number;
+  amount_paid: number;
+  amount_due: number;
+  currency: string;
+  receipt: string;
+  offer_id: string | null;
+  status: string;
+  attempts: number;
+  notes: any[];
+  created_at: number;
+  key?: string; // Often returned for convenience
+}
+
+export interface CashfreeOrderResponse {
+  cf_order_id: string;
+  order_id: string;
+  payment_session_id: string;
+  order_status: string;
+  order_token?: string; // Legacy
+}
+
+export type GatewayOrderResponse = RazorpayOrderResponse | CashfreeOrderResponse | any;
+
 // Voucher statement entry (credit/debit) – for Voucher Statement report
 export interface VoucherStatementEntry {
   id: string;
@@ -261,3 +293,4 @@ export interface VoucherStatementEntry {
   description?: string;
   createdAt: string;
 }
+

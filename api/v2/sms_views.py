@@ -195,7 +195,7 @@ class SMSOTPVerifyView(StandardResponseMixin, views.APIView):
             
             # Verify OTP
             otp_service = OTPService()
-            verified = otp_service.verify_otp(phone_number, otp_code)
+            verified, _ = otp_service.verify_otp(phone_number, otp_code)
             
             if verified:
                 return self.success_response(
@@ -244,14 +244,17 @@ class SMSDeliveryStatusView(StandardResponseMixin, views.APIView):
             api_key = request.api_key
             
             # TODO: Implement delivery status check from SMS provider
-            # Placeholder response
+            data = {
+                'message_id': message_id,
+                'status': 'DELIVERED',  # DELIVERED, PENDING, FAILED
+                'delivered_at': None
+            }
+            from django.conf import settings
+            if getattr(settings, 'V2_PLACEHOLDER_MODE', True):
+                data['mode'] = 'placeholder'
             return self.success_response(
                 message="Delivery status retrieved",
-                data={
-                    'message_id': message_id,
-                    'status': 'DELIVERED',  # DELIVERED, PENDING, FAILED
-                    'delivered_at': None
-                },
+                data=data,
                 request=request
             )
             

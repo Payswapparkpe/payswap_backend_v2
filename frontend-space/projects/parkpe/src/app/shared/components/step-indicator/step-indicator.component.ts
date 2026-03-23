@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
   template: `
     <nav class="step-indicator" aria-label="Progress">
       <ol class="steps-list">
-        @for (step of steps; track step; let i = $index) {
+        @for (step of stepsList; track step; let i = $index) {
           <li
             class="step-item"
             [class.current]="i + 1 === currentStep"
@@ -26,7 +26,7 @@ import { CommonModule } from '@angular/common';
               }
             </span>
             <span class="step-label">{{ step }}</span>
-            @if (i < steps.length - 1) {
+            @if (i < stepsList.length - 1) {
               <span class="step-connector" aria-hidden="true"></span>
             }
           </li>
@@ -104,6 +104,10 @@ import { CommonModule } from '@angular/common';
   `],
 })
 export class StepIndicatorComponent {
-  @Input() steps: string[] = [];
+  @Input() steps: string[] | undefined = [];
   @Input() currentStep = 1;
+
+  get stepsList(): string[] {
+    return this.steps ?? [];
+  }
 }

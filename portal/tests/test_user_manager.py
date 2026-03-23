@@ -18,9 +18,9 @@ class UserManagerTests(TestCase):
     def setUp(self):
         """Set up test data"""
         # Create roles
-        self.super_role = Role.objects.create(
-            name='Super',
-            code='super',
+        self.super_admin_role = Role.objects.create(
+            name='Super Admin',
+            code='super_admin',
             category='b2b',
             hierarchy_level=9,
             mfa_required=True
@@ -33,17 +33,17 @@ class UserManagerTests(TestCase):
             mfa_required=False
         )
     
-    def test_create_superuser_auto_assigns_super_role(self):
-        """Test create_superuser auto-assigns 'super' role"""
+    def test_create_superuser_auto_assigns_super_admin_role(self):
+        """Test create_superuser auto-assigns 'super_admin' role"""
         user = User.objects.create_superuser(
             username='superadmin',
             password='SuperPass123!'
         )
         
-        # Should have 'super' role
-        self.assertEqual(user.role_code, 'super')
+        # Should have 'super_admin' role
+        self.assertEqual(user.role_code, 'super_admin')
         self.assertIsNotNone(user.role)
-        self.assertEqual(user.role.code, 'super')
+        self.assertEqual(user.role.code, 'super_admin')
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
     
@@ -72,7 +72,7 @@ class UserManagerTests(TestCase):
         self.assertIsNotNone(user.username)
         self.assertTrue(len(user.username) > 0)
         # Should start with 'S' for super role
-        self.assertTrue(user.username.startswith('S'))
+        self.assertTrue(user.username.startswith('X'))  # Super Admin role prefix
     
     def test_create_user_requires_role(self):
         """Test create_user requires role_code"""

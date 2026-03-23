@@ -5,6 +5,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  /* Ensure stacking context */
+  z-index: 100;
+  /* Force above potential global overlays */
+  isolation: isolate;
   background:
     radial-gradient(800px 360px at 10% 10%, rgba(0, 74, 173, 0.18), transparent 55%),
     radial-gradient(900px 360px at 90% 20%, rgba(139, 92, 246, 0.16), transparent 60%),
@@ -92,6 +97,7 @@
   border: 1px solid rgba(255, 255, 255, 0.18);
   font-size: 0.85rem;
   white-space: nowrap;
+
   .material-icons {
     font-size: 1.05rem;
   }
@@ -131,6 +137,7 @@
 .brand-footnote {
   margin-top: 1.75rem;
   opacity: 0.92;
+
   a {
     color: #fff;
     font-weight: 800;

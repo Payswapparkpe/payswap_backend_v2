@@ -13,3 +13,9 @@ Integration Steps:
 2. Encrypt your payload with this AES key
 3. Encrypt the AES key with this public RSA key
 4. Send both the encrypted payload and encrypted session key
+
+Operators master (BBPS):
+- Operators (13).xlsx — sheet "Operator": Biller ID, op, Category, ViewBill, Regex, ad1–ad9, etc.
+- Import to DB (project root):  python manage.py load_bbps_operators
+  Defaults to mobikwik/Operators (13).xlsx. Options: --path, --sheet Operator, --clear, --no-bbps-only
+- Rows without Biller ID are skipped. Duplicate Biller ID in sheet: last row wins.

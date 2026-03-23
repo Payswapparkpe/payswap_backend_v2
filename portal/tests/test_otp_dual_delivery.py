@@ -62,7 +62,7 @@ class OTPDualDeliveryTests(TestCase):
         store_otp_in_cache(email, otp_code, 300)
         
         # Verify from phone
-        self.assertTrue(otp_service.verify_otp(phone, otp_code))
+        self.assertTrue(otp_service.verify_otp(phone, otp_code)[0])
         
         # Verify from email (if service supports it)
         # Note: verify_otp currently only checks phone, but cache has both

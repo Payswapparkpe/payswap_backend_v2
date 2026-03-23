@@ -23,8 +23,8 @@ class APIResponseTests(TestCase):
         cache.clear()
     
     def test_api_response_includes_request_id(self):
-        """Test API response includes request_id"""
-        response = self.client.get('/api/v1/health/', HTTP_X_REQUEST_ID='test-request-123')
+        """Test API response includes request_id (v2 health is AllowAny)."""
+        response = self.client.get('/api/v2/health/', HTTP_X_REQUEST_ID='test-request-123')
         
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -32,8 +32,8 @@ class APIResponseTests(TestCase):
         self.assertEqual(data['request_id'], 'test-request-123')
     
     def test_api_response_includes_response_id(self):
-        """Test API response includes response_id"""
-        response = self.client.get('/api/v1/health/')
+        """Test API response includes response_id (v2 health is AllowAny)."""
+        response = self.client.get('/api/v2/health/')
         
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -41,8 +41,8 @@ class APIResponseTests(TestCase):
         self.assertIsNotNone(data['response_id'])
     
     def test_api_response_standard_format(self):
-        """Test API response follows standard format"""
-        response = self.client.get('/api/v1/health/')
+        """Test API response follows standard format (v2 health is AllowAny)."""
+        response = self.client.get('/api/v2/health/')
         
         self.assertEqual(response.status_code, 200)
         data = response.json()

@@ -42,141 +42,266 @@
     <!-- Register card -->
     <section class="auth-panel">
       <div class="auth-card card scale-in">
-        <div class="auth-header">
-          <h2 class="auth-title">Sign up</h2>
-          <p class="auth-subtitle">It takes less than a minute.</p>
-        </div>
-
-        <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form">
-          <div class="form-group">
-            <label for="name" class="form-label">Full name</label>
-            <input
-              id="name"
-              type="text"
-              formControlName="name"
-              class="form-control"
-              [class.error]="name?.invalid && name?.touched"
-              placeholder="Your name"
-              autocomplete="name"
-            />
-            @if (name?.invalid && name?.touched) {
-              <span class="error-message">Name is required</span>
-            }
+        @if (step === 1) {
+          <div class="auth-header">
+            <h2 class="auth-title">Sign up</h2>
+            <p class="auth-subtitle">We’ll verify your mobile number with a one-time code.</p>
           </div>
 
-          <div class="form-group">
-            <label for="email" class="form-label">Email</label>
-            <input
-              id="email"
-              type="email"
-              formControlName="email"
-              class="form-control"
-              [class.error]="email?.invalid && email?.touched"
-              placeholder="you@example.com"
-              autocomplete="email"
-            />
-            @if (email?.invalid && email?.touched) {
-              <span class="error-message">
-                @if (email?.errors?.['required']) { Email is required }
-                @if (email?.errors?.['email']) { Please enter a valid email }
-              </span>
-            }
-          </div>
-
-          <div class="form-group">
-            <label for="phone" class="form-label">Phone</label>
-            <input
-              id="phone"
-              type="tel"
-              inputmode="numeric"
-              formControlName="phone"
-              class="form-control"
-              [class.error]="phone?.invalid && phone?.touched"
-              placeholder="10-digit mobile number"
-              autocomplete="tel"
-            />
-            @if (phone?.invalid && phone?.touched) {
-              <span class="error-message">Phone is required</span>
-            }
-          </div>
-
-          <div class="form-group">
-            <label for="password" class="form-label">Password</label>
-            <div class="password-input">
+          <form [formGroup]="registerForm" (ngSubmit)="onSubmitDetails()" class="auth-form">
+            <div class="form-group">
+              <label for="name" class="form-label">Full name</label>
               <input
-                id="password"
-                [type]="showPassword ? 'text' : 'password'"
-                formControlName="password"
+                id="name"
+                type="text"
+                formControlName="name"
                 class="form-control"
-                [class.error]="password?.invalid && password?.touched"
-                placeholder="Create a password"
-                autocomplete="new-password"
+                [class.error]="name?.invalid && name?.touched"
+                placeholder="Your name"
+                autocomplete="name"
               />
-              <button
-                type="button"
-                class="password-toggle"
-                (click)="togglePasswordVisibility()"
-                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-              >
-                <span class="material-icons">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
-              </button>
+              @if (name?.invalid && name?.touched) {
+                <span class="error-message">Name is required</span>
+              }
             </div>
-            @if (password?.invalid && password?.touched) {
-              <span class="error-message">Password must be at least 6 characters</span>
-            }
-          </div>
 
-          <div class="form-group">
-            <label for="confirmPassword" class="form-label">Confirm password</label>
-            <div class="password-input">
+            <div class="form-group">
+              <label for="email" class="form-label">Email</label>
               <input
-                id="confirmPassword"
-                [type]="showConfirmPassword ? 'text' : 'password'"
-                formControlName="confirmPassword"
+                id="email"
+                type="email"
+                formControlName="email"
                 class="form-control"
-                [class.error]="(confirmPassword?.touched && registerForm.errors?.['passwordsMismatch'])"
-                placeholder="Re-enter your password"
-                autocomplete="new-password"
+                [class.error]="email?.invalid && email?.touched"
+                placeholder="you@example.com"
+                autocomplete="email"
               />
-              <button
-                type="button"
-                class="password-toggle"
-                (click)="toggleConfirmPasswordVisibility()"
-                [attr.aria-label]="showConfirmPassword ? 'Hide password' : 'Show password'"
-              >
-                <span class="material-icons">{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
-              </button>
+              @if (email?.invalid && email?.touched) {
+                <span class="error-message">
+                  @if (email?.errors?.['required']) { Email is required }
+                  @if (email?.errors?.['email']) { Please enter a valid email }
+                </span>
+              }
             </div>
-            @if (confirmPassword?.touched && registerForm.errors?.['passwordsMismatch']) {
-              <span class="error-message">Passwords do not match</span>
+
+            <div class="form-group">
+              <label for="phone" class="form-label">Mobile number</label>
+              <input
+                id="phone"
+                type="tel"
+                inputmode="numeric"
+                formControlName="phone"
+                class="form-control"
+                [class.error]="phone?.invalid && phone?.touched"
+                placeholder="10-digit mobile number"
+                autocomplete="tel"
+              />
+              @if (phone?.invalid && phone?.touched) {
+                <span class="error-message">
+                  @if (phone?.errors?.['required']) { Mobile number is required }
+                  @if (phone?.errors?.['minlength'] || phone?.errors?.['pattern']) { Enter a valid 10-digit number }
+                </span>
+              }
+            </div>
+
+            <div class="form-group">
+              <label for="pincode" class="form-label">Pincode (optional)</label>
+              <div class="pincode-row">
+                <input
+                  id="pincode"
+                  type="text"
+                  inputmode="numeric"
+                  formControlName="pincode"
+                  class="form-control"
+                  [class.error]="pincode?.invalid && pincode?.touched"
+                  placeholder="6-digit pincode"
+                  maxlength="6"
+                />
+                <button type="button" class="btn btn-secondary btn-get-address" [class.loading]="pincodeLoading" [attr.aria-disabled]="pincodeLoading" (click)="!pincodeLoading && pincode?.value && fetchAddressByPincode()">
+                  @if (pincodeLoading) { <span class="spinner small"></span> }
+                  @if (!pincodeLoading) { Get address }
+                </button>
+              </div>
+              @if (pincode?.invalid && pincode?.touched) {
+                <span class="error-message">Enter a valid 6-digit pincode</span>
+              }
+            </div>
+            @if (pincodeAddresses.length > 0) {
+              <div class="form-group">
+                <label for="pincode-address-select" class="form-label">Select your area / post office</label>
+                <select
+                  id="pincode-address-select"
+                  class="form-control form-select"
+                  [value]="selectedPincodeAddressIndex"
+                  (change)="selectPincodeAddress(+($any($event.target).value))"
+                >
+                  <option value="-1">-- Select your area / post office --</option>
+                  @for (addr of pincodeAddresses; track $index) {
+                    <option [value]="$index">{{ getPincodeAddressLabel(addr, $index) }}</option>
+                  }
+                </select>
+              </div>
             }
+            <div class="form-group">
+              <label for="addressLine1" class="form-label">Area / Post office (from pincode)</label>
+              <input
+                id="addressLine1"
+                type="text"
+                formControlName="addressLine1"
+                class="form-control"
+                placeholder="Select area from dropdown above"
+                [readonly]="selectedPincodeAddressIndex >= 0"
+              />
+              @if (selectedPincodeAddressIndex >= 0) {
+                <span class="field-hint">Filled from your selection. Pincode and this area will be saved.</span>
+              }
+            </div>
+            <div class="form-group">
+              <label for="addressLine2" class="form-label">Address line 2 (optional)</label>
+              <input id="addressLine2" type="text" formControlName="addressLine2" class="form-control" placeholder="Landmark, building" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="city" class="form-label">City (optional)</label>
+                <input id="city" type="text" formControlName="city" class="form-control" placeholder="City" />
+              </div>
+              <div class="form-group">
+                <label for="state" class="form-label">State (optional)</label>
+                <input id="state" type="text" formControlName="state" class="form-control" placeholder="State" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="password" class="form-label">Password</label>
+              <div class="password-input">
+                <input
+                  id="password"
+                  [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password"
+                  class="form-control"
+                  [class.error]="password?.invalid && password?.touched"
+                  placeholder="Create a password"
+                  autocomplete="new-password"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  (click)="togglePasswordVisibility()"
+                  [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+                >
+                  <span class="material-icons">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+              </div>
+              @if (password?.invalid && password?.touched) {
+                <span class="error-message">Password must be at least 6 characters</span>
+              }
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword" class="form-label">Confirm password</label>
+              <div class="password-input">
+                <input
+                  id="confirmPassword"
+                  [type]="showConfirmPassword ? 'text' : 'password'"
+                  formControlName="confirmPassword"
+                  class="form-control"
+                  [class.error]="(confirmPassword?.touched && registerForm.errors?.['passwordsMismatch'])"
+                  placeholder="Re-enter your password"
+                  autocomplete="new-password"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  (click)="toggleConfirmPasswordVisibility()"
+                  [attr.aria-label]="showConfirmPassword ? 'Hide password' : 'Show password'"
+                >
+                  <span class="material-icons">{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+              </div>
+              @if (confirmPassword?.touched && registerForm.errors?.['passwordsMismatch']) {
+                <span class="error-message">Passwords do not match</span>
+              }
+            </div>
+
+            <div class="form-group-checkbox">
+              <label class="checkbox-label">
+                <input type="checkbox" formControlName="acceptTerms" />
+                <span>
+                  I agree to the
+                  <a href="#" class="auth-link">Terms</a>
+                  and
+                  <a href="#" class="auth-link">Privacy Policy</a>
+                </span>
+              </label>
+              @if (acceptTerms?.invalid && acceptTerms?.touched) {
+                <span class="error-message">Please accept the terms to continue</span>
+              }
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+              @if (loading) {
+                <span class="spinner"></span>
+                <span>Sending OTP...</span>
+              } @else {
+                <span>Continue</span>
+                <span class="material-icons">arrow_forward</span>
+              }
+            </button>
+          </form>
+        } @else {
+          <div class="auth-header">
+            <h2 class="auth-title">Verify mobile number</h2>
+            <p class="auth-subtitle">
+              We sent a 6-digit code to <strong>{{ maskedPhone }}</strong>. Enter it below.
+            </p>
           </div>
 
-          <div class="form-group-checkbox">
-            <label class="checkbox-label">
-              <input type="checkbox" formControlName="acceptTerms" />
-              <span>
-                I agree to the
-                <a href="#" class="auth-link">Terms</a>
-                and
-                <a href="#" class="auth-link">Privacy Policy</a>
-              </span>
-            </label>
-            @if (acceptTerms?.invalid && acceptTerms?.touched) {
-              <span class="error-message">Please accept the terms to continue</span>
-            }
-          </div>
+          <form [formGroup]="otpForm" (ngSubmit)="onSubmitOtp()" class="auth-form">
+            <div class="form-group">
+              <label for="otp" class="form-label">Verification code</label>
+              <input
+                id="otp"
+                type="text"
+                inputmode="numeric"
+                formControlName="otp"
+                class="form-control otp-input"
+                [class.error]="otp?.invalid && otp?.touched"
+                placeholder="000000"
+                autocomplete="one-time-code"
+                maxlength="6"
+              />
+              @if (otp?.invalid && otp?.touched) {
+                <span class="error-message">Enter the 6-digit code we sent to your mobile</span>
+              }
+            </div>
 
-          <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
-            @if (loading) {
-              <span class="spinner"></span>
-              <span>Creating account...</span>
-            } @else {
-              <span>Create account</span>
-              <span class="material-icons">arrow_forward</span>
-            }
-          </button>
-        </form>
+            <p class="resend-row">
+              Didn’t receive the code?
+              @if (resendCountdown > 0) {
+                <span class="resend-countdown">Resend in {{ resendCountdown }}s</span>
+              } @else {
+                <button type="button" class="btn-link" (click)="resendOtp()" [disabled]="loading">
+                  Resend OTP
+                </button>
+              }
+            </p>
+
+            <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+              @if (loading) {
+                <span class="spinner"></span>
+                <span>Creating account...</span>
+              } @else {
+                <span>Verify & create account</span>
+                <span class="material-icons">arrow_forward</span>
+              }
+            </button>
+
+            <button type="button" class="btn btn-ghost btn-block" (click)="backToDetails()" [disabled]="loading">
+              <span class="material-icons">arrow_back</span>
+              Back to details
+            </button>
+          </form>
+        }
 
         <div class="auth-footer">
           <p>
@@ -191,4 +316,3 @@
     </section>
   </div>
 </div>
-

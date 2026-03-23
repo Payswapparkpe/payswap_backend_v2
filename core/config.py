@@ -23,7 +23,7 @@ class PayswapConfig(BaseSettings):
     # ============================================================================
     # APPLICATION
     # ============================================================================
-    APP_NAME: str = Field(default="Payswap")
+    APP_NAME: str = Field(default="Payswap Hub")
     APP_ENV: Literal["development", "staging", "production"] = Field(default="development")
     DEBUG: bool = Field(default=False)
     # When True, v2 payment/SMS status/delivery endpoints return explicit placeholder responses (BUG-005).
@@ -56,8 +56,8 @@ class PayswapConfig(BaseSettings):
     SIGNING_SECRET: SecretStr = Field(..., min_length=32)
     JWT_SIGNING_KEY: SecretStr = Field(..., min_length=32)
     JWT_ACCESS_TOKEN_LIFETIME: int = Field(
-        default=300,
-        description="Access token lifetime in seconds. 300 = 5 min inactivity timeout; active users extend via refresh.",
+        default=900,
+        description="Access token lifetime in seconds. 900 = 15 min; active users extend via refresh (ParkPe API).",
     )
     JWT_REFRESH_TOKEN_LIFETIME: int = Field(
         default=86400 * 7,
@@ -65,16 +65,15 @@ class PayswapConfig(BaseSettings):
     )
 
     # ============================================================================
-    # SMS - KALEYRA (India Region)
+    # SMS - KALEYRA (India Region). Same gateway for Portal (MFA, signup) and ParkPe (auth, scanner OTP).
     # ============================================================================
     KALEYRA_API_KEY: SecretStr = Field(...)
     KALEYRA_SID: str = Field(...)
-    # Sender ID/Header - This is what appears as the sender name in SMS
+    # Sender ID/Header (DLT) – must match DLT registration, e.g. PYSWAP
     KALEYRA_HEADER_PAYSWAP: str = Field(default="PYSWAP")
-    # OTP Template ID for Kaleyra (DLT-approved) – Payswap registration OTP
+    # OTP Template ID – DLT Reg_otp (see DLT/template-data.csv). Body in kaleyra.py must match exactly.
     KALEYRA_OTP_TEMPLATE_ID: str = Field(default="1007640321725099860")
-    # Base URL for Kaleyra API (without protocol, will be added in code)
-    # Example: api.in.kaleyra.io (will become https://api.in.kaleyra.io/v1/{SID})
+    # Base URL: India only. Use api.in.kaleyra.io (no https://, no /v1 – code adds them).
     KALEYRA_BASE_URL: str = Field(default="api.in.kaleyra.io")
     # Optional: separate base URL for Kaleyra Voice (click-to-call). If set, used for voice API only.
     KALEYRA_VOICE_BASE_URL: Optional[str] = Field(default=None, description="Voice API base (e.g. api.in.kaleyra.io) if different from KALEYRA_BASE_URL")
@@ -140,6 +139,18 @@ class PayswapConfig(BaseSettings):
         default=False,
         description='Use encrypted request body (encryptedSessionKey, encryptedPayload, keyVersion, iv)'
     )
+    MOBIKWIK_BBPS_PLAIN_JSON_UAT: bool = Field(
+        default=False,
+        description='When True and UAT, force plain JSON (no encryption). Default False: use encryption when MOBIKWIK_BBPS_USE_ENCRYPTION=True per RT-Recharge doc.'
+    )
+    MOBIKWIK_BBPS_MEMBER_ID: Optional[str] = Field(
+        default=None,
+        description='Balance Check API: onboarded email (memberId). If set, Balance Check sends memberId instead of merchantId per Mobikwik doc.'
+    )
+    MOBIKWIK_BBPS_AGENT_ID: Optional[str] = Field(
+        default=None,
+        description='Validation & Recharge APIs: agentId (e.g. MK01MK01INB523643654). Required in UAT per Postman collection.'
+    )
     MOBIKWIK_BBPS_PUBLIC_KEY: Optional[SecretStr] = Field(
         default=None,
         description='Mobikwik public key (PEM) for encrypting session key when MOBIKWIK_BBPS_USE_ENCRYPTION=True'
@@ -153,13 +164,25 @@ class PayswapConfig(BaseSettings):
         default=None,
         description='Override token API path (e.g. /oauth/token or /v1/token). Set from Mobikwik RT-Recharge & Bill Payment API doc if token fails.'
     )
+    MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE: str = Field(
+        default='Asia/Kolkata',
+        description='IANA timezone for naive Mobikwik token expiryTime (YYYY-MM-DD HH:mm:ss) from token API',
+    )
     MOBIKWIK_BBPS_UAT_VERBOSE_LOG: bool = Field(
         default=False,
         description='When True, log full request/response (sanitized) and cURL template per API to LogEntry for UAT/onboarding. Off in production.'
     )
+    MOBIKWIK_BBPS_LOG_SANITIZE: bool = Field(
+        default=True,
+        description='When False (UAT), log request/response with actual values (no masking of cn, refId, etc). Production me True rakhna.'
+    )
     MOBIKWIK_BBPS_RETRY_ON_FAILURE: bool = Field(
         default=True,
         description='When True, retry once on timeout or 5xx after 2s delay. Both attempts logged when UAT_VERBOSE_LOG is on.'
+    )
+    MOBIKWIK_BBPS_REQUEST_TIMEOUT: float = Field(
+        default=60.0,
+        description='HTTP timeout in seconds for Mobikwik API calls (view_bill, recharge, etc). UAT can be slow; 60s recommended.'
     )
 
     # ============================================================================
@@ -235,6 +258,10 @@ class PayswapConfig(BaseSettings):
     PARKPE_VOUCHER_BRAND_ID: Optional[int] = Field(
         default=None,
         description="Gift Voucher Brand ID for ParkPe (VoucherX). When set, ParkPe buy-voucher uses this brand to issue vouchers.",
+    )
+    PARKPE_BACKEND_SECRET: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret for Parkpe backend service-to-service auth (register order, webhook relay). Send as Authorization: Bearer <secret> or X-Parkpe-Backend-Key.",
     )
     # data.gov.in Pincode API (All India Pincode Directory) – for address lookup by pincode
     DATA_GOV_IN_API_KEY: Optional[str] = Field(
@@ -568,4 +595,9 @@ def get_cashfree_pg_credentials() -> Tuple[Optional[str], Optional[str]]:
     cid = _secret_str_value(getattr(payswap_config, "CASHFREE_PG_CLIENT_ID", None))
     csec = _secret_str_value(getattr(payswap_config, "CASHFREE_PG_CLIENT_SECRET", None))
     return (cid, csec)
+
+
+def get_parkpe_backend_secret() -> Optional[str]:
+    """Return Parkpe backend secret for service-to-service auth (register order, webhook relay)."""
+    return _secret_str_value(getattr(payswap_config, "PARKPE_BACKEND_SECRET", None))
 

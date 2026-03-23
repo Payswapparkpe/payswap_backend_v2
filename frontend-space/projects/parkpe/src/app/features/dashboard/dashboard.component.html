@@ -1,157 +1,136 @@
-<div class="dashboard-landing">
-  <!-- Main: two columns -->
-  <main class="dashboard-main">
-    <div class="dashboard-container">
-      <!-- Left column (wider): Sliding Banner + Overview -->
-      <div class="dashboard-left">
-        <!-- Sliding Banner -->
-        <section class="sliding-banner-section">
-          <div class="card hero-card">
-            <div class="hero-left">
-              <p class="hero-kicker">Welcome back</p>
-              <h2 class="hero-title">Your vehicle services, simplified</h2>
-              <p class="hero-subtitle">
-                Recharge FASTag, pay challans, book parking and manage bills — all in one place.
-              </p>
-              <div class="hero-cta">
-                <a routerLink="/parking" class="hero-btn primary">Book Parking</a>
-                <a routerLink="/connect" class="hero-btn ghost">ParkPe Connect</a>
-              </div>
-            </div>
-            <div class="hero-right">
-              <div class="hero-chip">
-                <span class="material-icons">verified_user</span>
-                <span>Secure</span>
-              </div>
-              <div class="hero-chip">
-                <span class="material-icons">bolt</span>
-                <span>Fast</span>
-              </div>
-              <div class="hero-chip">
-                <span class="material-icons">support_agent</span>
-                <span>Support</span>
-              </div>
-            </div>
-          </div>
-        </section>
+<div class="dashboard-landing fade-in">
+  <div class="dashboard-container">
 
-        <!-- Your Vehicles (Connect) – below blue card -->
-        <section class="vehicles-section">
-          <div class="vehicles-head">
-            <h3 class="vehicles-title">Your Vehicles</h3>
-            <div class="vehicles-links">
-              <a routerLink="/connect/vehicles/add" class="section-link">Add Vehicle</a>
-              <a routerLink="/connect/vehicles" class="section-link">View All</a>
-            </div>
-          </div>
-          <div class="vehicles-strip">
-            @if (connectVehiclesLoading) {
-              <div class="vehicle-card placeholder">Loading…</div>
-            } @else if (connectVehicles.length === 0) {
-              <a routerLink="/connect/vehicles/add" class="vehicle-card add-card">
-                <span class="material-icons add-icon">add</span>
-                <span class="add-label">Add your first vehicle</span>
-                <span class="add-sublabel">Get a Connect QR to be contacted securely</span>
-              </a>
-            } @else {
-              @for (v of connectVehicles; track v.id) {
-                <a [routerLink]="['/connect/vehicles', v.id]" class="vehicle-card">
-                  <div class="vehicle-card-inner">
-                    <span class="material-icons vehicle-icon">directions_car</span>
-                    <div class="vehicle-info">
-                      <span class="vehicle-reg">{{ v.registration_number }}</span>
-                      <span class="vehicle-meta">{{ v.brand }} {{ v.model }} @if (v.year) { · {{ v.year }} }</span>
-                    </div>
-                  </div>
-                </a>
-              }
-              <a routerLink="/connect/vehicles/add" class="vehicle-card add-card small">
-                <span class="material-icons add-icon">add</span>
-                <span class="add-label">Add vehicle</span>
-              </a>
+    <app-dashboard-welcome-banner />
+
+    <div class="dashboard-columns">
+
+      <!-- Left Column: Vehicles + Overview -->
+      <div class="dashboard-main">
+
+        <!-- SECTION ONE: YOUR VEHICLES -->
+        <div class="section-header vehicles-section-head">
+          <div class="vehicles-section-head-text">
+            <h3 class="section-title-large section-title-large--tight">Your Vehicles</h3>
+            @if (connectVehicles.length > 0 && !connectVehiclesLoading) {
+              <p class="vehicles-section-subtitle">
+                {{ connectVehicles.length }} vehicle{{ connectVehicles.length === 1 ? '' : 's' }} saved — shortcuts for FASTag, Connect & compliance
+              </p>
+            } @else if (!connectVehiclesLoading && !connectVehiclesError && connectVehicles.length === 0) {
+              <p class="vehicles-section-subtitle vehicles-section-subtitle--muted">
+                Add a vehicle when you need FASTag & Connect; everything else works without one.
+              </p>
             }
           </div>
-        </section>
+          <div class="section-links">
+            <a routerLink="/connect/vehicles/add" class="link-blue">Add Vehicle</a>
+            <a routerLink="/connect" class="link-blue">View All</a>
+          </div>
+        </div>
 
-        <!-- Overview / This Month + 4 summary cards -->
-        <section class="overview-section">
-          <p class="overview-label">Overview</p>
-          <h2 class="overview-title">This Month</h2>
-          <div class="summary-grid">
-            <div class="card summary-card">
-              <div class="card-icon"><span class="material-icons">receipt_long</span></div>
-              <h3 class="card-title">Total Spend</h3>
-              <p class="summary-value">₹{{ summary.totalSpendMonth }}</p>
-            </div>
-            <div class="card summary-card">
-              <div class="card-icon"><span class="material-icons">warning</span></div>
-              <h3 class="card-title">Pending Challans</h3>
-              <p class="summary-value">{{ summary.pendingChallans }}</p>
-            </div>
-            <div class="card summary-card">
-              <div class="card-icon"><span class="material-icons">toll</span></div>
-              <h3 class="card-title">FASTag Balance</h3>
-              <p class="summary-value">₹{{ summary.fastagBalance }}</p>
-            </div>
-            <div class="card summary-card">
-              <div class="card-icon"><span class="material-icons">local_parking</span></div>
-              <h3 class="card-title">Active Bookings</h3>
-              <p class="summary-value">{{ summary.activeBookings }}</p>
+        @if (connectVehiclesLoading) {
+          <div class="vehicles-section mb-8" aria-busy="true" aria-label="Loading vehicles">
+            <div class="vehicles-loading-skeleton">
+              <div class="vsk-line vsk-line--title"></div>
+              <div class="vsk-line vsk-line--meta"></div>
+              <div class="vsk-chips">
+                <span class="vsk-chip"></span>
+                <span class="vsk-chip"></span>
+                <span class="vsk-chip"></span>
+              </div>
+              <div class="vsk-actions">
+                <span class="vsk-btn"></span>
+                <span class="vsk-btn"></span>
+              </div>
             </div>
           </div>
-        </section>
-      </div>
-
-      <!-- Right column (narrower): Quick Actions 3x2 + Recent Transaction -->
-      <div class="dashboard-right">
-        <div class="card quick-actions-wrapper">
-          <div class="section-head">
-            <div>
-              <h3 class="section-title">Quick Actions</h3>
-              <p class="section-subtitle">Jump back into your most used services.</p>
-            </div>
-            <a routerLink="/payment/history" class="section-link">View all</a>
+        } @else if (connectVehiclesError) {
+          <div class="vehicle-cards-error mb-8">
+            <span class="vehicle-cards-error-text">{{ connectVehiclesError }}</span>
+            <button type="button" class="btn-retry" (click)="loadConnectVehicles()">Retry</button>
           </div>
-          <div class="quick-actions-grid">
-            @for (action of quickActions; track action.title + action.route) {
-              <a [routerLink]="action.route" class="action-card">
-                <div class="action-icon"><span class="material-icons">{{ action.icon }}</span></div>
-                <div class="action-meta">
-                  <div class="action-title">{{ action.title }}</div>
-                  <div class="action-desc">{{ action.description }}</div>
-                </div>
-                <span class="material-icons action-chevron">chevron_right</span>
+        } @else if (dashboardVehicles.length === 0) {
+          <div class="vehicle-empty-state vehicle-empty-state--dashboard mb-8">
+            <span class="material-icons vehicle-empty-icon" aria-hidden="true">directions_car</span>
+            <p class="vehicle-empty-title">No vehicle added yet</p>
+            <p class="vehicle-empty-desc">
+              You can still use Pay Bills, Vouchers, and more from Quick Actions. Add a vehicle when you are ready for FASTag, Connect, and RC-based services.
+            </p>
+            <div class="vehicle-empty-ctas">
+              <a routerLink="/connect/vehicles/add" class="btn-view-more btn-view-more--inline">Add vehicle</a>
+              <a routerLink="/bbps" class="link-blue vehicle-empty-link">Pay bills</a>
+            </div>
+            <div class="vehicle-empty-quick-links" aria-label="Popular services">
+              <span class="vehicle-empty-quick-label">Try now</span>
+              <a routerLink="/bbps" class="vehicle-empty-pill">
+                <span class="material-icons" aria-hidden="true">receipt_long</span>
+                Bills
               </a>
+              <a routerLink="/vouchers" class="vehicle-empty-pill">
+                <span class="material-icons" aria-hidden="true">card_giftcard</span>
+                Vouchers
+              </a>
+              <a routerLink="/connect" class="vehicle-empty-pill">
+                <span class="material-icons" aria-hidden="true">qr_code_2</span>
+                Connect
+              </a>
+            </div>
+          </div>
+        } @else {
+          <div class="vehicles-primary-wrap mb-8">
+            <div class="vehicles-carousel">
+              @for (vehicle of dashboardVehicles; track vehicle.id) {
+                <app-connect-vehicle-card
+                  [vehicle]="vehicle"
+                  [fastagBalance]="summary.fastagBalance"
+                  [showViewLink]="true"
+                  [variant]="'dashboard'"
+                  [dashboardSingleRow]="dashboardVehicles.length === 1"
+                  class="vehicle-card-carousel-item" />
+              }
+            </div>
+          </div>
+        }
+
+        <!-- SECTION TWO: OVERVIEW / THIS MONTH -->
+        <div class="section-header">
+          <h3 class="section-title-large">Overview</h3>
+          <p class="section-subtitle">This Month</p>
+        </div>
+
+        <app-dashboard-overview-cards [summary]="summary" />
+
+        <!-- Analytics Graph -->
+        <div class="analytics-section mt-6">
+          <div class="card-section">
+            <div class="section-header">
+              <h3 class="section-title">Spending Trends</h3>
+              <span class="text-sm text-muted">Last 6 Months</span>
+            </div>
+            @if (hasSpendingData) {
+              <div class="chart-container" style="height: 200px; width: 100%;">
+                <canvas baseChart [data]="spendingChartData" [options]="spendingChartOptions" [type]="'line'">
+                </canvas>
+              </div>
+            } @else {
+              <div class="chart-empty-state">
+                No spending data available for the last 6 months.
+              </div>
             }
           </div>
         </div>
 
-        <section class="recent-section">
-          <div class="card recent-card">
-            <div class="recent-head">
-              <h3 class="recent-title">Recent Transactions</h3>
-              <a routerLink="/payment/history" class="section-link">History</a>
-            </div>
-            @if (recentTransactions.length === 0) {
-              <div class="recent-empty">
-                <span class="material-icons">receipt_long</span>
-                <p>No recent transactions</p>
-              </div>
-            } @else {
-              <ul class="recent-list">
-                @for (txn of recentTransactions; track txn.id) {
-                  <li class="recent-item">
-                    <a [routerLink]="['/payment/receipt', txn.transactionId]" class="recent-item-link">
-                      <span class="recent-desc">{{ txn.description }}</span>
-                      <span class="recent-amount">₹{{ txn.amount }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            }
-          </div>
-        </section>
       </div>
+
+      <!-- Right Column: Quick Actions + Transactions -->
+      <div class="dashboard-sidebar">
+
+        <app-dashboard-quick-actions [actions]="quickActions" />
+
+        <app-dashboard-recent-transactions [transactions]="recentTransactions" />
+
+      </div>
+
     </div>
-  </main>
+  </div>
 </div>

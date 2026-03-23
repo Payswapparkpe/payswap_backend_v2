@@ -8,18 +8,54 @@
     <p class="error">{{ error() }}</p>
   }
 
+  @if (!isEdit() && connectMeta() && !connectMeta()!.can_add_more) {
+    <div class="limit-notice" role="alert">
+      <span class="material-icons">info</span>
+      You have reached the maximum of {{ connectMeta()!.max_vehicles }} vehicles for Individual accounts. Upgrade to Corporate to add more vehicles (monthly charges apply). Go to <a routerLink="/settings">Settings</a> or contact support.
+    </div>
+  }
+
+  @if (!isEdit() && connectMeta()?.can_add_more) {
+    <p class="form-hint">First vehicle is free. RC for 2nd and subsequent vehicles is chargeable (₹50).</p>
+  }
+
   <form [formGroup]="form" (ngSubmit)="submit()">
+    <div class="field">
+      <label for="vehicle_type">Vehicle type</label>
+      <select id="vehicle_type" formControlName="vehicle_type" (change)="onVehicleTypeChange()">
+        <option value="">Select type</option>
+        @for (t of vehicleTypes; track t.id) {
+          <option [value]="t.id">{{ t.label }}</option>
+        }
+      </select>
+    </div>
     <div class="field">
       <label for="reg">Registration number *</label>
       <input id="reg" type="text" formControlName="registration_number" placeholder="e.g. KA01AB1234" />
     </div>
     <div class="field">
       <label for="brand">Brand</label>
-      <input id="brand" type="text" formControlName="brand" placeholder="e.g. Maruti" />
+      <select id="brand" formControlName="brand" (change)="onBrandChange()">
+        <option value="">Select brand</option>
+        @for (b of brandsList(); track b) {
+          <option [value]="b">{{ b }}</option>
+        }
+      </select>
+      @if (showBrandOther()) {
+        <input type="text" formControlName="brand_other" placeholder="Enter brand name" class="field-other" />
+      }
     </div>
     <div class="field">
       <label for="model">Model</label>
-      <input id="model" type="text" formControlName="model" placeholder="e.g. Swift" />
+      <select id="model" formControlName="model">
+        <option value="">Select model</option>
+        @for (m of modelsList(); track m) {
+          <option [value]="m">{{ m }}</option>
+        }
+      </select>
+      @if (showModelOther()) {
+        <input type="text" formControlName="model_other" placeholder="Enter model name" class="field-other" />
+      }
     </div>
     <div class="field">
       <label for="year">Year</label>
@@ -31,8 +67,22 @@
         Set as primary vehicle
       </label>
     </div>
+    @if (!isEdit()) {
+      <div class="declaration">
+        <p class="declaration-text">{{ declarationText }}</p>
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" formControlName="accept_ownership_declaration" />
+            I have read and accept the above declaration
+          </label>
+        </div>
+      </div>
+    }
     <div class="actions">
-      <button type="submit" class="btn btn-primary" [disabled]="form.invalid || loading()">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="form.invalid || loading() || (!isEdit() && connectMeta() && !connectMeta()!.can_add_more)">
         {{ loading() ? 'Saving…' : (isEdit() ? 'Save' : 'Add vehicle') }}
       </button>
       <a routerLink="/connect/vehicles" class="btn btn-ghost">Cancel</a>

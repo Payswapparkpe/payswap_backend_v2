@@ -80,7 +80,7 @@ def process_email_queue_task(self, queue_id: int) -> Dict[str, Any]:
         raise
 
 
-@shared_task(name='portal.tasks.send_sms', bind=True, max_retries=3)
+@shared_task(name='portal.tasks.send_sms_via_notifications', bind=True, max_retries=3)
 def send_sms_task(
     self,
     phone_number: str,
@@ -199,7 +199,7 @@ def send_sms_task(
         raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
 
 
-@shared_task(name='portal.tasks.send_email', bind=True, max_retries=3)
+@shared_task(name='portal.tasks.send_email_via_notifications', bind=True, max_retries=3)
 def send_email_task(
     self,
     to_email: str,
@@ -380,10 +380,10 @@ def send_otp_sms_task(
         normalized_phone = normalize_phone_number(phone_number)
         masked_phone = f"{normalized_phone[:4]}****{normalized_phone[-4:]}"
         
-        # Log OTP send attempt
+        # Log OTP send attempt (never log OTP code or full phone)
         write_logs_task.delay(
             log_level='INFO',
-            message=f'OTP SMS Task - Calling KaleyraClient.send_otp() | Phone: {masked_phone} | OTP: {otp_code}',
+            message=f'OTP SMS Task - Calling KaleyraClient.send_otp() | Phone: {masked_phone}',
             module_name=module_name,
             url=None,
             request_id=None,
@@ -392,7 +392,6 @@ def send_otp_sms_task(
             extra_data={
                 'action': 'otp_sms_task_start',
                 'phone_masked': masked_phone,
-                'otp_code': otp_code,
                 **context
             },
             client_ip=None,
@@ -402,12 +401,12 @@ def send_otp_sms_task(
         
         # DIRECTLY call KaleyraClient.send_otp() - this has all the logging and template_id
         kaleyra_client = KaleyraClient()
-        success = kaleyra_client.send_otp(normalized_phone, otp_code)
+        success, error_message = kaleyra_client.send_otp(normalized_phone, otp_code)
         
         if success:
             write_logs_task.delay(
                 log_level='INFO',
-                message=f'OTP SMS Task - Success | Phone: {masked_phone} | OTP: {otp_code}',
+                message=f'OTP SMS Task - Success | Phone: {masked_phone}',
                 module_name=module_name,
                 url=None,
                 request_id=None,
@@ -416,7 +415,6 @@ def send_otp_sms_task(
                 extra_data={
                     'action': 'otp_sms_task_success',
                     'phone_masked': masked_phone,
-                    'otp_code': otp_code
                 },
                 client_ip=None,
                 user_agent=None,
@@ -428,9 +426,10 @@ def send_otp_sms_task(
                 'phone_masked': masked_phone
             }
         else:
+            fail_msg = error_message or 'OTP sending failed'
             write_logs_task.delay(
                 log_level='WARNING',
-                message=f'OTP SMS Task - Failed | Phone: {masked_phone} | OTP: {otp_code}',
+                message=f'OTP SMS Task - Failed | Phone: {masked_phone} | Error: {fail_msg}',
                 module_name=module_name,
                 url=None,
                 request_id=None,
@@ -439,7 +438,7 @@ def send_otp_sms_task(
                 extra_data={
                     'action': 'otp_sms_task_failed',
                     'phone_masked': masked_phone,
-                    'otp_code': otp_code
+                    'error': fail_msg,
                 },
                 client_ip=None,
                 user_agent=None,
@@ -447,16 +446,17 @@ def send_otp_sms_task(
             )
             return {
                 'success': False,
-                'message': 'OTP sending failed',
+                'message': fail_msg,
                 'phone_masked': masked_phone
             }
             
     except Exception as e:
         # Log error and retry
         masked_phone = phone_number[:4] + '****' + phone_number[-4:] if len(phone_number) > 8 else '****'
+        err_str = str(e)
         write_logs_task.delay(
             log_level='ERROR',
-            message=f'OTP SMS Task - Error: {str(e)} | Phone: {masked_phone}',
+            message=f'OTP SMS Task - Error: {err_str} | Phone: {masked_phone}',
             module_name=module_name,
             url=None,
             request_id=None,
@@ -464,7 +464,7 @@ def send_otp_sms_task(
             user_id=user_id,
             extra_data={
                 'action': 'otp_sms_task_error',
-                'error': str(e),
+                'error': err_str,
                 'phone_masked': masked_phone,
                 'retry_count': self.request.retries
             },
@@ -472,6 +472,5 @@ def send_otp_sms_task(
             user_agent=None,
             session_id=None
         )
-        
         # Retry with exponential backoff
         raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))

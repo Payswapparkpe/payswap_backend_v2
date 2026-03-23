@@ -32,7 +32,7 @@ from portal.models import (
     Department, Agent, Ticket, TicketNote, TicketAttachment, TicketAssignmentHistory,
     Service, ApiVendor, VendorApi, GiftVoucherBrand, GiftVoucher, GiftVoucherTransaction, BulkVoucherIssuanceBatch,
     VoucherClient, ResellerPartner, APIKey, APIKeyUsageLog,
-    ParkPeServiceConfig, ParkPePaymentGatewayConfig,
+    Vehicle, ConnectThread, ConnectMessage, ConnectCallLog, ConnectReport,
 )
 from portal.forms import (
     SignUpForm, SignInForm, MFASetupForm, MFAVerifyForm,
@@ -43,7 +43,6 @@ from portal.forms import (
     BrandOnboardingStep1Form, BrandOnboardingStep2Form, BrandOnboardingStep3Form,
     BrandOnboardingStep4Form, BrandOnboardingStep5Form, BrandOnboardingReviewForm,
     BrandOnboardingAdminApprovalForm, BrandAdminOnboardingForm,
-    ParkPeServiceConfigForm, ParkPePaymentGatewayConfigForm,
 )
 from portal.utils.mfa_utils import (
     generate_totp_secret, generate_totp_uri, generate_qr_code,
@@ -858,7 +857,7 @@ class MFASetupView(View):
                 otp_service = OTPService()
                 phone = user.phone
                 if phone:
-                    verified = otp_service.verify_otp(phone, verification_code)
+                    verified, _ = otp_service.verify_otp(phone, verification_code)
             
             if verified:
                 # Mark as verified in session
@@ -1160,155 +1159,7 @@ class MFAVerifyView(View):
             messages.error(request, 'MFA verification is not required for your account.')
             return redirect('/signin/')
         
-        # Log the check for debugging
-        from portal.utils.logging_utils import get_request_id, generate_response_id
-        from portal.utils.ip_utils import get_client_ip, get_user_agent, get_session_id
-        request_id = get_request_id(request)
-        response_id = generate_response_id()
-        client_ip = get_client_ip(request)
-        user_agent = get_user_agent(request)
-        session_id = get_session_id(request)
-        
-        force_resend = request.GET.get('force_resend_otp') == '1'
-        
-        # Check if OTP was already sent in this session (to avoid sending multiple times)
-        otp_sent_key = f'mfa_otp_sent_{user_id}'
-        otp_already_sent = request.session.get(otp_sent_key, False) and not force_resend
-        
-        # If force resend, clear the session flag
-        if force_resend:
-            request.session.pop(otp_sent_key, None)
-            otp_already_sent = False
-            write_logs_task.delay(
-                log_level='INFO',
-                message=f'MFA Verify - Force resend OTP requested',
-                module_name='portal.views.MFAVerifyView',
-                url=request.path,
-                request_id=request_id,
-                response_id=response_id,
-                user_id=user.id,
-                extra_data={'action': 'mfa_verify_force_resend'},
-                client_ip=client_ip,
-                user_agent=user_agent,
-                session_id=session_id
-            )
-        
-        write_logs_task.delay(
-            log_level='INFO',
-            message=f'MFA Verify page accessed - OTP already sent in session: {otp_already_sent}',
-            module_name='portal.views.MFAVerifyView',
-            url=request.path,
-            request_id=request_id,
-            response_id=response_id,
-            user_id=user.id,
-            extra_data={
-                'action': 'mfa_verify_page_access',
-                'mfa_method': user.mfa_method,
-                'mfa_configured': user.mfa_configured,
-                'otp_already_sent': otp_already_sent,
-                'session_key': otp_sent_key
-            },
-            client_ip=client_ip,
-            user_agent=user_agent,
-            session_id=session_id
-        )
-        
-        if not otp_already_sent:
-            # Send OTP automatically when user first reaches MFA verify page
-            # Get phone from profile (user.phone is a property that accesses profile.phone)
-            phone_number = None
-            if hasattr(user, 'profile') and user.profile:
-                phone_number = user.profile.phone
-            elif hasattr(user, 'phone'):
-                phone_number = user.phone
-            
-            write_logs_task.delay(
-                log_level='INFO',
-                message=f'MFA Verify - Phone check: {phone_number if phone_number else "None"}, MFA Method: {user.mfa_method}',
-                module_name='portal.views.MFAVerifyView',
-                url=request.path,
-                request_id=request_id,
-                response_id=response_id,
-                user_id=user.id,
-                extra_data={
-                    'action': 'mfa_verify_phone_check',
-                    'phone_exists': bool(phone_number),
-                    'phone_full': phone_number,  # Full phone number
-                    'mfa_method': user.mfa_method,
-                    'will_send_otp': bool(phone_number)
-                },
-                client_ip=client_ip,
-                user_agent=user_agent,
-                session_id=session_id
-            )
-            
-            # Send OTP whenever user has a phone (so they can use OTP tab even if they set up Authenticator)
-            if phone_number:
-                # Log before calling OTP service
-                write_logs_task.delay(
-                    log_level='INFO',
-                    message=f'MFA Verify - Calling OTPService.send_otp() for user {user.username}',
-                    module_name='portal.views.MFAVerifyView',
-                    url=request.path,
-                    request_id=request_id,
-                    response_id=response_id,
-                    user_id=user.id,
-                    extra_data={
-                        'action': 'mfa_verify_calling_otp_service',
-                        'phone_masked': phone_number[:4] + '****' if phone_number else None,
-                        'async_send': True
-                    },
-                    client_ip=client_ip,
-                    user_agent=user_agent,
-                    session_id=session_id
-                )
-                from portal.services.otp_service import OTPService
-                from portal.utils.logging_utils import get_request_id, generate_response_id
-                from portal.utils.ip_utils import get_client_ip, get_user_agent, get_session_id
-                
-                otp_service = OTPService()
-                
-                success, message = otp_service.send_otp(
-                    phone_number, 
-                    user_id=user.id, 
-                    async_send=True
-                )
-                
-                if success:
-                    # Mark OTP as sent in this session
-                    request.session[otp_sent_key] = True
-                    request.session.set_expiry(600)  # 10 minutes
-                    
-                    # Log OTP sent
-                    write_logs_task.delay(
-                        log_level='INFO',
-                        message=f'OTP sent automatically for MFA verification to user {user.username}',
-                        module_name='portal.views.MFAVerifyView',
-                        url=request.path,
-                        request_id=request_id,
-                        response_id=response_id,
-                        user_id=user.id,
-                        extra_data={'action': 'mfa_otp_auto_sent', 'phone_full': phone_number, 'otp_result': message},
-                        client_ip=client_ip,
-                        user_agent=user_agent,
-                        session_id=session_id
-                    )
-                else:
-                    # Log failure but don't block the page
-                    write_logs_task.delay(
-                        log_level='WARNING',
-                        message=f'Failed to send OTP automatically for MFA verification: {message}',
-                        module_name='portal.views.MFAVerifyView',
-                        url=request.path,
-                        request_id=request_id,
-                        response_id=response_id,
-                        user_id=user.id,
-                        extra_data={'action': 'mfa_otp_auto_send_failed', 'error': message},
-                        client_ip=client_ip,
-                        user_agent=user_agent,
-                        session_id=session_id
-                    )
-        
+        # Do NOT send OTP on page load. OTP is sent only when user clicks the OTP tab (via resend-otp).
         form = MFAVerifyForm()
         return render(request, self.template_name, {'form': form, 'user': user})
     
@@ -1358,7 +1209,7 @@ class MFAVerifyView(View):
                     phone_number = user.phone
                 
                 if phone_number:
-                    verified = otp_service.verify_otp(phone_number, mfa_code)
+                    verified, _ = otp_service.verify_otp(phone_number, mfa_code)
                 else:
                     verified = False
             elif method == 'authenticator' or user.mfa_method == 'authenticator':
@@ -1628,17 +1479,25 @@ def resend_otp_view(request):
     except User.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'User not found.'}, status=404)
     
-    # Get phone from profile
+    # Get phone from profile (same user as ParkPe – ensure Profile has correct mobile in Django admin)
     phone_number = None
     if hasattr(user, 'profile') and user.profile:
-        phone_number = user.profile.phone
-    elif hasattr(user, 'phone'):
-        phone_number = user.phone
+        phone_number = (user.profile.phone or "").strip()
+    if not phone_number and hasattr(user, 'phone'):
+        phone_number = (user.phone or "").strip()
     
     if not phone_number:
-        return JsonResponse({'success': False, 'message': 'Phone number not found.'}, status=400)
+        return JsonResponse({'success': False, 'message': 'Phone number not found. Add mobile in Profile (Django admin).'}, status=400)
     
-    # Send OTP via unified notification service
+    # Normalize to 91XXXXXXXXXX so Portal uses same format as ParkPe (OTP delivery is same gateway)
+    try:
+        from portal.utils.validators import normalize_phone_number
+        normalized = normalize_phone_number(phone_number)
+        phone_number = normalized.lstrip('+') if normalized.startswith('+') else normalized
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': f'Invalid phone in profile: {str(e)}. Update in Django admin.'}, status=400)
+    
+    # Send OTP via same gateway as ParkPe (Kaleyra)
     otp_service = OTPService()
     success, message = otp_service.send_otp(phone_number, user_id=user.id, async_send=True)
     
@@ -1686,175 +1545,6 @@ def unlock_expired_view(request):
     _clear_lock_identity_cookie(response)
     messages.info(request, 'Unlock time expired. Please sign in again.')
     return response
-
-
-class DashboardView(TemplateView):
-    """Dashboard view - redirects to role-specific dashboard"""
-    template_name = 'portal/dashboard/base.html'
-    
-    @method_decorator(login_required)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    @method_decorator(log_view_action(action='view_dashboard', resource='dashboard'))
-    def get(self, request):
-        user = request.user
-        role_code = user.role_code.lower() if hasattr(user, 'role_code') else 'customer'
-        
-        # Redirect to role-specific dashboard
-        dashboard_map = {
-            'admin': 'admin',
-            'employee': 'employee',
-            'super': 'super',
-            'distributor': 'distributor',
-            'retailer': 'retailer',
-            'customer': 'customer',
-            'vendor': 'vendor',
-        }
-        
-        dashboard_name = dashboard_map.get(role_code, 'customer')
-        return redirect(f'/dashboard/{dashboard_name}/')
-
-
-class AdminDashboardView(TemplateView):
-    """Admin dashboard"""
-    template_name = 'portal/dashboard/admin.html'
-    
-    @method_decorator(login_required)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['total_users'] = User.objects.count()
-        context['pending_kyc'] = KYC.objects.filter(status='pending').count()
-        context['total_wallets'] = Wallet.objects.count()
-        context['active_profiles'] = Profile.objects.filter(status='active').count()
-        
-        # Partner Management Statistics
-        try:
-            from portal.models import ResellerPartner, ResellerPartnerTransaction
-            from portal.services.partner_accounting_service import PartnerAccountingService
-            from django.db.models import Sum, Q
-            from django.utils import timezone
-            from datetime import timedelta
-            
-            partners = ResellerPartner.objects.all()
-            context['total_partners'] = partners.count()
-            context['active_partners'] = partners.filter(status='ACTIVE', onboarding_status='APPROVED').count()
-            context['pending_partner_onboarding'] = partners.filter(onboarding_status='PENDING').count()
-            
-            # Financial summary (last 30 days)
-            last_30d = timezone.now() - timedelta(days=30)
-            financial_summary = ResellerPartnerTransaction.objects.filter(
-                transaction_date__gte=last_30d,
-                status='COMPLETED'
-            ).aggregate(
-                total_revenue=Sum('amount', filter=Q(transaction_type='REVENUE')),
-                total_commission=Sum('commission_amount', filter=Q(transaction_type='COMMISSION'))
-            )
-            context['partner_revenue_30d'] = financial_summary.get('total_revenue') or 0
-            context['partner_commission_30d'] = financial_summary.get('total_commission') or 0
-            
-            # Recent partners (last 5)
-            context['recent_partners'] = partners.select_related('wallet').order_by('-created_at')[:5]
-        except Exception as e:
-            logger.error(f'Error loading partner stats: {str(e)}')
-            context['total_partners'] = 0
-            context['active_partners'] = 0
-            context['pending_partner_onboarding'] = 0
-            context['partner_revenue_30d'] = 0
-            context['partner_commission_30d'] = 0
-            context['recent_partners'] = []
-        
-        return context
-
-
-class ParkPeAppManagementView(TemplateView):
-    """ParkPe App Management: Voucher Management & Payment Gateway Management cards."""
-    template_name = 'portal/parkpe/app_management.html'
-
-    @method_decorator(login_required)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            from django.http import Http404
-            raise Http404
-        return super().get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['service_configs'] = ParkPeServiceConfig.objects.all().order_by('service_code')
-        context['gateway_configs'] = ParkPePaymentGatewayConfig.objects.all().order_by('gateway', 'service_code')
-        return context
-
-
-class ParkPeServiceConfigCreateView(CreateView):
-    model = ParkPeServiceConfig
-    form_class = ParkPeServiceConfigForm
-    template_name = 'portal/parkpe/service_config_form.html'
-    success_url = '/parkpe/app-management/#voucher-management'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse('parkpe_app_management') + '#voucher-management'
-
-
-class ParkPeServiceConfigUpdateView(UpdateView):
-    model = ParkPeServiceConfig
-    form_class = ParkPeServiceConfigForm
-    template_name = 'portal/parkpe/service_config_form.html'
-    context_object_name = 'config'
-    pk_url_kwarg = 'pk'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse('parkpe_app_management') + '#voucher-management'
-
-
-class ParkPePaymentGatewayConfigCreateView(CreateView):
-    model = ParkPePaymentGatewayConfig
-    form_class = ParkPePaymentGatewayConfigForm
-    template_name = 'portal/parkpe/gateway_config_form.html'
-    context_object_name = 'config'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse('parkpe_app_management') + '#payment-gateway-management'
-
-
-class ParkPePaymentGatewayConfigUpdateView(UpdateView):
-    model = ParkPePaymentGatewayConfig
-    form_class = ParkPePaymentGatewayConfigForm
-    template_name = 'portal/parkpe/gateway_config_form.html'
-    context_object_name = 'config'
-    pk_url_kwarg = 'pk'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_success_url(self):
-        return reverse('parkpe_app_management') + '#payment-gateway-management'
 
 
 class EmployeeDashboardView(TemplateView):
@@ -3127,10 +2817,10 @@ class TicketListView(ListView):
         user = self.request.user
         
         # Super Admin and Admin can see all tickets
-        if user.role_code in ['super', 'admin']:
+        if user.role_code in ['super_admin', 'admin']:
             pass  # Show all
         # Department Manager can see all tickets in their department
-        elif user.role_code == 'dept_manager':
+        elif user.role_code == 'employee':
             try:
                 agent = user.agent_profile
                 if agent and agent.department:
@@ -3138,7 +2828,7 @@ class TicketListView(ListView):
             except (Agent.DoesNotExist, AttributeError):
                 queryset = queryset.none()
         # Support Agent can see tickets assigned to them or in their department
-        elif user.role_code == 'support_agent':
+        elif user.role_code == 'employee':
             try:
                 agent = user.agent_profile
                 if agent and agent.department:
@@ -3211,10 +2901,10 @@ class TicketDetailView(DetailView):
         user = self.request.user
         
         # Super Admin and Admin can see all
-        if user.role_code in ['super', 'admin']:
+        if user.role_code in ['super_admin', 'admin']:
             return queryset
         # Department Manager can see tickets in their department
-        elif user.role_code == 'dept_manager':
+        elif user.role_code == 'employee':
             try:
                 agent = user.agent_profile
                 if agent and agent.department:
@@ -3222,7 +2912,7 @@ class TicketDetailView(DetailView):
             except (Agent.DoesNotExist, AttributeError):
                 pass
         # Support Agent can see assigned or department tickets
-        elif user.role_code == 'support_agent':
+        elif user.role_code == 'employee':
             try:
                 agent = user.agent_profile
                 if agent and agent.department:
@@ -3249,7 +2939,7 @@ class TicketDetailView(DetailView):
         
         # Get available agents for assignment (if user has permission)
         user = self.request.user
-        if user.role_code in ['super', 'admin', 'dept_manager']:
+        if user.role_code in ['super_admin', 'admin', 'employee']:
             if ticket.department:
                 context['available_agents'] = Agent.objects.filter(
                     department=ticket.department,
@@ -3406,244 +3096,6 @@ class TicketCreateView(CreateView):
 
 
 # ============================================================================
-# API DOCUMENTATION (REST API Reference for Frontend Integration)
-# ============================================================================
-
-class APIDocumentationView(LoginRequiredMixin, TemplateView):
-    """Admin API documentation page – all REST APIs for frontend integration."""
-    template_name = 'portal/api_docs.html'
-
-    def dispatch(self, *args, **kwargs):
-        if not self.request.user.is_authenticated:
-            return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin'] and not self.request.user.is_staff:
-            messages.error(self.request, 'You do not have permission to view API documentation.')
-            return redirect('/dashboard/')
-        return super().dispatch(*args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        from portal.api_docs_spec import get_api_documentation_spec
-        context = super().get_context_data(**kwargs)
-        base_url = self.request.build_absolute_uri('/api/v2').rstrip('/')
-        context['api_base_url'] = base_url
-        context['api_groups'] = get_api_documentation_spec(base_url)
-        context['auth_note'] = (
-            'Most endpoints require API Key authentication. '
-            'Send header: Authorization: Api-Key <your_api_key> or X-Api-Key: <your_api_key>. '
-            'API keys and permissions are managed under Partner Management.'
-        )
-        return context
-
-
-class APIExplorerView(LoginRequiredMixin, TemplateView):
-    """Postman-style API Explorer – API v1/v2 + API Vendors (integrated) + Postman sync. Single place to manage all APIs."""
-    template_name = 'portal/api_explorer.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect('/signin/')
-        if request.user.role_code not in ['super', 'admin'] and not request.user.is_staff:
-            messages.error(request, 'You do not have permission to access API Explorer.')
-            return redirect('/dashboard/')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        from portal.api_explorer_spec import get_all_collections
-        context = super().get_context_data(**kwargs)
-        # Static collections (API v1 – internal system)
-        collections = list(get_all_collections())
-        # Enrich partner-style endpoints from api_docs_spec (request_body, response_sample, auth)
-        try:
-            from urllib.parse import urlparse
-            import re
-            from portal.api_docs_spec import get_api_documentation_spec
-            # api_docs_spec is reusable: we pass v1 base so it matches v1 explorer endpoints
-            base = (self.request.build_absolute_uri('/api/v1') or '/api/v1').rstrip('/')
-            if not base.startswith('http'):
-                base = '/api/v1'
-            docs_spec = get_api_documentation_spec(base)
-            docs_by_path = {}
-            for group in docs_spec:
-                for doc_ep in group.get('endpoints', []):
-                    path = (doc_ep.get('path') or '').strip()
-                    if path:
-                        # Normalize to path-only so we match explorer paths (e.g. /api/v2/...)
-                        if path.startswith('http'):
-                            path = urlparse(path).path or path
-                        # Normalize {x} or {{x}} to <x> to match explorer paths
-                        norm = path.replace('{{', '<').replace('}}', '>')
-                        norm = re.sub(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", r"<\1>", norm)
-                        docs_by_path[(doc_ep.get('method'), norm)] = doc_ep
-            for coll in collections:
-                # Only enrich API-key based collections (vendor-routed + gift voucher API)
-                coll_id = str(coll.get("id", "") or "")
-                if not (coll_id.startswith("v1-vendor-") or coll_id.startswith("v1-api-key-")):
-                    continue
-                for ep in coll.get('endpoints', []):
-                    method = ep.get('method')
-                    path = (ep.get('path') or '').strip()
-                    doc = docs_by_path.get((method, path))
-                    if doc:
-                        if doc.get('request_body') is not None:
-                            ep['sample_body'] = doc['request_body']
-                        if doc.get('response_sample'):
-                            ep['sample_response'] = doc['response_sample']
-                        if doc.get('auth'):
-                            ep['auth'] = doc['auth']
-        except Exception:
-            pass
-
-        # Apply vendor presets for vendor-routed collections
-        # (adds vendor=<code> to sample bodies / query params so it's clear which vendor API is being used)
-        try:
-            import json as _json
-            for coll in collections:
-                vendor_code = (coll.get("vendor_code") or "").strip().lower() or None
-                if not vendor_code:
-                    continue
-                for ep in coll.get("endpoints", []) or []:
-                    method = (ep.get("method") or "GET").upper()
-                    if method == "GET":
-                        params = list(ep.get("params") or [])
-                        existing = None
-                        for p in params:
-                            if (p.get("name") == "vendor") and (p.get("in") == "query"):
-                                existing = p
-                                break
-                        if existing:
-                            existing["value"] = vendor_code
-                            existing.setdefault("required", False)
-                        else:
-                            params.append({
-                                "name": "vendor",
-                                "value": vendor_code,
-                                "in": "query",
-                                "required": False,
-                                "description": "Force vendor for this request",
-                            })
-                        ep["params"] = params
-                        continue
-
-                    body = ep.get("sample_body")
-                    try:
-                        obj = _json.loads(body) if isinstance(body, str) and body.strip() else {}
-                        if not isinstance(obj, dict):
-                            obj = {}
-                    except Exception:
-                        obj = {}
-                    obj["vendor"] = vendor_code
-                    ep["sample_body"] = _json.dumps(obj)
-        except Exception:
-            pass
-        # Vendor categorization from spec (single source of truth)
-        from portal.api_explorer_spec import VENDOR_CATEGORIES, VENDOR_TO_CATEGORY
-        vendors_by_category = {cat: [] for cat in VENDOR_CATEGORIES}
-        vendors = ApiVendor.objects.filter(is_active=True).prefetch_related('apis').order_by('name')
-        vendor_api_count_total = 0
-        for v in vendors:
-            endpoints = []
-            for api in v.apis.filter(is_active=True):
-                # The internal "try" endpoint accepts POST only; vendor_api.http_method is used by handlers.
-                method = "POST"
-                # Expose vendor testing under API v1 as internal surface
-                path = f"/api/v1/api-vendors/{v.code}/apis/{api.api_code}/try/"
-                endpoints.append({
-                    "method": method,
-                    "path": path,
-                    "title": api.name,
-                    "description": api.purpose or "",
-                    "sample_body": "{}",
-                    "sample_response": '{"success": true, "result": {}, "error": null}',
-                    "api_code": api.api_code,
-                    "headers": [
-                        {"name": "Content-Type", "value": "application/json", "required": True},
-                        {"name": "X-Api-Key", "value": "", "required": False},
-                        {"name": "Authorization", "value": "Bearer ", "required": False},
-                    ],
-                    "params": [],
-                })
-            category = VENDOR_TO_CATEGORY.get(v.code, 'other')
-            vendor_data = {
-                "id": f"vendor-{v.code}",
-                "code": v.code,
-                "name": v.name,
-                "description": v.description or f"Vendor: {v.code}. Try APIs via portal.",
-                "icon": "ti-building-store",
-                "api_count": len(endpoints),
-                "endpoints": endpoints,
-            }
-            vendor_api_count_total += len(endpoints)
-            if endpoints:
-                collections.append({
-                    "id": vendor_data["id"],
-                    "name": f"API Vendor – {v.name}",
-                    "icon": vendor_data["icon"],
-                    "description": vendor_data["description"],
-                    "base": "",
-                    "endpoints": endpoints,
-                })
-            vendors_by_category[category].append(vendor_data)
-        # Build list of (category_key, category_info, vendors) for template; record coll index per vendor id
-        collection_index_by_id = {c['id']: i for i, c in enumerate(collections)}
-        # Attach coll_index to every collection so template can reference correct JSON index
-        for c in collections:
-            c["coll_index"] = collection_index_by_id.get(c.get("id"))
-        vendor_categories_with_vendors = []
-        for cat_key, cat_info in VENDOR_CATEGORIES.items():
-            vlist = vendors_by_category.get(cat_key, [])
-            if vlist:
-                for v in vlist:
-                    v['coll_index'] = collection_index_by_id.get(v['id'])
-                vendor_categories_with_vendors.append((cat_key, cat_info, vlist))
-        internal_collections = [c for c in collections if not str(c.get("id", "")).startswith("vendor-")]
-        internal_api_count_total = sum(len(c.get("endpoints", []) or []) for c in internal_collections)
-        context['collections'] = collections
-        context['internal_collections'] = internal_collections
-        context['vendor_categories_with_vendors'] = vendor_categories_with_vendors
-        context['internal_api_count'] = internal_api_count_total
-        context['vendor_api_count'] = vendor_api_count_total
-        context['vendor_count'] = vendors.count()
-        context['partners_for_testing'] = ResellerPartner.objects.filter(status='ACTIVE').order_by('company_name')[:100]
-        profile = getattr(self.request.user, "profile", None)
-        context['has_postman_key'] = bool(profile and getattr(profile, "postman_api_key", None))
-        try:
-            from core.config import payswap_config
-            import json
-            default_key = getattr(payswap_config, "EXPLORER_DEFAULT_API_KEY", None)
-            if default_key and hasattr(default_key, "get_secret_value"):
-                default_key = default_key.get_secret_value()
-            default_key = (default_key or "").strip()
-            if not default_key and self.request.user.is_authenticated:
-                profile = getattr(self.request.user, "profile", None)
-                if profile and getattr(profile, "postman_api_key", None):
-                    default_key = (profile.postman_api_key or "").strip()
-            context["explorer_default_api_key"] = (default_key or "")[:512]
-
-            # Extra env headers for API Explorer (JSON object in env)
-            headers_raw = getattr(payswap_config, "EXPLORER_DEFAULT_HEADERS", None)
-            headers_dict = {}
-            if headers_raw and isinstance(headers_raw, str) and headers_raw.strip():
-                try:
-                    parsed = json.loads(headers_raw)
-                    if isinstance(parsed, dict):
-                        headers_dict = parsed
-                except Exception:
-                    headers_dict = {}
-            # Normalize to {str: str} and drop empty names
-            safe_headers = {}
-            for k, v in (headers_dict or {}).items():
-                name = (str(k) if k is not None else "").strip()
-                if not name:
-                    continue
-                safe_headers[name] = "" if v is None else str(v)
-            context["explorer_default_headers"] = safe_headers
-        except Exception:
-            context["explorer_default_api_key"] = ""
-            context["explorer_default_headers"] = {}
-        return context
-
-
-# ============================================================================
 # SERVICES MANAGEMENT VIEWS
 # ============================================================================
 
@@ -3658,7 +3110,7 @@ class ServicesListView(ListView):
         # Only admin and super can access services
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view services.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -3685,7 +3137,7 @@ class ApiVendorListView(ListView):
     def dispatch(self, *args, **kwargs):
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view API vendors.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -3718,8 +3170,6 @@ class ApiVendorListView(ListView):
 _VENDOR_TO_SERVICE = {
     'euronet': 'bbps',
     'mobikwik': 'bbps',
-    'paypoint': 'aeps',
-    'paypoint_dmt': 'dmt',
     'cashfree': 'kyc',
     'instantpay': 'kyc',
     'kaleyra': 'sms',
@@ -3736,7 +3186,7 @@ def api_vendor_try_api_view(request, vendor_code, api_code):
     Optional keys in body: testing_mode ('admin'|'partner_simulation'), partner_id (for simulation).
     Returns JSON: { success, result, error, status_code, time_ms }.
     """
-    if not request.user.is_authenticated or request.user.role_code not in ['super', 'admin']:
+    if not request.user.is_authenticated or request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({"success": False, "error": "permission_denied"}, status=403)
 
     vendor = get_object_or_404(ApiVendor, code=vendor_code)
@@ -3820,7 +3270,7 @@ def postman_sync_view(request):
     Uses request.user.profile.postman_api_key if api_key not in body.
     Returns JSON: { success, collections } or { success: false, error }.
     """
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({"success": False, "error": "permission_denied"}, status=403)
     try:
         data = json.loads(request.body.decode("utf-8") or "{}")
@@ -3853,7 +3303,7 @@ def postman_save_key_view(request):
     POST: Save Postman API key to user profile.
     Body (JSON): { "api_key": "..." }
     """
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({"success": False, "error": "permission_denied"}, status=403)
     try:
         data = json.loads(request.body.decode("utf-8") or "{}")
@@ -3882,7 +3332,7 @@ class ApiVendorDetailView(DetailView):
     def dispatch(self, *args, **kwargs):
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view API vendors.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -3901,7 +3351,7 @@ class ServiceDetailByCodeView(LoginRequiredMixin, View):
     def dispatch(self, *args, **kwargs):
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view services.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -3925,7 +3375,7 @@ class ServiceDetailView(DetailView):
         # Only admin and super can access services
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view services.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -4142,7 +3592,7 @@ class ServiceDetailView(DetailView):
                 },
             ]
         elif service.code == 'AEPS':
-            # AEPS - PayPoint vendor
+            # AEPS – PayPoint only. Not used by Parkpe (Payswap / future).
             try:
                 from portal.services.vendors.paypoint import PayPointAEPSClient
                 client = PayPointAEPSClient()
@@ -4166,30 +3616,6 @@ class ServiceDetailView(DetailView):
                         {'code': 'agent_service_status', 'name': 'Check Agent Service Status', 'enabled': True},
                         {'code': 'agent_authentication', 'name': 'Check Agent Authentication', 'enabled': True},
                         {'code': 'two_factor_authentication', 'name': 'Two Factor Authentication', 'enabled': True},
-                    ]
-                }
-            ]
-        elif service.code == 'DMT':
-            # DMT - PayPoint vendor (card name: PayPoint)
-            try:
-                from portal.services.vendors.paypoint_dmt import PayPointDMTClient
-                client = PayPointDMTClient()
-                dmt_configured = client.is_configured()
-            except Exception:
-                dmt_configured = False
-            context['vendors'] = [
-                {
-                    'name': 'PayPoint',
-                    'code': 'paypoint_dmt',
-                    'icon': 'ti ti-transfer',
-                    'description': 'PayPoint DMT - Domestic Money Transfer (sender registration, beneficiary, remit)',
-                    'status': 'available' if dmt_configured else 'pending',
-                    'services': [
-                        {'code': 'register_sender', 'name': 'Register Sender', 'enabled': True},
-                        {'code': 'add_beneficiary', 'name': 'Add Beneficiary', 'enabled': True},
-                        {'code': 'remit', 'name': 'Remit', 'enabled': True},
-                        {'code': 'transaction_status', 'name': 'Transaction Status', 'enabled': True},
-                        {'code': 'get_beneficiaries', 'name': 'Get Beneficiaries', 'enabled': True},
                     ]
                 }
             ]
@@ -4226,7 +3652,7 @@ class VendorDetailView(LoginRequiredMixin, View):
     def dispatch(self, *args, **kwargs):
         if not self.request.user.is_authenticated:
             return redirect('/signin/')
-        if self.request.user.role_code not in ['super', 'admin']:
+        if self.request.user.role_code not in ['super_admin', 'admin']:
             messages.error(self.request, 'You do not have permission to view vendors.')
             return redirect('/dashboard/')
         return super().dispatch(*args, **kwargs)
@@ -4242,43 +3668,13 @@ class VendorDetailView(LoginRequiredMixin, View):
             messages.error(request, 'Service not found.')
             return redirect('services_list')
         
-        if service.code not in ['VERIFICATION_API', 'SMS_IVR_GATEWAY', 'PAYMENT_GATEWAY', 'BBPS', 'AEPS', 'DMT', 'INSTANTPAY']:
+        if service.code not in ['VERIFICATION_API', 'SMS_IVR_GATEWAY', 'PAYMENT_GATEWAY', 'BBPS', 'INSTANTPAY']:
             messages.error(request, 'Invalid service.')
             return redirect('service_detail', service_id=service_id)
         
         # Get vendor info
         vendor_info = None
-        if vendor_code == 'paypoint' and service.code == 'AEPS':
-            try:
-                from portal.services.vendors.paypoint import PayPointAEPSClient
-                client = PayPointAEPSClient()
-                configured = client.is_configured()
-            except Exception:
-                configured = False
-            vendor_info = {
-                'name': 'PayPoint',
-                'code': 'paypoint',
-                'icon': 'ti ti-fingerprint',
-                'description': 'PayPoint AEPS - Aadhaar Enabled Payment System. Balance enquiry, cash withdrawal, mini statement.',
-                'status': 'available' if configured else 'pending',
-                'documentation_url': 'https://docs.paypointindia.co.in/api/paypoint-aeps-api/paypoint/overview',
-            }
-        elif vendor_code == 'paypoint_dmt' and service.code == 'DMT':
-            try:
-                from portal.services.vendors.paypoint_dmt import PayPointDMTClient
-                client = PayPointDMTClient()
-                configured = client.is_configured()
-            except Exception:
-                configured = False
-            vendor_info = {
-                'name': 'PayPoint',
-                'code': 'paypoint_dmt',
-                'icon': 'ti ti-transfer',
-                'description': 'PayPoint DMT - Domestic Money Transfer. Sender registration, add beneficiary, remit, transaction status.',
-                'status': 'available' if configured else 'pending',
-                'documentation_url': 'https://docs.paypointindia.co.in/api/paypoint-dmt-api/dmt-api/overview',
-            }
-        elif vendor_code == 'mobikwik' and service.code == 'BBPS':
+        if vendor_code == 'mobikwik' and service.code == 'BBPS':
             try:
                 from portal.services.vendors.mobikwik import MobikwikBBPSClient
                 client = MobikwikBBPSClient()
@@ -4563,26 +3959,6 @@ class VendorDetailView(LoginRequiredMixin, View):
                 {'code': 'pay_bill', 'name': 'Pay Bill', 'icon': 'ti-currency-rupee', 'description': 'Pay a bill'},
                 {'code': 'payment_status', 'name': 'Payment Status', 'icon': 'ti-info-circle', 'description': 'Get payment status by reference id'},
             ]
-        elif vendor_code == 'paypoint' and service.code == 'AEPS':
-            all_apis = [
-                {'code': 'balance_enquiry', 'name': 'Balance Enquiry', 'icon': 'ti-wallet', 'description': 'AEPS balance enquiry using Aadhaar and biometric'},
-                {'code': 'cash_withdrawal', 'name': 'Cash Withdrawal', 'icon': 'ti-currency-rupee', 'description': 'AEPS cash withdrawal'},
-                {'code': 'mini_statement', 'name': 'Mini Statement', 'icon': 'ti-file-text', 'description': 'AEPS mini statement (last transactions)'},
-                {'code': 'transaction_status', 'name': 'Transaction Status', 'icon': 'ti-info-circle', 'description': 'Get AEPS transaction status by reference id'},
-                {'code': 'agent_registration', 'name': 'Agent Registration', 'icon': 'ti-user-plus', 'description': 'PayPoint AEPS agent registration'},
-                {'code': 'update_agent_details', 'name': 'Update Agent Details', 'icon': 'ti-user-edit', 'description': 'Update PayPoint AEPS agent details'},
-                {'code': 'agent_service_status', 'name': 'Check Agent Service Status', 'icon': 'ti-status-change', 'description': 'Check PayPoint AEPS agent service status'},
-                {'code': 'agent_authentication', 'name': 'Check Agent Authentication', 'icon': 'ti-shield-check', 'description': 'Check PayPoint AEPS agent authentication'},
-                {'code': 'two_factor_authentication', 'name': 'Two Factor Authentication', 'icon': 'ti-lock', 'description': 'PayPoint AEPS two factor authentication (2FA)'},
-            ]
-        elif vendor_code == 'paypoint_dmt' and service.code == 'DMT':
-            all_apis = [
-                {'code': 'register_sender', 'name': 'Register Sender', 'icon': 'ti-user-plus', 'description': 'DMT sender/remitter registration'},
-                {'code': 'add_beneficiary', 'name': 'Add Beneficiary', 'icon': 'ti-users', 'description': 'Add DMT beneficiary'},
-                {'code': 'remit', 'name': 'Remit', 'icon': 'ti-currency-rupee', 'description': 'Execute DMT money transfer'},
-                {'code': 'transaction_status', 'name': 'Transaction Status', 'icon': 'ti-info-circle', 'description': 'DMT transaction status by reference id'},
-                {'code': 'get_beneficiaries', 'name': 'Get Beneficiaries', 'icon': 'ti-list', 'description': 'Get list of beneficiaries for a sender'},
-            ]
         elif vendor_code == 'instantpay' and service.code == 'INSTANTPAY':
             from portal.services.vendors.instantpay import INSTANTPAY_API_CATEGORIES
             all_apis = []
@@ -4682,9 +4058,7 @@ class VendorDetailView(LoginRequiredMixin, View):
             dlt_templates = load_dlt_templates()
         
         # Select template based on vendor
-        if vendor_code == 'leegality':
-            template_name = 'portal/services/leegality_vendor_detail.html'
-        elif vendor_code == 'kaleyra':
+        if vendor_code == 'kaleyra':
             template_name = 'portal/services/kaleyra_vendor_detail.html'
         elif vendor_code == 'cashfree':
             template_name = 'portal/services/cashfree_vendor_detail.html'
@@ -4692,14 +4066,6 @@ class VendorDetailView(LoginRequiredMixin, View):
             template_name = 'portal/services/cashfree_pg_vendor_detail.html'
         elif vendor_code == 'mobikwik':
             template_name = 'portal/services/mobikwik_vendor_detail.html'
-        elif vendor_code == 'euronet':
-            template_name = 'portal/services/euronet_vendor_detail.html'
-        elif vendor_code == 'paypoint':
-            template_name = 'portal/services/paypoint_vendor_detail.html'
-        elif vendor_code == 'paypoint_dmt':
-            template_name = 'portal/services/paypoint_dmt_vendor_detail.html'
-        elif vendor_code == 'instantpay':
-            template_name = 'portal/services/instantpay_vendor_detail.html'
         else:
             template_name = 'portal/services/vendor_detail.html'
         
@@ -4712,10 +4078,7 @@ class VendorDetailView(LoginRequiredMixin, View):
             'sms_bridge_numbers': sms_bridge_numbers if vendor_code == 'kaleyra' else [],
             'dlt_templates': dlt_templates,
         }
-        if vendor_code == 'instantpay':
-            from portal.services.vendors.instantpay import INSTANTPAY_API_CATEGORIES
-            context['api_categories'] = INSTANTPAY_API_CATEGORIES
-        if vendor_code in ('mobikwik', 'euronet') and getattr(service, 'code', None) == 'BBPS':
+        if vendor_code == 'mobikwik' and getattr(service, 'code', None) == 'BBPS':
             try:
                 from portal.services.bbps_operators_loader import get_bbps_categories
                 context['bbps_categories'] = get_bbps_categories()
@@ -4743,24 +4106,7 @@ def _get_env_defaults_for_vendor_test_params(vendor_code):
     except Exception:
         return {}
     out = {}
-    if vendor_code == 'euronet':
-        for attr, key in [
-            ('EURONET_BBPS_BASE_URL', 'base_url'),
-            ('EURONET_BBPS_MERCHANT_CODE', 'merchant_code'),
-            ('EURONET_BBPS_USERNAME', 'username'),
-            ('EURONET_BBPS_STORE_CODE', 'store_code'),
-            ('EURONET_BBPS_CHANNEL_CODE', 'channel_code'),
-            ('EURONET_BBPS_AGENT_ID', 'agent_id'),
-            ('EURONET_BBPS_SALT', 'salt'),
-        ]:
-            v = getattr(payswap_config, attr, None)
-            if v is not None:
-                out[key] = (v.get_secret_value() if hasattr(v, 'get_secret_value') else str(v)) or ''
-        for attr, key in [('EURONET_BBPS_PASSWORD', 'password'), ('EURONET_BBPS_ENCRYPTION_KEY', 'encryption_key')]:
-            v = getattr(payswap_config, attr, None)
-            if v is not None:
-                out[key] = (v.get_secret_value() if hasattr(v, 'get_secret_value') else str(v)) or ''
-    elif vendor_code == 'mobikwik':
+    if vendor_code == 'mobikwik':
         for attr, key in [
             ('MOBIKWIK_BBPS_CLIENT_ID', 'client_id'),
             ('MOBIKWIK_BBPS_MERCHANT_ID', 'merchant_id'),
@@ -4784,18 +4130,6 @@ def _get_env_defaults_for_vendor_test_params(vendor_code):
 
 def _get_vendor_test_params_schema(vendor_code):
     """Return list of {key, label, type, placeholder} for test params form per vendor."""
-    if vendor_code == 'euronet':
-        return [
-            {'key': 'base_url', 'label': 'Base URL', 'type': 'text', 'placeholder': 'https://epayuat.eftapme.com/ENServiceAES256/API'},
-            {'key': 'merchant_code', 'label': 'Merchant Code', 'type': 'text', 'placeholder': 'PAY'},
-            {'key': 'username', 'label': 'Username', 'type': 'text', 'placeholder': 'PAY_01'},
-            {'key': 'password', 'label': 'Password', 'type': 'password', 'placeholder': ''},
-            {'key': 'store_code', 'label': 'Store Code', 'type': 'text', 'placeholder': 'PAY_01'},
-            {'key': 'channel_code', 'label': 'Channel Code', 'type': 'text', 'placeholder': 'INT'},
-            {'key': 'agent_id', 'label': 'Agent ID', 'type': 'text', 'placeholder': 'EU01EU02000000000001'},
-            {'key': 'salt', 'label': 'Salt', 'type': 'text', 'placeholder': 'Os3dcl82'},
-            {'key': 'encryption_key', 'label': 'Encryption Key', 'type': 'password', 'placeholder': ''},
-        ]
     if vendor_code == 'mobikwik':
         return [
             {'key': 'base_url', 'label': 'Base URL', 'type': 'text', 'placeholder': 'https://alpha3.mobikwik.com'},
@@ -4812,7 +4146,7 @@ def _get_vendor_test_params_schema(vendor_code):
 @login_required
 def save_vendor_test_params_view(request, service_id, vendor_code):
     """Save optional test parameter overrides for a vendor. Stored in service.vendor_config[vendor_code][test_params]."""
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     try:
@@ -4837,37 +4171,14 @@ def save_vendor_test_params_view(request, service_id, vendor_code):
 @login_required
 def test_all_vendor_apis_view(request, service_id, vendor_code):
     """Run all API tests for this vendor and return combined results. Uses saved test_params if set."""
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     vendor_config = getattr(service, 'vendor_config', None) or {}
     test_params = vendor_config.get(vendor_code, {}).get('test_params') or {}
 
     results = []
-    if vendor_code == 'euronet' and getattr(service, 'code', None) == 'BBPS':
-        from portal.services.bbps_service import BBPSService
-        bbps = BBPSService(vendor='euronet', test_params=test_params)
-        if not bbps.is_available():
-            return JsonResponse({
-                'success': False,
-                'message': 'Euronet BBPS not configured. Set .env or save test parameters above.',
-                'results': [],
-            }, status=503)
-        for name, fn in [
-            ('1. Balance Enquiry', lambda: bbps.balance_check()),
-            ('2. Get Billers', lambda: bbps.get_operators(category=None)),
-        ]:
-            try:
-                r = fn()
-                results.append({
-                    'api': name,
-                    'success': bool(r.get('success')),
-                    'message': r.get('message') or r.get('error') or ('OK' if r.get('success') else 'Failed'),
-                    'data': r.get('data') if r.get('success') else None,
-                })
-            except Exception as e:
-                results.append({'api': name, 'success': False, 'message': str(e), 'data': None})
-    elif vendor_code == 'mobikwik' and getattr(service, 'code', None) == 'BBPS':
+    if vendor_code == 'mobikwik' and getattr(service, 'code', None) == 'BBPS':
         from portal.services.bbps_service import BBPSService
         bbps = BBPSService(vendor='mobikwik', test_params=test_params)
         if not bbps.is_available():
@@ -4901,24 +4212,74 @@ def test_all_vendor_apis_view(request, service_id, vendor_code):
 # Mobikwik BBPS Test API (for portal test UI – per BBPS guideline)
 # -------------------------------------------------------------------------
 
-def _create_bbps_log_entry(request, action, success, message, extra_data=None, vendor=None):
-    """Create a LogEntry for BBPS API calls (portal test UI). category: mobikwik_bbps or euronet_bbps."""
+# Human-readable API names for BBPS log detail (which API call is this log for)
+_BBPS_ACTION_DISPLAY = {
+    'balance_enquiry': 'Balance Check',
+    'get_billers': 'Get Operators / Billers',
+    'operators': 'Get Operators (Excel)',
+    'fetch_bill': 'Fetch Bill',
+    'pay_bill': 'Pay Bill',
+    'payment_status': 'Payment Status',
+}
+
+
+def _vendor_response_id_from_result(result, action):
+    """Extract vendor API response/transaction ID from BBPSService result for logging."""
+    if not result or not isinstance(result, dict):
+        return None
+    data = result.get("data") or {}
+    if action == "pay_bill":
+        return result.get("transaction_id") or data.get("transactionId") or data.get("refId") or data.get("transaction_id") or data.get("ref_id")
+    if action == "payment_status":
+        return data.get("transactionId") or data.get("refId") or result.get("ref_id")
+    if action == "fetch_bill":
+        bill_details = result.get("bill_details") or data.get("billDetails") or data.get("bill_details") or data
+        if isinstance(bill_details, dict):
+            return bill_details.get("billId") or bill_details.get("bill_id") or data.get("refId") or data.get("referenceId")
+    return data.get("responseId") or data.get("refId") or data.get("transactionId") or data.get("transaction_id")
+
+
+def _create_bbps_log_entry(request, action, success, message, extra_data=None, vendor=None, request_method=None, request_body=None, response_status=None, response_body=None, request_id=None, response_id=None, vendor_response_id=None):
+    """Create a LogEntry for BBPS API calls (portal test UI). category: mobikwik_bbps or euronet_bbps.
+    request_body/response_body are shown on log detail page (/logs/<id>/). Pass sanitized dict/str.
+    request_id/response_id are shown for tracing (optional).
+    vendor_response_id: ID from vendor API response (e.g. transactionId, refId) for tracing.
+    """
     try:
         level = 'INFO' if success else 'ERROR'
         category = 'euronet_bbps' if vendor == 'euronet' else 'mobikwik_bbps'
         extra = dict(extra_data or {}, action=action, success=success)
+        api_display = _BBPS_ACTION_DISPLAY.get(action, action.replace('_', ' ').title())
+        extra['api_name'] = api_display
+        if vendor_response_id is not None and str(vendor_response_id).strip():
+            extra['vendor_response_id'] = str(vendor_response_id).strip()
+        if request and request.path:
+            extra['api_url'] = request.path
         if vendor:
             extra['vendor'] = vendor
+        if request_method:
+            extra['request_method'] = request_method
+        if request_body is not None:
+            import json
+            extra['request_body'] = json.dumps(request_body, indent=2) if isinstance(request_body, dict) else str(request_body)
+        if response_status is not None:
+            extra['response_status'] = response_status
+        if response_body is not None:
+            import json
+            extra['response_body'] = json.dumps(response_body, indent=2) if isinstance(response_body, dict) else str(response_body)
+        message_with_api = f"[{api_display}] {message[:480]}" if message else f"[{api_display}]"
         LogEntry.objects.create(
             log_level=level,
             category=category,
-            message=message[:500] if message else '',
+            message=message_with_api[:500],
             module_name='portal.views.bbps_test',
             url=request.path if request else None,
             user=request.user if request and request.user.is_authenticated else None,
             client_ip=get_client_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
             extra_data=extra,
+            request_id=request_id,
+            response_id=response_id,
         )
     except Exception:
         pass
@@ -4935,7 +4296,9 @@ def _get_bbps_test_params(service, vendor: str) -> dict:
 @login_required
 def bbps_test_balance_view(request, service_id):
     """BBPS Balance Enquiry (Postman #1) – GET ?vendor=euronet. Uses saved test_params if set."""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -4953,6 +4316,11 @@ def bbps_test_balance_view(request, service_id):
         request, 'balance_enquiry', success, msg,
         extra_data={'vendor': vendor, 'success': success},
         vendor=vendor,
+        request_method='GET',
+        response_status=200,
+        response_body=result,
+        request_id=request_id,
+        response_id=response_id,
     )
     return JsonResponse(result)
 
@@ -4961,7 +4329,9 @@ def bbps_test_balance_view(request, service_id):
 @login_required
 def bbps_test_billers_view(request, service_id):
     """BBPS Get Billers / Operators from API (Postman #2) – GET ?vendor=euronet&category=optional."""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -4981,6 +4351,12 @@ def bbps_test_billers_view(request, service_id):
         request, 'get_billers', success, msg,
         extra_data={'vendor': vendor, 'category': category, 'count': len(operators)},
         vendor=vendor,
+        request_method='GET',
+        request_body=dict(request.GET) if request.GET else None,
+        response_status=200,
+        response_body=result,
+        request_id=request_id,
+        response_id=response_id,
     )
     return JsonResponse(result)
 
@@ -4989,7 +4365,9 @@ def bbps_test_billers_view(request, service_id):
 @login_required
 def bbps_test_operators_view(request, service_id):
     """Return BBPS operators from Operators.xlsx (JSON). Optional ?category=ELECTRICITY"""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -5004,10 +4382,12 @@ def bbps_test_operators_view(request, service_id):
             f'BBPS operators loaded: {len(operators)} operators',
             extra_data={'category_filter': category, 'count': len(operators)},
             vendor=vendor,
+            request_id=request_id,
+            response_id=response_id,
         )
         return JsonResponse({'success': True, 'operators': operators})
     except Exception as e:
-        _create_bbps_log_entry(request, 'operators', False, f'BBPS operators failed: {str(e)}', extra_data={'error': str(e)}, vendor=request.GET.get('vendor'))
+        _create_bbps_log_entry(request, 'operators', False, f'BBPS operators failed: {str(e)}', extra_data={'error': str(e)}, vendor=request.GET.get('vendor'), request_id=request_id, response_id=response_id)
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
@@ -5015,7 +4395,9 @@ def bbps_test_operators_view(request, service_id):
 @login_required
 def bbps_test_fetch_bill_view(request, service_id):
     """BBPS Fetch Bill test – POST JSON: operator_id, customer_id, subscriber_id?, ad1?, ad2?, ..."""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -5034,6 +4416,19 @@ def bbps_test_fetch_bill_view(request, service_id):
     for k in ['ad1', 'ad2', 'ad3', 'ad4', 'ad9']:
         if data.get(k) not in (None, ''):
             extra[k] = str(data[k]).strip()
+    if data.get('cir') not in (None, '') or data.get('circle') not in (None, ''):
+        extra['cir'] = str(data.get('cir') or data.get('circle') or '').strip()
+    elif operator_id:
+        try:
+            from portal.models import BBPSOperator
+            op_record = BBPSOperator.objects.filter(
+                models.Q(biller_id=operator_id) | models.Q(op=operator_id),
+                is_active=True,
+            ).first()
+            if op_record and getattr(op_record, 'circle', None) and str(op_record.circle).strip():
+                extra['cir'] = str(op_record.circle).strip()
+        except Exception:
+            pass
     vendor = data.get('vendor') or request.GET.get('vendor')
     test_params = _get_bbps_test_params(service, vendor)
     from portal.services.bbps_service import BBPSService
@@ -5043,10 +4438,18 @@ def bbps_test_fetch_bill_view(request, service_id):
     result = bbps.fetch_bill(operator_id=operator_id, customer_id=customer_id, subscriber_id=subscriber_id, extra=extra or None)
     success = result.get('success', False)
     msg = result.get('message') or ('Bill fetched' if success else 'Bill fetch failed')
+    vendor_resp_id = _vendor_response_id_from_result(result, 'fetch_bill')
     _create_bbps_log_entry(
         request, 'fetch_bill', success, msg,
         extra_data={'operator_id': operator_id, 'success': success},
         vendor=data.get('vendor') or request.GET.get('vendor'),
+        request_method='POST',
+        request_body=data,
+        response_status=200,
+        response_body=result,
+        request_id=request_id,
+        response_id=response_id,
+        vendor_response_id=vendor_resp_id,
     )
     return JsonResponse(result)
 
@@ -5055,7 +4458,9 @@ def bbps_test_fetch_bill_view(request, service_id):
 @login_required
 def bbps_test_pay_bill_view(request, service_id):
     """BBPS Pay Bill test – POST JSON: operator_id, customer_id, amount, ref_id, subscriber_id?, ad1?, ..."""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -5085,10 +4490,18 @@ def bbps_test_pay_bill_view(request, service_id):
     result = bbps.pay_bill(operator_id=operator_id, customer_id=customer_id, amount=str(amount), ref_id=str(ref_id), subscriber_id=subscriber_id, extra=extra or None)
     success = result.get('success', False)
     msg = result.get('message') or ('Payment submitted' if success else 'Payment failed')
+    vendor_resp_id = _vendor_response_id_from_result(result, 'pay_bill')
     _create_bbps_log_entry(
         request, 'pay_bill', success, msg,
         extra_data={'operator_id': operator_id, 'ref_id': ref_id, 'success': success},
         vendor=data.get('vendor') or request.GET.get('vendor'),
+        request_method='POST',
+        request_body=data,
+        response_status=200,
+        response_body=result,
+        request_id=request_id,
+        response_id=response_id,
+        vendor_response_id=vendor_resp_id,
     )
     return JsonResponse(result)
 
@@ -5097,7 +4510,9 @@ def bbps_test_pay_bill_view(request, service_id):
 @login_required
 def bbps_test_status_view(request, service_id):
     """BBPS Payment Status test – GET ?ref_id=..."""
-    if request.user.role_code not in ['super', 'admin']:
+    request_id = get_request_id(request)
+    response_id = generate_response_id()
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
     service = get_object_or_404(Service, id=service_id)
     if service.code != 'BBPS':
@@ -5114,10 +4529,18 @@ def bbps_test_status_view(request, service_id):
     result = bbps.payment_status(ref_id=ref_id)
     success = result.get('success', False)
     msg = result.get('message') or (f'Status: {result.get("status", "unknown")}' if success else 'Status fetch failed')
+    vendor_resp_id = _vendor_response_id_from_result(result, 'payment_status')
     _create_bbps_log_entry(
         request, 'payment_status', success, msg,
         extra_data={'ref_id': ref_id, 'success': success},
         vendor=request.GET.get('vendor'),
+        request_method='GET',
+        request_body=dict(request.GET) if request.GET else None,
+        response_status=200,
+        response_body=result,
+        request_id=request_id,
+        response_id=response_id,
+        vendor_response_id=vendor_resp_id,
     )
     return JsonResponse(result)
 
@@ -5156,7 +4579,7 @@ def instantpay_test_api_view(request, service_id):
     import json
     from django.http import JsonResponse, HttpResponse
     
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         if request.content_type and 'application/json' in (request.content_type or ''):
             return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
         return HttpResponse(_instantpay_test_result_html(service_id, False, '', 403, None, 'Permission denied'), status=403, content_type='text/html; charset=utf-8')
@@ -5229,7 +4652,7 @@ def test_verification_api_view(request, service_id):
     from portal.services.verification_api import VerificationAPIService
     
     # Check permissions
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({
             'success': False,
             'message': 'Permission denied'
@@ -6108,7 +5531,7 @@ def manage_kaleyra_bridge_numbers_view(request, service_id):
     from django.utils import timezone
     
     # Check permissions
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({
             'success': False,
             'message': 'Permission denied'
@@ -6227,7 +5650,7 @@ def toggle_vendor_service_view(request, service_id):
     from portal.models import Service
     
     # Check permissions
-    if request.user.role_code not in ['super', 'admin']:
+    if request.user.role_code not in ['super_admin', 'admin']:
         return JsonResponse({
             'success': False,
             'message': 'Permission denied'
@@ -6748,7 +6171,7 @@ class BrandOnboardingStepView(LoginRequiredMixin, View):
                         # Send notification to admins
                         from portal.models import User
                         admin_users = User.objects.filter(
-                            role_code__in=['admin', 'super'],
+                            role_code__in=['super_admin', 'admin'],
                             is_active=True
                         ).select_related('profile')
                         for admin in admin_users:
@@ -6856,7 +6279,7 @@ class BrandOnboardingAdminListView(LoginRequiredMixin, ListView):
     
     def get_queryset(self):
         # Only admins and super users can access
-        if not (self.request.user.role_code in ['admin', 'super'] or self.request.user.is_staff):
+        if not (self.request.user.role_code in ['super_admin', 'admin'] or self.request.user.is_staff):
             raise Http404
         
         queryset = GiftVoucherBrand.objects.filter(
@@ -6884,7 +6307,7 @@ class BrandOnboardingAdminDetailView(LoginRequiredMixin, View):
     
     def get(self, request, brand_id):
         # Only admins and super users can access
-        if not (request.user.role_code in ['admin', 'super'] or request.user.is_staff):
+        if not (request.user.role_code in ['super_admin', 'admin'] or request.user.is_staff):
             raise Http404
         
         brand = get_object_or_404(GiftVoucherBrand, id=brand_id)
@@ -6907,7 +6330,7 @@ class BrandOnboardingAdminDetailView(LoginRequiredMixin, View):
     
     def post(self, request, brand_id):
         # Only admins and super users can access
-        if not (request.user.role_code in ['admin', 'super'] or request.user.is_staff):
+        if not (request.user.role_code in ['super_admin', 'admin'] or request.user.is_staff):
             raise Http404
         
         brand = get_object_or_404(GiftVoucherBrand, id=brand_id)
@@ -7191,7 +6614,7 @@ class VoucherIssueSingleSuccessView(LoginRequiredMixin, TemplateView):
         user = self.request.user
         context['can_see_voucher_sensitive'] = (
             getattr(user, 'is_staff', False) or
-            getattr(user, 'role_code', None) in ('admin', 'super') or
+            getattr(user, 'role_code', None) in ('super_admin', 'admin') or
             user.has_perm('portal.view_voucher_sensitive')
         )
         return context
@@ -7497,7 +6920,7 @@ class VoucherDetailView(LoginRequiredMixin, DetailView):
         user = self.request.user
         context['can_see_voucher_sensitive'] = (
             getattr(user, 'is_staff', False) or
-            getattr(user, 'role_code', None) in ('admin', 'super') or
+            getattr(user, 'role_code', None) in ('super_admin', 'admin') or
             user.has_perm('portal.view_voucher_sensitive')
         )
         return context
@@ -7765,7 +7188,7 @@ class VoucherXBalanceCheckView(LoginRequiredMixin, View):
     permission_class = CanAccessVoucherX()
 
     def _is_admin_user(self, user):
-        return getattr(user, 'role_code', None) in ('admin', 'super') or getattr(user, 'is_staff', False)
+        return getattr(user, 'role_code', None) in ('super_admin', 'admin') or getattr(user, 'is_staff', False)
 
     def get(self, request):
         if not self.permission_class.has_permission(request, self):
@@ -7928,7 +7351,7 @@ class VoucherXTabbedView(LoginRequiredMixin, View):
             
         elif tab == 'onboarding':
             # Pending reviews for admins
-            if request.user.role_code in ['admin', 'super'] or request.user.is_staff:
+            if request.user.role_code in ['super_admin', 'admin'] or request.user.is_staff:
                 pending_brands = GiftVoucherBrand.objects.filter(
                     onboarding_status='SUBMITTED'
                 ).select_related('created_by').order_by('-updated_at')[:20]
@@ -9090,1113 +8513,6 @@ class VoucherBatchExportView(LoginRequiredMixin, View):
             return redirect('voucher_batch_detail', batch_id=batch_id)
 
 
-# ============================================================================
-# RESELLER PARTNER DASHBOARD VIEWS
-# ============================================================================
-
-class ResellerDashboardView(LoginRequiredMixin, TemplateView):
-    """Reseller Partner Dashboard"""
-    template_name = 'portal/reseller/dashboard.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Get or create reseller partner for current user
-        from portal.models import ResellerPartner
-        from portal.services.reseller_service import ResellerService
-        
-        try:
-            user_email = None
-            if hasattr(self.request.user, 'profile') and hasattr(self.request.user.profile, 'email'):
-                user_email = self.request.user.profile.email
-            elif hasattr(self.request.user, 'email') and self.request.user.email:
-                user_email = self.request.user.email
-            
-            if user_email:
-                partner = ResellerPartner.objects.get(email=user_email)
-            else:
-                partner = None
-        except ResellerPartner.DoesNotExist:
-            partner = None
-        
-        context['partner'] = partner
-        context['is_approved'] = partner and partner.onboarding_status == 'APPROVED' if partner else False
-        
-        # Get API keys if partner exists
-        if partner:
-            from portal.models import APIKey
-            context['api_keys'] = APIKey.objects.filter(partner=partner).order_by('-created_at')
-            context['active_keys'] = APIKey.objects.filter(partner=partner, status='ACTIVE').count()
-            
-            # Get usage stats
-            from portal.models import APIKeyUsageLog
-            from django.utils import timezone
-            from datetime import timedelta
-            
-            last_24h = timezone.now() - timedelta(days=1)
-            context['requests_24h'] = APIKeyUsageLog.objects.filter(
-                partner=partner,
-                created_at__gte=last_24h
-            ).count()
-            context['success_rate'] = self._calculate_success_rate(partner)
-        
-        return context
-    
-    def _calculate_success_rate(self, partner):
-        """Calculate API success rate for partner"""
-        from portal.models import APIKeyUsageLog
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        last_7d = timezone.now() - timedelta(days=7)
-        total = APIKeyUsageLog.objects.filter(partner=partner, created_at__gte=last_7d).count()
-        if total == 0:
-            return 100.0
-        
-        successful = APIKeyUsageLog.objects.filter(
-            partner=partner,
-            created_at__gte=last_7d,
-            status_code__lt=400
-        ).count()
-        
-        return round((successful / total) * 100, 2)
+# Reseller/Partner UI removed — ParkPe & Payswap managed via Project Management (dashboard/projects/).
 
 
-class ResellerAPIKeysView(LoginRequiredMixin, ListView):
-    """List API keys for reseller"""
-    template_name = 'portal/reseller/api_keys/list.html'
-    context_object_name = 'api_keys'
-    
-    def get_queryset(self):
-        from portal.models import ResellerPartner, APIKey
-        try:
-            partner = ResellerPartner.objects.get(email=self.request.user.profile.email if hasattr(self.request.user, 'profile') else None)
-            return APIKey.objects.filter(partner=partner).order_by('-created_at')
-        except ResellerPartner.DoesNotExist:
-            return APIKey.objects.none()
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from portal.models import ResellerPartner
-        try:
-            context['partner'] = ResellerPartner.objects.get(email=self.request.user.profile.email if hasattr(self.request.user, 'profile') else None)
-        except ResellerPartner.DoesNotExist:
-            context['partner'] = None
-        return context
-
-
-class ResellerAPIKeyCreateView(LoginRequiredMixin, View):
-    """Create new API key"""
-    template_name = 'portal/reseller/api_keys/create.html'
-    
-    def get(self, request):
-        from portal.models import ResellerPartner
-        
-        user_email = None
-        if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'email'):
-            user_email = request.user.profile.email
-        elif hasattr(request.user, 'email') and request.user.email:
-            user_email = request.user.email
-        
-        try:
-            if user_email:
-                partner = ResellerPartner.objects.get(email=user_email)
-                if partner.onboarding_status != 'APPROVED':
-                    messages.error(request, 'Partner onboarding must be approved before creating API keys')
-                    return redirect('reseller_dashboard')
-            else:
-                messages.error(request, 'Reseller partner not found')
-                return redirect('reseller_dashboard')
-        except ResellerPartner.DoesNotExist:
-            messages.error(request, 'Reseller partner not found')
-            return redirect('reseller_dashboard')
-        
-        return render(request, self.template_name, {'partner': partner})
-    
-    def post(self, request):
-        from portal.models import ResellerPartner
-        from portal.services.api_key_service import APIKeyService
-        
-        user_email = None
-        if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'email'):
-            user_email = request.user.profile.email
-        elif hasattr(request.user, 'email') and request.user.email:
-            user_email = request.user.email
-        
-        try:
-            if not user_email:
-                messages.error(request, 'Reseller partner not found')
-                return redirect('reseller_dashboard')
-            
-            partner = ResellerPartner.objects.get(email=user_email)
-            if partner.onboarding_status != 'APPROVED':
-                messages.error(request, 'Partner onboarding must be approved')
-                return redirect('reseller_dashboard')
-            
-            key_name = request.POST.get('key_name')
-            key_type = request.POST.get('key_type', 'TEST')
-            permissions = self._parse_permissions(request.POST)
-            rate_limits = self._parse_rate_limits(request.POST)
-            ip_whitelist = self._parse_ip_whitelist(request.POST.get('ip_whitelist', ''))
-            
-            # Create API key
-            api_key_service = APIKeyService()
-            api_key, plain_key, plain_secret = api_key_service.create_api_key(
-                partner=partner,
-                key_name=key_name,
-                key_type=key_type,
-                permissions=permissions,
-                rate_limits=rate_limits,
-                ip_whitelist=ip_whitelist,
-                created_by=request.user
-            )
-            
-            # Store plain keys in session to show once
-            request.session['new_api_key'] = plain_key
-            request.session['new_api_secret'] = plain_secret
-            request.session['new_api_key_id'] = api_key.id
-            
-            messages.success(request, 'API key created successfully. Please save the keys - they will not be shown again.')
-            return redirect('reseller_api_key_detail', key_id=api_key.id)
-            
-        except ResellerPartner.DoesNotExist:
-            messages.error(request, 'Reseller partner not found')
-            return redirect('reseller_dashboard')
-        except Exception as e:
-            logger.error(f'Error creating API key: {str(e)}', traceback=traceback.format_exc())
-            messages.error(request, f'Failed to create API key: {str(e)}')
-            return redirect('reseller_api_keys')
-    
-    def _parse_permissions(self, post_data):
-        """Parse service permissions from form data"""
-        permissions = {}
-        services = ['voucher', 'kyc', 'payment', 'sms']
-        for service in services:
-            service_perms = {}
-            actions = {
-                'voucher': ['issue', 'redeem', 'balance', 'pin_change', 'batch_view'],
-                'kyc': ['pan', 'aadhaar', 'bank', 'driving_license', 'voter_id', 'passport', 'gst', 'face_match', 'face_liveness'],
-                'payment': ['initiate', 'status', 'refund'],
-                'sms': ['send', 'otp_send', 'otp_verify', 'delivery_status']
-            }
-            for action in actions.get(service, []):
-                if post_data.get(f'{service}_{action}') == 'on':
-                    service_perms[action] = True
-            if service_perms:
-                permissions[service] = service_perms
-        return permissions
-    
-    def _parse_rate_limits(self, post_data):
-        """Parse rate limits from form data"""
-        rate_limits = {}
-        services = ['voucher', 'kyc', 'payment', 'sms']
-        for service in services:
-            per_min = post_data.get(f'{service}_rate_per_min', '100')
-            per_hour = post_data.get(f'{service}_rate_per_hour', '1000')
-            try:
-                rate_limits[service] = {
-                    'requests_per_minute': int(per_min),
-                    'requests_per_hour': int(per_hour)
-                }
-            except ValueError:
-                rate_limits[service] = {
-                    'requests_per_minute': 100,
-                    'requests_per_hour': 1000
-                }
-        return rate_limits
-    
-    def _parse_ip_whitelist(self, ip_string):
-        """Parse IP whitelist from comma-separated string"""
-        if not ip_string:
-            return []
-        return [ip.strip() for ip in ip_string.split(',') if ip.strip()]
-
-
-class ResellerAPIKeyDetailView(LoginRequiredMixin, DetailView):
-    """View API key details"""
-    model = APIKey
-    template_name = 'portal/reseller/api_keys/detail.html'
-    context_object_name = 'api_key'
-    pk_url_kwarg = 'key_id'
-    
-    def get_queryset(self):
-        from portal.models import ResellerPartner
-        try:
-            partner = ResellerPartner.objects.get(email=self.request.user.profile.email if hasattr(self.request.user, 'profile') else None)
-            return APIKey.objects.filter(partner=partner)
-        except ResellerPartner.DoesNotExist:
-            return APIKey.objects.none()
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Check if this is a newly created key (show plain keys once)
-        if self.request.session.get('new_api_key_id') == self.object.id:
-            context['show_plain_keys'] = True
-            context['plain_api_key'] = self.request.session.get('new_api_key')
-            context['plain_api_secret'] = self.request.session.get('new_api_secret')
-            # Clear from session after showing
-            del self.request.session['new_api_key']
-            del self.request.session['new_api_secret']
-            del self.request.session['new_api_key_id']
-        
-        # Get usage stats
-        from portal.models import APIKeyUsageLog
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        last_7d = timezone.now() - timedelta(days=7)
-        context['usage_logs'] = APIKeyUsageLog.objects.filter(
-            api_key=self.object
-        ).order_by('-created_at')[:50]
-        context['usage_7d'] = APIKeyUsageLog.objects.filter(
-            api_key=self.object,
-            created_at__gte=last_7d
-        ).count()
-        
-        return context
-
-
-class ResellerAPIKeyRevokeView(LoginRequiredMixin, View):
-    """Revoke API key"""
-    
-    def post(self, request, key_id):
-        from portal.models import ResellerPartner, APIKey
-        from portal.services.api_key_service import APIKeyService
-        from portal.utils.logging_helper import get_logger
-        
-        logger = get_logger('portal.views')
-        
-        user_email = None
-        if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'email'):
-            user_email = request.user.profile.email
-        elif hasattr(request.user, 'email') and request.user.email:
-            user_email = request.user.email
-        
-        try:
-            if not user_email:
-                messages.error(request, 'Reseller partner not found')
-                return redirect('reseller_api_keys')
-            
-            partner = ResellerPartner.objects.get(email=user_email)
-            api_key = APIKey.objects.get(id=key_id, partner=partner)
-            
-            reason = request.POST.get('reason', 'Revoked by user')
-            APIKeyService.revoke_api_key(api_key, reason, request.user)
-            
-            messages.success(request, 'API key revoked successfully')
-            return redirect('reseller_api_keys')
-            
-        except (ResellerPartner.DoesNotExist, APIKey.DoesNotExist):
-            messages.error(request, 'API key not found')
-            return redirect('reseller_api_keys')
-        except Exception as e:
-            logger.error(f'Error revoking API key: {str(e)}', traceback=traceback.format_exc())
-            messages.error(request, f'Failed to revoke API key: {str(e)}')
-            return redirect('reseller_api_keys')
-
-
-class ResellerUsageStatsView(LoginRequiredMixin, TemplateView):
-    """Usage statistics for reseller"""
-    template_name = 'portal/reseller/usage_stats.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from portal.models import ResellerPartner, APIKeyUsageLog
-        from django.utils import timezone
-        from datetime import timedelta
-        from django.db.models import Count, Avg, Q
-        
-        user_email = None
-        if hasattr(self.request.user, 'profile') and hasattr(self.request.user.profile, 'email'):
-            user_email = self.request.user.profile.email
-        elif hasattr(self.request.user, 'email') and self.request.user.email:
-            user_email = self.request.user.email
-        
-        try:
-            if user_email:
-                partner = ResellerPartner.objects.get(email=user_email)
-            else:
-                partner = None
-        except ResellerPartner.DoesNotExist:
-            partner = None
-        
-        if partner:
-            # Get stats for last 30 days
-            last_30d = timezone.now() - timedelta(days=30)
-            logs = APIKeyUsageLog.objects.filter(partner=partner, created_at__gte=last_30d)
-            
-            context['partner'] = partner
-            context['total_requests'] = logs.count()
-            context['successful_requests'] = logs.filter(status_code__lt=400).count()
-            context['failed_requests'] = logs.filter(status_code__gte=400).count()
-            context['avg_response_time'] = logs.aggregate(avg=Avg('response_time'))['avg'] or 0
-            
-            # Requests by endpoint
-            context['requests_by_endpoint'] = logs.values('endpoint').annotate(
-                count=Count('id')
-            ).order_by('-count')[:10]
-            
-            # Requests by day
-            context['requests_by_day'] = logs.extra(
-                select={'day': "DATE(created_at)"}
-            ).values('day').annotate(count=Count('id')).order_by('day')
-        
-        return context
-
-
-class ResellerOnboardingView(LoginRequiredMixin, View):
-    """Reseller Partner Onboarding - Multi-step form"""
-    template_name = 'portal/reseller/onboarding/step1_company.html'
-    
-    def get(self, request, step=1):
-        from portal.models import ResellerPartner
-        from portal.forms import ResellerOnboardingStep1Form, ResellerOnboardingStep2Form
-        
-        # Check if already onboarded
-        try:
-            partner = ResellerPartner.objects.get(email=request.user.profile.email if hasattr(request.user, 'profile') else request.user.email)
-            if partner.onboarding_status == 'APPROVED':
-                messages.info(request, 'You are already onboarded and approved.')
-                return redirect('reseller_dashboard')
-        except ResellerPartner.DoesNotExist:
-            partner = None
-        
-        if step == 1:
-            form = ResellerOnboardingStep1Form()
-            return render(request, 'portal/reseller/onboarding/step1_company.html', {'form': form, 'step': 1})
-        elif step == 2:
-            form = ResellerOnboardingStep2Form()
-            return render(request, 'portal/reseller/onboarding/step2_contact.html', {'form': form, 'step': 2})
-        # Add more steps as needed
-        
-        return render(request, 'portal/reseller/onboarding/step1_company.html', {'step': 1})
-    
-    def post(self, request, step=1):
-        from portal.services.reseller_service import ResellerService
-        
-        if step == 1:
-            # Step 1: Company Information
-            company_name = request.POST.get('company_name')
-            business_type = request.POST.get('business_type')
-            gst_number = request.POST.get('gst_number', '')
-            address = request.POST.get('address')
-            
-            # Store in session for multi-step
-            request.session['onboarding_company_name'] = company_name
-            request.session['onboarding_business_type'] = business_type
-            request.session['onboarding_gst_number'] = gst_number
-            request.session['onboarding_address'] = address
-            
-            return redirect('reseller_onboarding_step', step=2)
-        
-        elif step == 2:
-            # Step 2: Contact Details
-            contact_person = request.POST.get('contact_person')
-            email = request.user.profile.email if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'email') else (request.user.email or request.user.username)
-            phone = request.POST.get('phone')
-            
-            # Create partner
-            reseller_service = ResellerService()
-            partner = reseller_service.create_reseller_partner(
-                company_name=request.session.get('onboarding_company_name'),
-                contact_person=contact_person,
-                email=email,
-                phone=phone,
-                business_type=request.session.get('onboarding_business_type'),
-                address=request.session.get('onboarding_address'),
-                gst_number=request.session.get('onboarding_gst_number') or None,
-                created_by=request.user
-            )
-            
-            # Clear session
-            for key in list(request.session.keys()):
-                if key.startswith('onboarding_'):
-                    del request.session[key]
-            
-            messages.success(request, 'Onboarding application submitted. Waiting for admin approval.')
-            return redirect('reseller_onboarding_status')
-        
-        return redirect('reseller_onboarding')
-
-
-class ResellerOnboardingStatusView(LoginRequiredMixin, TemplateView):
-    """Onboarding status view"""
-    template_name = 'portal/reseller/onboarding/status.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from portal.models import ResellerPartner
-        
-        try:
-            partner = ResellerPartner.objects.get(email=self.request.user.profile.email if hasattr(self.request.user, 'profile') else None)
-            context['partner'] = partner
-        except ResellerPartner.DoesNotExist:
-            context['partner'] = None
-        
-        return context
-
-
-# ============================================================================
-# ADMIN RESELLER PARTNER MANAGEMENT DASHBOARD
-# ============================================================================
-
-class PartnerDashboardRouterView(LoginRequiredMixin, View):
-    """
-    Smart router that shows:
-    - Admin management dashboard if user is admin/super
-    - Partner self-service dashboard if user is a partner
-    """
-    
-    def dispatch(self, request, *args, **kwargs):
-        # Check if user is admin or super
-        if request.user.role_code in ['admin', 'super'] or request.user.is_staff:
-            # Show admin management dashboard
-            admin_view = AdminResellerPartnerDashboardView.as_view()
-            return admin_view(request, *args, **kwargs)
-        
-        # Check if user is a partner
-        from portal.models import ResellerPartner
-        try:
-            user_email = None
-            if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'email'):
-                user_email = request.user.profile.email
-            elif hasattr(request.user, 'email') and request.user.email:
-                user_email = request.user.email
-            
-            if user_email:
-                partner = ResellerPartner.objects.get(email=user_email)
-                # User is a partner, show partner dashboard
-                partner_view = ResellerDashboardView.as_view()
-                return partner_view(request, *args, **kwargs)
-        except ResellerPartner.DoesNotExist:
-            pass
-        
-        # Not admin and not a partner - redirect to appropriate page
-        messages.info(request, 'You do not have access to partner management.')
-        return redirect('dashboard')
-
-
-class AdminResellerPartnerDashboardView(LoginRequiredMixin, TemplateView):
-    """
-    Admin Dashboard for managing all reseller partners
-    Shows all partners with summary, statistics, and management options
-    """
-    template_name = 'portal/admin/reseller_partners/dashboard.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from portal.models import ResellerPartner
-        from portal.services.partner_accounting_service import PartnerAccountingService
-        from django.db.models import Count, Sum, Q
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        # Get all partners
-        partners = ResellerPartner.objects.select_related('wallet', 'onboarding_approved_by').all()
-        
-        # Overall statistics
-        total_partners = partners.count()
-        active_partners = partners.filter(status='ACTIVE', onboarding_status='APPROVED').count()
-        pending_onboarding = partners.filter(onboarding_status='PENDING').count()
-        
-        # Financial summary (last 30 days)
-        last_30d = timezone.now() - timedelta(days=30)
-        from portal.models import ResellerPartnerTransaction
-        financial_summary = ResellerPartnerTransaction.objects.filter(
-            transaction_date__gte=last_30d,
-            status='COMPLETED'
-        ).aggregate(
-            total_revenue=Sum('amount', filter=Q(transaction_type='REVENUE')),
-            total_commission=Sum('commission_amount', filter=Q(transaction_type='COMMISSION'))
-        )
-        
-        # Partner list with summaries
-        partner_list = []
-        for partner in partners[:50]:  # Limit to 50 for performance
-            summary = PartnerAccountingService.get_partner_summary(partner, last_30d, timezone.now())
-            partner_list.append({
-                'partner': partner,
-                'summary': summary
-            })
-        
-        context.update({
-            'total_partners': total_partners,
-            'active_partners': active_partners,
-            'pending_onboarding': pending_onboarding,
-            'financial_summary': financial_summary,
-            'partner_list': partner_list,
-            'partners': partners.order_by('-created_at')[:20]  # Recent partners
-        })
-        
-        return context
-
-
-class AdminResellerPartnerListView(LoginRequiredMixin, ListView):
-    """List all reseller partners with filters"""
-    model = ResellerPartner
-    template_name = 'portal/admin/reseller_partners/list.html'
-    context_object_name = 'partners'
-    paginate_by = 50
-    
-    def get_queryset(self):
-        queryset = ResellerPartner.objects.select_related('wallet', 'onboarding_approved_by').all()
-        
-        # Filters
-        status = self.request.GET.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-        
-        onboarding_status = self.request.GET.get('onboarding_status')
-        if onboarding_status:
-            queryset = queryset.filter(onboarding_status=onboarding_status)
-        
-        search = self.request.GET.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(company_name__icontains=search) |
-                Q(partner_code__icontains=search) |
-                Q(email__icontains=search) |
-                Q(contact_person__icontains=search)
-            )
-        
-        return queryset.order_by('-created_at')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['status_filter'] = self.request.GET.get('status', '')
-        context['onboarding_status_filter'] = self.request.GET.get('onboarding_status', '')
-        context['search_query'] = self.request.GET.get('search', '')
-        return context
-
-
-class AdminResellerPartnerDetailView(LoginRequiredMixin, DetailView):
-    """Detailed view of a reseller partner with all information"""
-    model = ResellerPartner
-    template_name = 'portal/admin/reseller_partners/detail.html'
-    context_object_name = 'partner'
-    pk_url_kwarg = 'partner_id'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        from portal.services.partner_accounting_service import PartnerAccountingService
-        from portal.models import APIKey, ResellerPartnerTransaction, ResellerPartnerPricing, ResellerPartnerSettlement
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        partner = self.object
-        
-        # Get summary
-        last_30d = timezone.now() - timedelta(days=30)
-        summary = PartnerAccountingService.get_partner_summary(partner, last_30d, timezone.now())
-        context['summary'] = summary
-        
-        # Get API keys
-        context['api_keys'] = APIKey.objects.filter(partner=partner).order_by('-created_at')
-        context['active_api_keys'] = APIKey.objects.filter(partner=partner, status='ACTIVE').count()
-        
-        # Get recent transactions
-        context['recent_transactions'] = ResellerPartnerTransaction.objects.filter(
-            partner=partner
-        ).select_related('service', 'api_key').order_by('-transaction_date')[:20]
-        
-        # Get pricing configurations
-        context['pricing_configs'] = ResellerPartnerPricing.objects.filter(
-            partner=partner
-        ).select_related('service').order_by('-created_at')
-        
-        # Get settlements
-        context['settlements'] = ResellerPartnerSettlement.objects.filter(
-            partner=partner
-        ).order_by('-settlement_period_end')[:10]
-        
-        # Get wallet information
-        if partner.wallet:
-            from portal.models import WalletTransaction
-            context['wallet_transactions'] = WalletTransaction.objects.filter(
-                wallet=partner.wallet
-            ).order_by('-created_at')[:20]
-        
-        return context
-
-
-class AdminResellerPartnerOnboardView(LoginRequiredMixin, View):
-    """Onboard a new reseller partner (admin can create directly)"""
-    template_name = 'portal/admin/reseller_partners/onboard.html'
-    
-    def get(self, request):
-        from portal.forms import AdminResellerPartnerOnboardForm
-        form = AdminResellerPartnerOnboardForm()
-        return render(request, self.template_name, {'form': form})
-    
-    def post(self, request):
-        from portal.forms import AdminResellerPartnerOnboardForm
-        from portal.services.reseller_service import ResellerService
-        
-        form = AdminResellerPartnerOnboardForm(request.POST)
-        if form.is_valid():
-            try:
-                service = ResellerService()
-                partner = service.create_reseller_partner(
-                    company_name=form.cleaned_data['company_name'],
-                    contact_person=form.cleaned_data['contact_person'],
-                    email=form.cleaned_data['email'],
-                    phone=form.cleaned_data['phone'],
-                    business_type=form.cleaned_data['business_type'],
-                    address=form.cleaned_data['address'],
-                    gst_number=form.cleaned_data.get('gst_number'),
-                    created_by=request.user
-                )
-                # Vendor assignments from form
-                from portal.services.partner_vendor_service import PartnerVendorService
-                service_configs = [
-                    ('bbps', 'bbps_vendors', 'bbps_primary_vendor'),
-                    ('aeps', 'aeps_vendors', 'aeps_primary_vendor'),
-                    ('dmt', 'dmt_vendors', 'dmt_primary_vendor'),
-                    ('kyc', 'kyc_vendors', 'kyc_primary_vendor'),
-                    ('sms', 'sms_vendors', 'sms_primary_vendor'),
-                    ('payment', 'payment_vendors', 'payment_primary_vendor'),
-                ]
-                for service_code, vendors_key, primary_key in service_configs:
-                    vendors = form.cleaned_data.get(vendors_key) or []
-                    primary = form.cleaned_data.get(primary_key)
-                    for i, vendor in enumerate(vendors):
-                        PartnerVendorService.assign_vendor_to_partner(
-                            partner=partner,
-                            service_code=service_code,
-                            vendor=vendor,
-                            is_primary=(vendor == primary),
-                            priority=i + 1,
-                            assigned_by=request.user,
-                        )
-                # Auto-approve if requested
-                if form.cleaned_data.get('auto_approve'):
-                    service.approve_onboarding(partner, request.user, 'Auto-approved during onboarding')
-                messages.success(request, f'Partner {partner.company_name} onboarded successfully.')
-                return redirect('admin_reseller_partner_detail', partner_id=partner.id)
-            except Exception as e:
-                logger.error(f'Error onboarding partner: {str(e)}', traceback=traceback.format_exc())
-                messages.error(request, f'Failed to onboard partner: {str(e)}')
-        return render(request, self.template_name, {'form': form})
-
-
-class AdminResellerPartnerPricingView(LoginRequiredMixin, View):
-    """Manage pricing and commission for a partner"""
-    template_name = 'portal/admin/reseller_partners/pricing.html'
-    
-    def get(self, request, partner_id):
-        from portal.models import ResellerPartner, Service, ResellerPartnerPricing
-        
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        services = Service.objects.filter(status='active').order_by('name')
-        
-        # Get existing pricing as a dictionary
-        existing_pricing_dict = {
-            p.service_id: p for p in ResellerPartnerPricing.objects.filter(partner=partner)
-        }
-        
-        # Create services list with pricing attached for easier template access
-        services_with_pricing = []
-        for service in services:
-            services_with_pricing.append({
-                'service': service,
-                'pricing': existing_pricing_dict.get(service.id)
-            })
-        
-        return render(request, self.template_name, {
-            'partner': partner,
-            'services': services,
-            'services_with_pricing': services_with_pricing,
-            'existing_pricing': existing_pricing_dict
-        })
-    
-    def post(self, request, partner_id):
-        from portal.models import ResellerPartner, Service, ResellerPartnerPricing
-        
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        
-        # Process pricing updates
-        for key, value in request.POST.items():
-            if key.startswith('service_'):
-                service_id = int(key.replace('service_', ''))
-                try:
-                    service = Service.objects.get(id=service_id)
-                    
-                    # Get or create pricing
-                    pricing, created = ResellerPartnerPricing.objects.get_or_create(
-                        partner=partner,
-                        service=service,
-                        defaults={
-                            'pricing_type': request.POST.get(f'pricing_type_{service_id}', 'PERCENTAGE'),
-                            'markup_percentage': Decimal(request.POST.get(f'markup_percentage_{service_id}', '0')),
-                            'fixed_markup': Decimal(request.POST.get(f'fixed_markup_{service_id}', '0')),
-                            'commission_type': request.POST.get(f'commission_type_{service_id}', 'REVENUE_SHARE'),
-                            'commission_percentage': Decimal(request.POST.get(f'commission_percentage_{service_id}', '0')),
-                            'fixed_commission': Decimal(request.POST.get(f'fixed_commission_{service_id}', '0')),
-                            'is_active': request.POST.get(f'is_active_{service_id}') == 'on',
-                            'created_by': request.user
-                        }
-                    )
-                    
-                    if not created:
-                        # Update existing
-                        pricing.pricing_type = request.POST.get(f'pricing_type_{service_id}', 'PERCENTAGE')
-                        pricing.markup_percentage = Decimal(request.POST.get(f'markup_percentage_{service_id}', '0'))
-                        pricing.fixed_markup = Decimal(request.POST.get(f'fixed_markup_{service_id}', '0'))
-                        pricing.commission_type = request.POST.get(f'commission_type_{service_id}', 'REVENUE_SHARE')
-                        pricing.commission_percentage = Decimal(request.POST.get(f'commission_percentage_{service_id}', '0'))
-                        pricing.fixed_commission = Decimal(request.POST.get(f'fixed_commission_{service_id}', '0'))
-                        pricing.is_active = request.POST.get(f'is_active_{service_id}') == 'on'
-                        pricing.save()
-                        
-                except (Service.DoesNotExist, ValueError) as e:
-                    logger.error(f'Error updating pricing: {str(e)}')
-                    continue
-        
-        messages.success(request, 'Pricing updated successfully.')
-        return redirect('admin_reseller_partner_pricing', partner_id=partner.id)
-
-
-class AdminResellerPartnerReportsView(LoginRequiredMixin, View):
-    """Generate business reports for a partner"""
-    template_name = 'portal/admin/reseller_partners/reports.html'
-    
-    def get(self, request, partner_id):
-        from portal.models import ResellerPartner
-        from portal.services.partner_accounting_service import PartnerAccountingService
-        from django.utils import timezone
-        from datetime import timedelta
-        from django.db.models import Sum, Count, Q
-        
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        
-        # Get date range from query params
-        start_date = request.GET.get('start_date')
-        end_date = request.GET.get('end_date')
-        
-        if start_date:
-            start_date = timezone.datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        else:
-            start_date = timezone.now() - timedelta(days=30)
-        
-        if end_date:
-            end_date = timezone.datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-        else:
-            end_date = timezone.now()
-        
-        # Get summary
-        summary = PartnerAccountingService.get_partner_summary(partner, start_date, end_date)
-        
-        # Get detailed transactions
-        from portal.models import ResellerPartnerTransaction
-        transactions = ResellerPartnerTransaction.objects.filter(
-            partner=partner,
-            transaction_date__gte=start_date,
-            transaction_date__lte=end_date
-        ).select_related('service', 'api_key').order_by('-transaction_date')
-        
-        # Service-wise breakdown
-        service_breakdown = transactions.values('service__name', 'service__code').annotate(
-            revenue=Sum('amount', filter=Q(transaction_type='REVENUE')),
-            commission=Sum('commission_amount', filter=Q(transaction_type='COMMISSION')),
-            transaction_count=Count('id')
-        ).order_by('-revenue')
-        
-        return render(request, self.template_name, {
-            'partner': partner,
-            'summary': summary,
-            'transactions': transactions[:100],  # Limit for display
-            'service_breakdown': service_breakdown,
-            'start_date': start_date,
-            'end_date': end_date
-        })
-
-
-class AdminResellerPartnerSettlementView(LoginRequiredMixin, View):
-    """Create and manage settlements for partners"""
-    template_name = 'portal/admin/reseller_partners/settlement.html'
-    
-    def get(self, request, partner_id):
-        from portal.models import ResellerPartner, ResellerPartnerSettlement
-        from django.utils import timezone
-        from datetime import timedelta
-        from django.db.models import Sum
-        
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        
-        # Get pending and recent settlements
-        settlements = ResellerPartnerSettlement.objects.filter(
-            partner=partner
-        ).order_by('-settlement_period_end')
-        
-        # Calculate pending commission
-        from portal.models import ResellerPartnerTransaction
-        last_settlement_date = settlements.first().settlement_period_end if settlements.exists() else timezone.now() - timedelta(days=90)
-        
-        pending_commission = ResellerPartnerTransaction.objects.filter(
-            partner=partner,
-            transaction_type='COMMISSION',
-            status='COMPLETED',
-            transaction_date__gt=last_settlement_date
-        ).aggregate(total=Sum('commission_amount'))['total'] or Decimal('0.00')
-        
-        return render(request, self.template_name, {
-            'partner': partner,
-            'settlements': settlements[:10],
-            'pending_commission': pending_commission,
-            'last_settlement_date': last_settlement_date
-        })
-    
-    def post(self, request, partner_id):
-        from portal.models import ResellerPartner
-        from portal.services.partner_accounting_service import PartnerAccountingService
-        from django.utils import timezone
-        
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        
-        # Get period from form
-        period_start = timezone.datetime.fromisoformat(request.POST.get('period_start').replace('Z', '+00:00'))
-        period_end = timezone.datetime.fromisoformat(request.POST.get('period_end').replace('Z', '+00:00'))
-        
-        # Create settlement
-        service = PartnerAccountingService()
-        settlement = service.create_settlement(
-            partner=partner,
-            period_start=period_start,
-            period_end=period_end,
-            created_by=request.user
-        )
-        
-        messages.success(request, f'Settlement created: {settlement.settlement_reference}')
-        return redirect('admin_reseller_partner_settlement', partner_id=partner.id)
-
-
-class AdminResellerPartnerSettlementProcessView(LoginRequiredMixin, View):
-    """Process a settlement (mark as paid)"""
-    
-    def post(self, request, settlement_id):
-        from portal.models import ResellerPartnerSettlement
-        from portal.services.partner_accounting_service import PartnerAccountingService
-        
-        settlement = get_object_or_404(ResellerPartnerSettlement, id=settlement_id)
-        
-        payment_method = request.POST.get('payment_method')
-        payment_reference = request.POST.get('payment_reference')
-        
-        if not payment_method or not payment_reference:
-            messages.error(request, 'Payment method and reference are required.')
-            return redirect('admin_reseller_partner_settlement', partner_id=settlement.partner.id)
-        
-        service = PartnerAccountingService()
-        service.process_settlement(
-            settlement=settlement,
-            payment_method=payment_method,
-            payment_reference=payment_reference,
-            processed_by=request.user
-        )
-        
-        messages.success(request, f'Settlement {settlement.settlement_reference} processed successfully.')
-        return redirect('admin_reseller_partner_settlement', partner_id=settlement.partner.id)
-
-
-class VendorManagementDashboardView(LoginRequiredMixin, TemplateView):
-    """Admin dashboard: vendor status, partner-vendor matrix, usage."""
-    template_name = 'portal/admin/vendor_management_dashboard.html'
-
-    def get_context_data(self, **kwargs):
-        from django.db.models import Count
-        from portal.models import ResellerPartner, ApiVendor, PartnerVendorAssignment
-
-        context = super().get_context_data(**kwargs)
-        vendors = ApiVendor.objects.filter(is_active=True).annotate(
-            partner_count=Count('partner_assignments', distinct=True),
-            api_count=Count('apis', distinct=True),
-        ).order_by('name')
-        context['vendors'] = vendors
-        service_codes = ['bbps', 'aeps', 'dmt', 'kyc', 'sms', 'payment']
-        matrix = {}
-        for partner in ResellerPartner.objects.filter(status='ACTIVE').select_related().order_by('company_name')[:100]:
-            assignments = partner.vendor_assignments.filter(is_active=True, is_primary=True).select_related('vendor')
-            by_service = {a.service_code: a.vendor for a in assignments}
-            matrix[partner] = {sc: by_service.get(sc) for sc in service_codes}
-        context['partner_vendor_matrix'] = matrix
-        return context
-
-
-class AdminPartnerVendorAssignmentView(LoginRequiredMixin, View):
-    """Admin assigns vendors to a partner per service."""
-    template_name = 'portal/admin/partner_vendor_assignment.html'
-
-    def get(self, request, partner_id):
-        from portal.models import ResellerPartner, ApiVendor
-        from portal.services.partner_vendor_service import PartnerVendorService
-
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        assignments_by_service = PartnerVendorService.get_assignments_for_partner(partner)
-        vendors_by_service = {
-            'bbps': list(ApiVendor.objects.filter(is_active=True, code__in=['euronet', 'mobikwik']).order_by('name')),
-            'aeps': list(ApiVendor.objects.filter(is_active=True, code='paypoint')),
-            'dmt': list(ApiVendor.objects.filter(is_active=True, code='paypoint_dmt')),
-            'kyc': list(ApiVendor.objects.filter(is_active=True, code__in=['cashfree', 'instantpay']).order_by('name')),
-            'sms': list(ApiVendor.objects.filter(is_active=True, code='kaleyra')),
-            'payment': list(ApiVendor.objects.filter(is_active=True, code='cashfree_pg')),
-        }
-        # Build list of (service_code, vendors, assigned_ids, primary_id) for template
-        service_forms = []
-        for service_code, vendor_list in vendors_by_service.items():
-            assignments = assignments_by_service.get(service_code) or []
-            assigned_ids = [a.vendor_id for a in assignments]
-            primary_assignment = next((a for a in assignments if a.is_primary), None)
-            primary_id = primary_assignment.vendor_id if primary_assignment else None
-            service_forms.append({
-                'service_code': service_code,
-                'vendors': vendor_list,
-                'assigned_ids': assigned_ids,
-                'primary_id': primary_id,
-            })
-        return render(request, self.template_name, {
-            'partner': partner,
-            'service_forms': service_forms,
-        })
-
-    def post(self, request, partner_id):
-        from portal.models import ResellerPartner, ApiVendor
-        from portal.services.partner_vendor_service import PartnerVendorService
-
-        partner = get_object_or_404(ResellerPartner, id=partner_id)
-        service_codes = ['bbps', 'aeps', 'dmt', 'kyc', 'sms', 'payment']
-        for service_code in service_codes:
-            vendor_ids = request.POST.getlist(f'vendors_{service_code}')
-            primary_id = request.POST.get(f'primary_{service_code}')
-            if not vendor_ids:
-                continue
-            for i, vid in enumerate(vendor_ids):
-                try:
-                    vendor = ApiVendor.objects.get(id=int(vid), is_active=True)
-                    PartnerVendorService.assign_vendor_to_partner(
-                        partner=partner,
-                        service_code=service_code,
-                        vendor=vendor,
-                        is_primary=(primary_id and int(primary_id) == vendor.id),
-                        priority=i + 1,
-                        assigned_by=request.user,
-                    )
-                except (ValueError, ApiVendor.DoesNotExist):
-                    pass
-        messages.success(request, 'Vendor assignments updated.')
-        return redirect('admin_partner_vendor_assignment', partner_id=partner.id)
-
-
-class ServiceCatalogView(LoginRequiredMixin, TemplateView):
-    """
-    Market APIs – service sections with vendor-wise cards.
-    Admin sees all services; each section has vendor cards. From here assign vendors to reseller partners.
-    """
-    template_name = 'portal/admin/service_catalog.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated or request.user.role_code not in ('super', 'admin'):
-            messages.error(request, 'You do not have permission to view the service catalog.')
-            return redirect('/dashboard/')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        from portal.api_explorer_spec import SERVICE_VENDORS, SERVICE_DISPLAY_NAMES
-        from django.db.models import Count
-
-        context = super().get_context_data(**kwargs)
-        sections = []
-        for service_code, vendor_codes in SERVICE_VENDORS.items():
-            vendors = list(
-                ApiVendor.objects.filter(is_active=True, code__in=vendor_codes)
-                .annotate(api_count=Count('apis', distinct=True))
-                .order_by('name')
-            )
-            if vendors:
-                sections.append({
-                    'service_code': service_code,
-                    'service_name': SERVICE_DISPLAY_NAMES.get(service_code, service_code.upper()),
-                    'vendors': vendors,
-                })
-        context['sections'] = sections
-        return context
-
-
-class AssignServiceVendorToPartnersView(LoginRequiredMixin, View):
-    """
-    Assign a service+vendor to selected partners. Used from service catalog card "Assign to partners".
-    """
-    template_name = 'portal/admin/assign_service_vendor_to_partners.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated or request.user.role_code not in ('super', 'admin'):
-            messages.error(request, 'Permission denied.')
-            return redirect('/dashboard/')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get(self, request, service_code, vendor_id):
-        from portal.models import ResellerPartner, ApiVendor, PartnerVendorAssignment
-        from portal.services.partner_vendor_service import PartnerVendorService
-
-        vendor = get_object_or_404(ApiVendor, id=vendor_id, is_active=True)
-        partners = ResellerPartner.objects.filter(status='ACTIVE').order_by('company_name')
-        assigned_partner_ids = set(
-            PartnerVendorAssignment.objects.filter(
-                service_code=service_code,
-                vendor=vendor,
-                is_active=True,
-            ).values_list('partner_id', flat=True)
-        )
-        service_name = dict(
-            bbps='BBPS', aeps='AEPS', dmt='DMT', kyc='KYC', sms='SMS', payment='Payment'
-        ).get(service_code, service_code.upper())
-        return render(request, self.template_name, {
-            'service_code': service_code,
-            'service_name': service_name,
-            'vendor': vendor,
-            'partners': partners,
-            'assigned_partner_ids': assigned_partner_ids,
-        })
-
-    def post(self, request, service_code, vendor_id):
-        from portal.models import ResellerPartner, ApiVendor, PartnerVendorAssignment
-        from portal.services.partner_vendor_service import PartnerVendorService
-
-        vendor = get_object_or_404(ApiVendor, id=vendor_id, is_active=True)
-        selected_ids = set()
-        for pid in request.POST.getlist('partner_ids'):
-            try:
-                selected_ids.add(int(pid))
-            except ValueError:
-                pass
-        partners = ResellerPartner.objects.filter(status='ACTIVE')
-        current = set(
-            PartnerVendorAssignment.objects.filter(
-                service_code=service_code,
-                vendor=vendor,
-                is_active=True,
-            ).values_list('partner_id', flat=True)
-        )
-        to_add = selected_ids - current
-        to_remove = current - selected_ids
-        for pid in to_add:
-            try:
-                partner = partners.get(id=pid)
-                PartnerVendorService.assign_vendor_to_partner(
-                    partner=partner,
-                    service_code=service_code,
-                    vendor=vendor,
-                    is_primary=(len(current) == 0 and len(to_add) == 1),
-                    priority=1,
-                    assigned_by=request.user,
-                )
-            except ResellerPartner.DoesNotExist:
-                pass
-        for pid in to_remove:
-            try:
-                partner = partners.get(id=pid)
-                PartnerVendorService.unassign_vendor(partner, service_code, vendor)
-            except ResellerPartner.DoesNotExist:
-                pass
-        messages.success(request, f'Assignments updated for {vendor.name} ({service_code}).')
-        return redirect('admin_assign_service_vendor_partners', service_code=service_code, vendor_id=vendor.id)

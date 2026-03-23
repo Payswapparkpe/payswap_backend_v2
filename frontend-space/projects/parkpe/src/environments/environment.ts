@@ -3,8 +3,10 @@ export const environment = {
   appName: 'PARKPE',
   appVersion: '1.0.0',
   apiUrl: '/api',
+  /** Partner API key for Engine; required for /api/connect, /api/bbps, /api/payment, /api/voucher. Set via env or build. Production: use FROM_ENV only. */
+  apiKey: undefined as string | undefined,
   apiTimeout: 30000,
-  useMockApi: false, // false = real backend (Mobikwik BBPS at /api/bbps/*)
+  useMockApi: false, // false = real backend at /api (proxy to localhost:8000)
   logLevel: 'debug' as 'debug' | 'info' | 'warn' | 'error',
   sendLogsToBackend: false,
 
@@ -74,8 +76,13 @@ export const environment = {
     darkMode: true
   },
 
+  /** Mobikwik static CDN base URL for biller icons. Keep as single source of truth. */
+  mobikwikIconBase: 'https://static.mobikwik.com/appdata/operator_icons',
+
+  /** BBPS uses main apiUrl (e.g. /api) for all calls; this key is legacy/unused. Do not use for requests. */
   bbps: {
-    apiUrl: `http://localhost:8000/api/bbps`,
+    // IMPORTANT: keep relative so LAN devices don't hit their own localhost
+    apiUrl: '/api/bbps',
     timeout: 30000,
     categories: [
       'electricity',

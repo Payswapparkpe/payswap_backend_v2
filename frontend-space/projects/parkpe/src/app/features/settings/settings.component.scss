@@ -1,0 +1,99 @@
+.settings-container {
+  min-height: 100vh;
+  background: var(--background);
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--primary-600);
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+}
+
+.back-link .material-icons {
+  font-size: 20px;
+}
+
+.settings-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2rem;
+}
+
+.settings-pin {
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.settings-pin h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.pin-note {
+  margin: 0 0 0.8rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.pin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.forgot-pin-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 1rem 0 0.9rem;
+}
+
+.forgot-pin-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.otp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.otp-sent-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.forgot-pin-form {
+  margin-top: 0.4rem;
+}

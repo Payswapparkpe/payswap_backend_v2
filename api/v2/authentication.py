@@ -8,12 +8,7 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from portal.services.api_key_service import find_api_key_by_plain_key
 
-
-def get_client_ip(request):
-    xff = request.META.get("HTTP_X_FORWARDED_FOR")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR") or ""
+from api.utils.client_ip import get_client_ip
 
 
 class APIKeyAuthentication(BaseAuthentication):
@@ -44,6 +39,7 @@ class APIKeyAuthentication(BaseAuthentication):
 
         request.partner = partner
         request.api_key_obj = api_key_obj
+        request.api_key = api_key_obj  # Alias for permissions/throttling/vendor_router
         return (AnonymousUser(), api_key_obj)
 
     def authenticate_header(self, request):

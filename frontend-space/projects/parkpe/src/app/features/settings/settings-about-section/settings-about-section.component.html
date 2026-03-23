@@ -1,0 +1,15 @@
+<section class="settings-section card">
+  <h2 class="section-title">About</h2>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>Version</h3>
+      <p>{{ appVersion() }}</p>
+    </div>
+  </div>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>Mode</h3>
+      <p>{{ useMockApi() ? 'Development (Mock API)' : 'Production (Real API)' }}</p>
+    </div>
+  </div>
+</section>

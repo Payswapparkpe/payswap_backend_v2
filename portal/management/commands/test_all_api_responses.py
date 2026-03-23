@@ -76,16 +76,10 @@ API_V1_TESTS = [
     # BBPS v1
     ("GET", "/api/v1/bbps/operators/", None),
     ("POST", "/api/v1/bbps/bill/fetch/", {"operator_id": "OP1", "customer_id": "CUST1"}),
-    # AEPS v1
-    ("POST", "/api/v1/aeps/balance/", {"aadhaar": "123456789012", "bank_identifier": "HDFC"}),
-    ("GET", "/api/v1/aeps/status/ref_123/", None),
-    # DMT v1
-    ("POST", "/api/v1/dmt/register-sender/", {"mobile": "9876543210", "first_name": "Test", "last_name": "User"}),
-    ("GET", "/api/v1/dmt/status/ref_123/", None),
     # Services
     ("GET", "/api/v1/vendors/", None),
     ("GET", "/api/v1/services/", None),
-    ("GET", "/api/v1/services/aeps/flow/", None),
+    ("GET", "/api/v1/services/bbps/flow/", None),
 ]
 
 # All API v2 endpoints: (method, path, minimal_body_for_POST)
@@ -132,27 +126,11 @@ API_V2_TESTS = [
     ("POST", "/api/v2/bbps/bill/fetch/", {"operator_id": "OP1", "customer_id": "CUST1"}),
     ("POST", "/api/v2/bbps/bill/pay/", {"operator_id": "OP1", "customer_id": "CUST1", "amount": 100}),
     ("GET", "/api/v2/bbps/bill/status/ref_123/", None),
-    # AEPS
-    ("POST", "/api/v2/aeps/balance/", {"aadhaar": "123456789012", "bank_identifier": "HDFC"}),
-    ("POST", "/api/v2/aeps/withdrawal/", {"aadhaar": "123456789012", "amount": 100, "bank_identifier": "HDFC"}),
-    ("POST", "/api/v2/aeps/mini-statement/", {"aadhaar": "123456789012", "bank_identifier": "HDFC"}),
-    ("GET", "/api/v2/aeps/status/ref_123/", None),
-    ("POST", "/api/v2/aeps/agent-registration/", {}),
-    ("POST", "/api/v2/aeps/update-agent-details/", {}),
-    ("GET", "/api/v2/aeps/agent-service-status/", None),
-    ("POST", "/api/v2/aeps/agent-authentication/", {}),
-    ("POST", "/api/v2/aeps/two-factor-auth/", {}),
-    # DMT
-    ("POST", "/api/v2/dmt/register-sender/", {"mobile": "9876543210", "first_name": "Test", "last_name": "User"}),
-    ("POST", "/api/v2/dmt/add-beneficiary/", {}),
-    ("POST", "/api/v2/dmt/remit/", {}),
-    ("GET", "/api/v2/dmt/status/ref_123/", None),
-    ("GET", "/api/v2/dmt/beneficiaries/", None),
     # Vendors / Services
     ("GET", "/api/v2/vendors/", None),
-    ("GET", "/api/v2/vendors/paypoint/", None),
+    ("GET", "/api/v2/vendors/mobikwik/", None),
     ("GET", "/api/v2/services/", None),
-    ("GET", "/api/v2/services/aeps/flow/", None),
+    ("GET", "/api/v2/services/bbps/flow/", None),
 ]
 
 

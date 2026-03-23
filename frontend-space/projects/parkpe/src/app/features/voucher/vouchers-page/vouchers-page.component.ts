@@ -1,11 +1,11 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PaymentGatewayService } from '../../../core/services/payment-gateway.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { VoucherService } from '../services/voucher.service';
-import { GatewayConfig, PaymentGateway } from '../../../core/models/payment.model';
+import { GatewayConfig, PaymentGateway } from 'shared';
 import type { VoucherListItem } from '../../../core/models/voucher.model';
 
 @Component({
@@ -22,7 +22,7 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
 
       <div class="two-column">
         <!-- Left: Buy new voucher -->
-        <section class="column-left card">
+        <section class="column-left card card-fixed">
           <h2 class="section-title">
             <span class="material-icons">add_circle</span>
             Buy New Voucher
@@ -65,24 +65,27 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
           </form>
         </section>
 
-        <!-- Right: My vouchers list -->
-        <section class="column-right card">
-          <h2 class="section-title">
-            <span class="material-icons">confirmation_number</span>
-            My Vouchers
-          </h2>
+        <!-- Right: My vouchers (max 3) + View All -->
+        <section class="column-right card card-fixed">
+          <div class="section-head-row">
+            <h2 class="section-title">
+              <span class="material-icons">confirmation_number</span>
+              My Vouchers
+            </h2>
+            <a routerLink="/vouchers/list" class="view-all-link">View All</a>
+          </div>
           <p class="section-desc">Tap a voucher to view code, PIN and history.</p>
 
           @if (listLoading()) {
             <div class="loading-state"><div class="spinner"></div></div>
-          } @else if (vouchers().length === 0) {
+          } @else if (displayVouchers().length === 0) {
             <div class="empty-list">
               <span class="material-icons">card_giftcard</span>
               <p>No vouchers yet. Buy one on the left.</p>
             </div>
           } @else {
             <div class="voucher-cards">
-              @for (v of vouchers(); track v.id) {
+              @for (v of displayVouchers(); track v.id) {
                 <a [routerLink]="['/vouchers', v.id]" class="voucher-card">
                   <div class="card-header">
                     <span class="voucher-code">{{ v.voucherCodeMasked }}</span>
@@ -96,8 +99,8 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
                 </a>
               }
             </div>
-            @if (total() > vouchers().length) {
-              <p class="pagination-hint">Showing {{ vouchers().length }} of {{ total() }}</p>
+            @if (total() > displayVouchers().length) {
+              <p class="pagination-hint">Showing {{ displayVouchers().length }} of {{ total() }}</p>
             }
           }
         </section>
@@ -125,8 +128,27 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
 
     .column-left, .column-right {
       padding: 1.5rem;
-      min-height: 200px;
     }
+    .card-fixed {
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+    }
+    .section-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .section-head-row .section-title { margin-bottom: 0; }
+    .view-all-link {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--primary-600);
+      text-decoration: none;
+    }
+    .view-all-link:hover { text-decoration: underline; }
     .section-title {
       display: flex; align-items: center; gap: 0.5rem;
       font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem;
@@ -214,6 +236,10 @@ export class VouchersPageComponent implements OnInit {
     this.loadVouchers();
   }
 
+  /** Max 3 vouchers shown on main page; full list on View All page */
+  readonly MAX_PREVIEW = 3;
+  displayVouchers = computed(() => this.vouchers().slice(0, this.MAX_PREVIEW));
+
   loadVouchers() {
     this.listLoading.set(true);
     this.voucherService.getVouchers({ limit: 50 }).subscribe({
@@ -240,11 +266,10 @@ export class VouchersPageComponent implements OnInit {
       customer: { name: 'Customer', email: '', phone: '' },
     };
     this.paymentService.initiatePayment(gateway, request).subscribe({
-      next: (res) => {
+      next: () => {
         this.processing.set(false);
-        const balance = res?.['balance'] ?? res?.['metadata']?.['balance'] ?? '';
         this.router.navigate(['/payment/status'], {
-          queryParams: { status: 'success', balance: balance || undefined },
+          queryParams: { status: 'success' },
         });
       },
       error: () => this.processing.set(false),

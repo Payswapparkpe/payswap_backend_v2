@@ -1,0 +1,14 @@
+<section class="settings-section card">
+  <h2 class="section-title">Language</h2>
+  <div class="setting-item">
+    <div class="setting-info">
+      <h3>App Language</h3>
+      <p>Default: English</p>
+    </div>
+    <select class="language-select" [ngModel]="selectedLanguage()" (ngModelChange)="languageChange.emit($event)">
+      @for (lang of supportedLanguages(); track lang.code) {
+        <option [value]="lang.code">{{ lang.label }}</option>
+      }
+    </select>
+  </div>
+</section>

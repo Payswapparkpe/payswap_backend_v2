@@ -1,21 +1,50 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block page_title %}API Control – Parkpe & Payswap{% endblock %}
+{% block page_title %}API Control – {% if single_platform %}{{ platform_label }}{% else %}Parkpe & Payswap{% endif %}{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
     <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-gray-900">API Control</h2>
+        <h2 class="text-2xl font-bold text-gray-900">API Control{% if single_platform %} – {{ platform_label }}{% endif %}</h2>
         <div class="flex gap-4 items-center">
-            <a href="{% url 'api_registry_list' %}" class="text-[#0066CC] hover:underline text-sm">View endpoints</a>
+            {% if single_platform %}
+            <a href="{% url 'project_management' %}" class="text-[#0066CC] hover:underline text-sm">← Project Management</a>
+            <a href="{% url 'api_product_list' %}" class="text-[#0066CC] hover:underline text-sm">All platforms</a>
+            {% endif %}
+            <a href="{% url 'services_list' %}{% if single_platform %}?platform={{ platform_code }}{% endif %}" class="text-[#0066CC] hover:underline text-sm">Services (endpoints ON/OFF)</a>
             <a href="{% url 'api_registry_logs' %}" class="text-[#0066CC] hover:underline text-sm">API Logs</a>
-            <a href="{% url 'dashboard_admin' %}" class="text-[#0066CC] hover:underline">Back to Admin</a>
+            <a href="{% url 'dashboard' %}" class="text-[#0066CC] hover:underline">Back to Dashboard</a>
         </div>
     </div>
 
-    <p class="text-gray-600 text-sm">Product-level ON/OFF. Turning a product OFF disables all APIs under that product for that platform.</p>
+    <p class="text-gray-600 text-sm">Product-level ON/OFF. Turning a product OFF disables all APIs under that product for this app.</p>
 
+    {% if single_platform %}
+    <div class="max-w-2xl">
+        <div class="card border-2 border-[#0066CC]/20">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">{{ platform_label }} – APIs used by this app</h3>
+            {% if products %}
+            <ul class="space-y-3">
+                {% for product in products %}
+                <li class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50">
+                    <span class="font-medium text-gray-800">{{ product.name }}</span>
+                    <form method="post" action="{% url 'api_product_toggle' product.pk %}?next={{ request.get_full_path|urlencode }}" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="px-3 py-1.5 rounded text-sm font-medium {% if product.enabled %}bg-green-100 text-green-800 hover:bg-green-200{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">
+                            {% if product.enabled %}ON{% else %}OFF{% endif %}
+                        </button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-gray-500 text-sm py-4">No products for this app yet. Run: <code class="bg-gray-100 px-1">python manage.py seed_api_products</code></p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Parkpe card -->
         <div class="card border-2 border-[#0066CC]/20">
@@ -61,5 +90,6 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

@@ -13,18 +13,18 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Setting up roles and groups...')
         
-        # Define roles with hierarchy and MFA requirements
+        # Define roles with hierarchy and MFA requirements (only these 7 types)
         roles_data = [
             {
-                'name': 'Admin',
-                'code': 'admin',
+                'name': 'Super Admin',
+                'code': 'super_admin',
                 'category': 'b2b',
                 'hierarchy_level': 100,
                 'mfa_required': True,
             },
             {
-                'name': 'Super',
-                'code': 'super',
+                'name': 'Admin',
+                'code': 'admin',
                 'category': 'b2b',
                 'hierarchy_level': 90,
                 'mfa_required': True,
@@ -34,6 +34,13 @@ class Command(BaseCommand):
                 'code': 'employee',
                 'category': 'b2b',
                 'hierarchy_level': 50,
+                'mfa_required': True,
+            },
+            {
+                'name': 'Super Distributor',
+                'code': 'super_distributor',
+                'category': 'b2b',
+                'hierarchy_level': 45,
                 'mfa_required': True,
             },
             {
@@ -55,13 +62,6 @@ class Command(BaseCommand):
                 'code': 'customer',
                 'category': 'b2c',
                 'hierarchy_level': 20,
-                'mfa_required': False,
-            },
-            {
-                'name': 'Vendor',
-                'code': 'vendor',
-                'category': 'b2c',
-                'hierarchy_level': 10,
                 'mfa_required': False,
             },
         ]
@@ -92,10 +92,10 @@ class Command(BaseCommand):
             
             # Define default permissions for each role
             role_permissions_map = {
-                'admin': [
-                    # Admin gets all permissions - will be set below
+                'super_admin': [
+                    # Super Admin gets all permissions - set below
                 ],
-                'super': [
+                'admin': [
                     'portal.view_profile', 'portal.add_profile', 'portal.change_profile',
                     'portal.view_user', 'portal.add_user', 'portal.change_user',
                     'portal.view_kyc', 'portal.change_kyc',
@@ -104,6 +104,10 @@ class Command(BaseCommand):
                 'employee': [
                     'portal.view_profile', 'portal.view_user',
                     'portal.view_kyc', 'portal.change_kyc',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                ],
+                'super_distributor': [
+                    'portal.view_profile', 'portal.view_user',
                     'portal.view_wallet', 'portal.view_wallettransaction',
                 ],
                 'distributor': [
@@ -119,16 +123,11 @@ class Command(BaseCommand):
                     'portal.view_wallet', 'portal.view_wallettransaction',
                     'portal.add_kyc', 'portal.view_kyc',
                 ],
-                'vendor': [
-                    'portal.view_profile',
-                    'portal.view_wallet', 'portal.view_wallettransaction',
-                    'portal.add_kyc', 'portal.view_kyc',
-                ],
             }
             
             # Assign permissions to Role.default_permissions and sync to Group
-            if role_data['code'] == 'admin':
-                # Admin gets all permissions
+            # Only Super Admin gets ALL permissions; Admin gets department-wise roles via Hub RBAC from Super Admin
+            if role_data['code'] == 'super_admin':
                 all_permissions = Permission.objects.all()
                 role.default_permissions.set(all_permissions)
                 group.permissions.set(all_permissions)

@@ -5,45 +5,149 @@
   </div>
 
   @if (loading()) {
-    <p class="loading">Loading…</p>
+  <p class="loading">Loading…</p>
   } @else if (error()) {
-    <div class="error-box">
-      <span class="material-icons">error_outline</span>
-      <p>{{ error() }}</p>
-      <a routerLink="/dashboard" class="btn btn-outline">Go to Dashboard</a>
-    </div>
+  <div class="error-box">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error() }}</p>
+    <a routerLink="/dashboard" class="btn btn-outline">Go to Dashboard</a>
+  </div>
   } @else if (data(); as d) {
-    <div class="vehicle-card">
-      <span class="material-icons">directions_car</span>
-      <p class="reg-masked">{{ d.registration_number_masked }}</p>
-      <p class="vehicle-label">Vehicle number</p>
-    </div>
+  @if (showContactOptions()) {
+  <div class="vehicle-card">
+    <span class="material-icons">directions_car</span>
+    <p class="reg-masked">{{ d.registration_number_masked }}</p>
+    <p class="vehicle-label">Vehicle number</p>
+  </div>
 
-    <div class="contact-options">
-      <p class="options-label">Contact owner (masked – your number is not shared)</p>
-      @if (d.contact_options.includes('call')) {
-        <button type="button" class="btn btn-primary btn-block" (click)="contactCall()" [disabled]="calling()">
-          <span class="material-icons">call</span>
-          {{ calling() ? 'Connecting…' : 'Call owner' }}
-        </button>
-      }
-      @if (d.contact_options.includes('chat')) {
-        <button type="button" class="btn btn-outline btn-block" (click)="contactChat()">
-          <span class="material-icons">chat</span>
-          Chat
-        </button>
-      }
-    </div>
-
-    @if (showPhoneInput()) {
-      <div class="phone-modal">
-        <p>Enter your phone number to receive the call (masked call via Kaleyra):</p>
-        <input type="tel" [value]="scannerPhone()" (input)="onPhoneInput($event)" placeholder="e.g. 9876543210" />
-        <div class="phone-actions">
-          <button type="button" class="btn btn-primary" (click)="confirmCall()" [disabled]="!scannerPhone().trim() || calling()">Call</button>
-          <button type="button" class="btn btn-ghost" (click)="cancelCall()">Cancel</button>
-        </div>
-      </div>
+  <div class="contact-options">
+    <p class="options-label">Contact owner (masked – your number is not shared)</p>
+    @if (d.contact_options.includes('call')) {
+    <button type="button" class="btn btn-primary btn-block" (click)="contactCall()" [disabled]="calling()">
+      <span class="material-icons">call</span>
+      {{ calling() ? 'Connecting…' : 'Call owner' }}
+    </button>
     }
+    @if (d.contact_options.includes('chat')) {
+    <button type="button" class="btn btn-outline btn-block" (click)="contactChat()" [disabled]="chatOpening()">
+      <span class="material-icons">chat</span>
+      {{ chatOpening() ? 'Opening…' : 'Chat' }}
+    </button>
+    }
+  </div>
+
+  @if (showChatPanel()) {
+  <div class="chat-panel">
+    <div class="chat-panel-header">
+      <h2>Chat</h2>
+      <div class="chat-panel-header-actions">
+        @if (chatOtherParticipantId() != null) {
+        <button type="button" class="btn btn-ghost btn-sm" (click)="openReportModal()">Report user</button>
+        }
+        <button type="button" class="btn btn-ghost btn-icon" (click)="closeChat()" aria-label="Close chat">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
+    @if (chatService.error(); as err) {
+    <p class="chat-error">{{ err }}</p>
+    }
+    <div class="chat-messages">
+      @for (msg of chatService.messages(); track msg.id) {
+      <div class="chat-msg" [class.chat-msg-me]="currentUserId() === msg.sender_id"
+        [class.chat-msg-other]="currentUserId() !== msg.sender_id">
+        <span class="chat-msg-body">{{ msg.body }}</span>
+        <span class="chat-msg-time">{{ msg.created_at | date:'shortTime' }}</span>
+      </div>
+      }
+    </div>
+    <div class="chat-predefined">
+      @for (pref of chatPredefined(); track pref.code) {
+      <button type="button" class="btn btn-outline btn-sm" (click)="sendPredefinedMessage(pref.code)"
+        [disabled]="chatService.loading()">{{ pref.label_en }}</button>
+      }
+    </div>
+    <div class="chat-input-row">
+      <input type="text" class="chat-input" [value]="chatMessageInput()" (input)="onChatMessageInput($event)"
+        placeholder="Type a message…" (keydown.enter)="sendChatMessage()" />
+      <button type="button" class="btn btn-primary" (click)="sendChatMessage()"
+        [disabled]="!chatMessageInput().trim() || chatService.loading()">
+        {{ chatService.loading() ? '…' : 'Send' }}
+      </button>
+    </div>
+  </div>
+
+  @if (showReportModal()) {
+  <div class="modal-overlay" (click)="closeReportModal()" role="presentation"></div>
+  <div class="report-modal" role="dialog" aria-labelledby="report-modal-title">
+    <h2 id="report-modal-title">Report user</h2>
+    <p class="report-modal-text">Describe why you are reporting this user. Our team will review it.</p>
+    <textarea class="report-reason-input" [value]="reportReason()" (input)="onReportReasonInput($event)"
+      placeholder="Reason…" rows="3"></textarea>
+    @if (reportError(); as err) {
+    <p class="report-error">{{ err }}</p>
+    }
+    <div class="report-modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeReportModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="submitReport()"
+        [disabled]="!reportReason().trim() || reportSubmitting()">
+        {{ reportSubmitting() ? 'Submitting…' : 'Submit report' }}
+      </button>
+    </div>
+  </div>
+  }
+  }
+
+  @if (showPhoneInput()) {
+  <div class="phone-modal">
+    <p>Enter your phone number to receive the call (masked call via Kaleyra):</p>
+    <input type="tel" [value]="scannerPhone()" (input)="onPhoneInput($event)" placeholder="e.g. 9876543210" />
+    @if (callError(); as err) {
+    <p class="call-error">{{ err }}</p>
+    @if (callErrorIs502()) {
+    <p class="call-error-hint">If this persists, contact support.</p>
+    }
+    }
+    <div class="phone-actions">
+      <button type="button" class="btn btn-primary" (click)="confirmCall()"
+        [disabled]="!scannerPhone().trim() || calling()">{{ calling() ? 'Connecting…' : 'Call' }}</button>
+      <button type="button" class="btn btn-ghost" (click)="cancelCall()">Cancel</button>
+    </div>
+  </div>
+  }
+  } @else if (showScannerOtpStep()) {
+  <div class="scanner-gate-card">
+    <p class="scanner-gate-title">Enter OTP sent to your mobile</p>
+    <input type="tel" inputmode="numeric" [value]="scannerOtpValue()" (input)="onScannerOtpInput($event)"
+      placeholder="6-digit OTP" maxlength="6" class="scanner-input" />
+    @if (verifyOtpError(); as err) {
+    <p class="scanner-error">{{ err }}</p>
+    }
+    <button type="button" class="btn btn-primary btn-block" (click)="verifyScannerOtp()"
+      [disabled]="!scannerOtpValue().trim() || verifyOtpLoading()">
+      {{ verifyOtpLoading() ? 'Verifying…' : 'Verify' }}
+    </button>
+  </div>
+  } @else if (showScannerPhoneStep()) {
+  <div class="scanner-gate-card">
+    <p class="scanner-gate-title">Enter your mobile number to continue</p>
+    <input type="tel" [value]="scannerPhoneValue()" (input)="onScannerPhoneInput($event)" placeholder="e.g. 9876543210"
+      class="scanner-input" />
+    @if (sendOtpError(); as err) {
+    <p class="scanner-error">{{ err }}</p>
+    }
+    <button type="button" class="btn btn-primary btn-block" (click)="sendScannerOtp()"
+      [disabled]="!scannerPhoneValue().trim() || sendOtpLoading()">
+      {{ sendOtpLoading() ? 'Sending…' : 'Send OTP' }}
+    </button>
+  </div>
+  } @else if (showScannerGate()) {
+  <div class="scanner-gate-card">
+    <p class="scanner-gate-title">To contact the vehicle owner (call or chat), enter your mobile number. We’ll verify it
+      with an OTP and you’ll be set as a ParkPe customer.</p>
+    <button type="button" class="btn btn-primary btn-block" (click)="openScannerPhoneStep()">Enter mobile
+      number</button>
+  </div>
+  }
   }
 </div>

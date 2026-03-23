@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
+import { sessionLockGuard } from './core/guards/session-lock.guard';
 import { AppLayoutComponent } from './layouts/app-layout/app-layout.component';
 
 /**
@@ -54,9 +55,18 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'unlock',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/security/session-lock/session-lock.component').then(
+        (m) => m.SessionLockComponent
+      ),
+  },
+  {
     path: '',
     component: AppLayoutComponent,
     canActivate: [authGuard],
+    canActivateChild: [sessionLockGuard],
     children: [
       {
         path: 'dashboard',
@@ -67,41 +77,49 @@ export const routes: Routes = [
       },
       {
         path: 'connect',
+        data: { preload: { enabled: true, priority: 1 } },
         loadChildren: () =>
           import('./features/connect/connect.routes').then((m) => m.CONNECT_ROUTES),
       },
       {
         path: 'parking',
+        data: { preload: { enabled: true, priority: 1 } },
         loadChildren: () =>
           import('./features/parking/parking.routes').then((m) => m.PARKING_ROUTES),
       },
       {
         path: 'bbps',
+        data: { preload: { enabled: true, priority: 2 } },
         loadChildren: () =>
           import('./features/bbps/bbps.routes').then((m) => m.BBPS_ROUTES),
       },
       {
         path: 'fastag',
+        data: { preload: { enabled: true, priority: 2 } },
         loadChildren: () =>
           import('./features/fastag/fastag.routes').then((m) => m.FASTAG_ROUTES),
       },
       {
         path: 'challan',
+        data: { preload: { enabled: true, priority: 2 } },
         loadChildren: () =>
           import('./features/challan/challan.routes').then((m) => m.CHALLAN_ROUTES),
       },
       {
         path: 'payment',
+        data: { preload: { enabled: true, priority: 1 } },
         loadChildren: () =>
           import('./features/payment/payment.routes').then((m) => m.PAYMENT_ROUTES),
       },
       {
         path: 'vouchers',
+        data: { preload: { enabled: true, priority: 1 } },
         loadChildren: () =>
           import('./features/voucher/voucher.routes').then((m) => m.VOUCHER_ROUTES),
       },
       {
         path: 'profile',
+        data: { preload: { enabled: true, priority: 3 } },
         loadChildren: () =>
           import('./features/profile/profile.routes').then((m) => m.PROFILE_ROUTES),
       },

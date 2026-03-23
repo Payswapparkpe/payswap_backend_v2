@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
 import { NotificationService } from '../../../core/services/notification.service';
 import { StepIndicatorComponent } from '../../../shared/components/step-indicator/step-indicator.component';
+import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
 
 @Component({
   selector: 'app-parking-booking',
@@ -96,6 +97,7 @@ export class ParkingBookingComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private notification = inject(NotificationService);
+  private stateStore = inject(MobilityStateStore);
 
   slotId = '';
   bookingForm!: FormGroup;
@@ -140,6 +142,7 @@ export class ParkingBookingComponent implements OnInit {
 
     this.api.createBooking(bookingData).subscribe({
       next: (booking) => {
+        this.stateStore.setActiveBooking(booking);
         this.notification.showSuccess('Booking created successfully!');
         this.router.navigate(['/parking/detail', booking.id]);
       },

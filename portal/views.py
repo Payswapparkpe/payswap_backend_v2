@@ -757,7 +757,7 @@ class MFAVerifyView(View):
                 # Verify OTP from cache using service
                 from portal.services.otp_service import OTPService
                 otp_service = OTPService()
-                verified = otp_service.verify_otp(user.phone, mfa_code)
+                verified, _ = otp_service.verify_otp(user.phone, mfa_code)
             elif method == 'authenticator' or user.mfa_method == 'authenticator':
                 # Verify TOTP
                 secret = user.get_encrypted_totp_secret()
@@ -839,57 +839,17 @@ class DashboardView(TemplateView):
         
         # Redirect to role-specific dashboard
         dashboard_map = {
+            'super_admin': 'super',
             'admin': 'admin',
             'employee': 'employee',
-            'super': 'super',
+            'super_distributor': 'distributor',
             'distributor': 'distributor',
             'retailer': 'retailer',
             'customer': 'customer',
-            'vendor': 'vendor',
         }
         
         dashboard_name = dashboard_map.get(role_code, 'customer')
         return redirect(f'/dashboard/{dashboard_name}/')
-
-
-class AdminDashboardView(TemplateView):
-    """Admin dashboard"""
-    template_name = 'portal/dashboard/admin.html'
-    
-    @method_decorator(login_required)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['total_users'] = User.objects.count()
-        context['pending_kyc'] = KYC.objects.filter(status='pending').count()
-        context['total_wallets'] = Wallet.objects.count()
-        context['active_profiles'] = Profile.objects.filter(status='active').count()
-        return context
-
-
-class ParkPeAppManagementView(TemplateView):
-    """ParkPe App Management: Voucher Management & Payment Gateway Management cards."""
-    template_name = 'portal/parkpe/app_management.html'
-
-    @method_decorator(login_required)
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get(self, request, *args, **kwargs):
-        if not request.user.is_staff and getattr(request.user, 'role_code', None) not in ('super', 'admin'):
-            raise Http404
-        return super().get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['service_configs'] = ParkPeServiceConfig.objects.all().order_by('service_code')
-        context['gateway_configs'] = ParkPePaymentGatewayConfig.objects.all().order_by('gateway', 'service_code')
-        from django.urls import reverse
-        context['admin_service_config_url'] = reverse('admin:portal_parkpeserviceconfig_changelist')
-        context['admin_gateway_config_url'] = reverse('admin:portal_parkpepaymentgatewayconfig_changelist')
-        return context
 
 
 class EmployeeDashboardView(TemplateView):
@@ -1871,7 +1831,7 @@ def social_callback_view(request):
 def _is_api_registry_admin(user):
     if not user or not user.is_authenticated:
         return False
-    return getattr(user, "role_code", "").lower() in ("admin", "super")
+    return getattr(user, "role_code", "").lower() in ("super_admin", "admin")
 
 
 class APIRegistryListView(ListView):
@@ -1884,7 +1844,7 @@ class APIRegistryListView(ListView):
     def dispatch(self, request, *args, **kwargs):
         if not _is_api_registry_admin(request.user):
             messages.error(request, "Access denied. Admin or Super role required.")
-            return redirect("/dashboard/admin/")
+            return redirect("/dashboard/")
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
@@ -1918,7 +1878,7 @@ class APIRegistryToggleView(View):
         messages.success(request, f"API {api.api_name} is now {api.status}.")
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({"success": True, "status": api.status})
-        return redirect("api_registry_list")
+        return redirect("services_list")
 
 
 class APILogListView(ListView):
@@ -1931,7 +1891,7 @@ class APILogListView(ListView):
     def dispatch(self, request, *args, **kwargs):
         if not _is_api_registry_admin(request.user):
             messages.error(request, "Access denied. Admin or Super role required.")
-            return redirect("/dashboard/admin/")
+            return redirect("/dashboard/")
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):

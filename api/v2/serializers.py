@@ -52,7 +52,7 @@ class VoucherIssueSerializer(serializers.Serializer):
         api_identifier = (attrs.get('api_identifier') or '').strip().upper()
         brand_id = attrs.get('brand_id')
         brand_code = (attrs.get('brand_code') or '').strip()
-        provided = sum(bool(api_identifier), bool(brand_id), bool(brand_code))
+        provided = sum([bool(api_identifier), bool(brand_id), bool(brand_code)])
         if provided == 0:
             raise serializers.ValidationError({
                 'brand': 'Brand identify karne ke liye api_identifier (6-char), brand_id ya brand_code mein se ek bhejen.'
@@ -364,10 +364,14 @@ class BBPSOperatorsSerializer(serializers.Serializer):
 
 
 class BBPSFetchBillSerializer(serializers.Serializer):
-    """Serializer for BBPS bill fetch. vendor: euronet | mobikwik (optional, default mobikwik)."""
+    """Serializer for BBPS bill fetch. vendor: euronet | mobikwik (optional, default mobikwik).
+    cir/circle: Mobikwik View Bill – real circle code from Operators sheet / request when applicable; if absent,
+    ParkPe still sends Mobikwik field cir as "" (empty). Do not use a fake placeholder like "1"."""
     operator_id = serializers.CharField(required=True, max_length=100)
     customer_id = serializers.CharField(required=True, max_length=100)
     subscriber_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    cir = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
+    circle = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
     vendor = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=32)
     ad1 = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=200)
     ad2 = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=200)
@@ -391,110 +395,4 @@ class BBPSPayBillSerializer(serializers.Serializer):
     ad9 = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=200)
 
 
-# ============================================================================
-# AEPS (PayPoint) SERIALIZERS
-# ============================================================================
-
-class AEPSBalanceEnquirySerializer(serializers.Serializer):
-    """Serializer for AEPS balance enquiry"""
-    aadhaar_number = serializers.CharField(required=True, max_length=12, min_length=12)
-    mobile_number = serializers.CharField(required=True, max_length=10, min_length=10)
-    bank_iin = serializers.CharField(required=True, max_length=20)
-    rd_request = serializers.CharField(required=True, help_text='Biometric PID/XML from certified device')
-    latitude = serializers.CharField(required=True, max_length=20)
-    longitude = serializers.CharField(required=True, max_length=20)
-    terminal_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
-
-
-class AEPSCashWithdrawalSerializer(serializers.Serializer):
-    """Serializer for AEPS cash withdrawal"""
-    aadhaar_number = serializers.CharField(required=True, max_length=12, min_length=12)
-    mobile_number = serializers.CharField(required=True, max_length=10, min_length=10)
-    bank_iin = serializers.CharField(required=True, max_length=20)
-    rd_request = serializers.CharField(required=True, help_text='Biometric PID/XML from certified device')
-    amount = serializers.DecimalField(max_digits=12, decimal_places=2, required=True, min_value=Decimal('1'))
-    latitude = serializers.CharField(required=True, max_length=20)
-    longitude = serializers.CharField(required=True, max_length=20)
-    terminal_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
-    client_ref_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=64)
-
-
-class AEPSMiniStatementSerializer(serializers.Serializer):
-    """Serializer for AEPS mini statement"""
-    aadhaar_number = serializers.CharField(required=True, max_length=12, min_length=12)
-    mobile_number = serializers.CharField(required=True, max_length=10, min_length=10)
-    bank_iin = serializers.CharField(required=True, max_length=20)
-    rd_request = serializers.CharField(required=True, help_text='Biometric PID/XML from certified device')
-    latitude = serializers.CharField(required=True, max_length=20)
-    longitude = serializers.CharField(required=True, max_length=20)
-    terminal_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
-
-
-class AEPSAgentRegistrationSerializer(serializers.Serializer):
-    """Serializer for PayPoint AEPS Agent Registration"""
-    agent_name = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
-    mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=15)
-    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True, max_length=100)
-
-
-class AEPSUpdateAgentDetailsSerializer(serializers.Serializer):
-    """Serializer for PayPoint AEPS Update Agent Details"""
-    agent_id = serializers.CharField(required=True, max_length=64)
-    agent_name = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
-    mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=15)
-    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True, max_length=100)
-
-
-class AEPSAgentServiceStatusSerializer(serializers.Serializer):
-    """Serializer for PayPoint AEPS Check Agent Service Status"""
-    agent_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=64)
-
-
-class AEPSAgentAuthenticationSerializer(serializers.Serializer):
-    """Serializer for PayPoint AEPS Check Agent Authentication"""
-    agent_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=64)
-
-
-class AEPSTwoFactorAuthenticationSerializer(serializers.Serializer):
-    """Serializer for PayPoint AEPS Two Factor Authentication"""
-    otp = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=10)
-    mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=15)
-
-
-# ============================================================================
-# DMT (PayPoint Domestic Money Transfer) SERIALIZERS
-# ============================================================================
-
-class DMTRegisterSenderSerializer(serializers.Serializer):
-    """Serializer for PayPoint DMT sender/remitter registration"""
-    mobile_number = serializers.CharField(required=True, max_length=15)
-    first_name = serializers.CharField(required=True, max_length=100)
-    last_name = serializers.CharField(required=True, max_length=100)
-    pincode = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=10)
-    state = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=50)
-    address = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=255)
-    date_of_birth = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=20)
-
-
-class DMTAddBeneficiarySerializer(serializers.Serializer):
-    """Serializer for PayPoint DMT add beneficiary"""
-    sender_mobile = serializers.CharField(required=True, max_length=15)
-    beneficiary_name = serializers.CharField(required=True, max_length=100)
-    account_number = serializers.CharField(required=True, max_length=34)
-    ifsc = serializers.CharField(required=True, max_length=11)
-    mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=15)
-    bank_name = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
-
-
-class DMTRemitSerializer(serializers.Serializer):
-    """Serializer for PayPoint DMT remit"""
-    sender_mobile = serializers.CharField(required=True, max_length=15)
-    beneficiary_id = serializers.CharField(required=True, max_length=64)
-    amount = serializers.CharField(required=True, max_length=20)
-    client_ref_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=64)
-    remarks = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=200)
-
-
-class DMTGetBeneficiariesSerializer(serializers.Serializer):
-    """Serializer for PayPoint DMT get beneficiaries"""
-    sender_mobile = serializers.CharField(required=True, max_length=15)
+# AEPS/DMT serializers removed — AEPS/DMT are on Payswap Frontend, not Hub.

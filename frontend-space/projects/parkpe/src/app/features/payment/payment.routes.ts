@@ -49,29 +49,41 @@ export const PAYMENT_ROUTES: Routes = [
   {
     path: 'history',
     loadComponent: () =>
-      import('./transaction-history/transaction-history.component').then(
-        (m) => m.TransactionHistoryComponent
+      import('./payment-history-shell/payment-history-shell.component').then(
+        (m) => m.PaymentHistoryShellComponent
       ),
+    children: [
+      {
+        path: 'receipt/:transactionId',
+        loadComponent: () =>
+          import('./payment-receipt/payment-receipt.component').then(
+            (m) => m.PaymentReceiptComponent
+          ),
+      },
+    ],
   },
   {
     path: 'reports',
     loadComponent: () =>
-      import('./reports/reports-hub.component').then(
-        (m) => m.ReportsHubComponent
+      import('./reports-shell/reports-shell.component').then(
+        (m) => m.ReportsShellComponent
       ),
-  },
-  {
-    path: 'reports/payments',
-    loadComponent: () =>
-      import('./reports/payment-report/payment-report.component').then(
-        (m) => m.PaymentReportComponent
-      ),
-  },
-  {
-    path: 'reports/voucher-statement',
-    loadComponent: () =>
-      import('./reports/voucher-statement/voucher-statement.component').then(
-        (m) => m.VoucherStatementComponent
-      ),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'payments' },
+      {
+        path: 'payments',
+        loadComponent: () =>
+          import('./reports/payment-report/payment-report.component').then(
+            (m) => m.PaymentReportComponent
+          ),
+      },
+      {
+        path: 'voucher-statement',
+        loadComponent: () =>
+          import('./reports/voucher-statement/voucher-statement.component').then(
+            (m) => m.VoucherStatementComponent
+          ),
+      },
+    ],
   },
 ];

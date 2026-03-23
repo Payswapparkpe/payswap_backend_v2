@@ -1,0 +1,82 @@
+/**
+ * Shared service layout – BBPS-style left-options / right-details.
+ * Use .service-layout as grid container, .service-col-left / .service-col-right for columns,
+ * .service-placeholder for right panel when nothing selected.
+ * Breakpoints match BBPS: single column < 768px, two columns above.
+ */
+.service-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
+  align-items: start;
+
+  @media (min-width: 768px) {
+    grid-template-columns: minmax(0, 320px) minmax(420px, 1fr);
+    gap: 1.75rem;
+  }
+}
+
+.service-col-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  @media (min-width: 768px) {
+    max-height: min(85vh, 680px);
+  }
+}
+
+.service-col-right {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: start;
+}
+
+.service-placeholder {
+  padding: 1.75rem 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 74, 173, 0.08);
+  max-width: 100%;
+  min-width: 0;
+  min-height: 14rem;
+  width: 100%;
+  box-sizing: border-box;
+
+  .service-placeholder-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
+  }
+
+  .service-placeholder-hint {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.service-panel {
+  padding: 1.75rem 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 74, 173, 0.08);
+  max-width: 100%;
+  min-width: 0;
+  min-height: 14rem;
+  width: 100%;
+  box-sizing: border-box;
+  align-self: start;
+}

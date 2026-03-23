@@ -9,6 +9,7 @@ import httpx
 from typing import Optional, List
 from core.config import payswap_config
 from portal.utils.phone_utils import format_phone_for_kaleyra, normalize_phone_number
+from portal.utils.masking import mask_phone_for_log
 
 
 class KaleyraClient:
@@ -23,24 +24,31 @@ class KaleyraClient:
         # OTP Template ID (mandatory for India - DLT compliance)
         self.otp_template_id = payswap_config.KALEYRA_OTP_TEMPLATE_ID
         # Kaleyra API endpoint - Use base URL from .env
-        # Base URL from .env: https://api.in.kaleyra.io/ (or api.in.kaleyra.io)
-        # Full endpoint should be: https://api.in.kaleyra.io/v1/{SID}/sms
-        base_url_from_config = payswap_config.KALEYRA_BASE_URL
+        # India region: api.in.kaleyra.io (NOT api.kaleyra.io). Code appends /v1/{SID}.
+        # Full endpoint: https://api.in.kaleyra.io/v1/{SID}/messages (OTP) or /sms
+        base_url_from_config = (payswap_config.KALEYRA_BASE_URL or "").strip()
         
-        # Normalize base URL
-        if not base_url_from_config or base_url_from_config == "":
-            # Default if not set
+        if not base_url_from_config:
             base_url_from_config = "https://api.in.kaleyra.io"
         elif not base_url_from_config.startswith('http'):
-            # Add https:// if protocol missing
             base_url_from_config = f"https://{base_url_from_config}"
         
-        # Remove trailing slash
         base_url_from_config = base_url_from_config.rstrip('/')
+        # Strip /v1 if present so .env can use either "api.in.kaleyra.io" or "https://api.in.kaleyra.io/v1"
+        if base_url_from_config.endswith('/v1'):
+            base_url_from_config = base_url_from_config[:-3].rstrip('/')
         
-        # Construct full base URL with /v1/{SID}
-        # Format: https://api.in.kaleyra.io/v1/{SID}
+        # Construct full base URL with /v1/{SID} (used for OTP and SMS)
         self.base_url = f"{base_url_from_config}/v1/{self.sid}"
+        # Voice API may use different base (optional)
+        voice_base = getattr(payswap_config, "KALEYRA_VOICE_BASE_URL", None) or payswap_config.KALEYRA_BASE_URL
+        if voice_base and not str(voice_base).startswith("http"):
+            voice_base = f"https://{voice_base}".rstrip("/")
+        else:
+            voice_base = (voice_base or "").rstrip("/") or "https://api.in.kaleyra.io"
+        if voice_base.endswith("/v1"):
+            voice_base = voice_base[:-3].rstrip("/")
+        self.voice_base_url = f"{voice_base}/v1/{self.sid}"
     
     def send_sms(
         self, 
@@ -98,7 +106,6 @@ class KaleyraClient:
         if template_id:
             data["template_id"] = template_id
         
-        # TEMPORARY: Full details for debugging - no masking
         from portal.utils.logging_utils import SecureLogger
         from portal.tasks.write_logs_task import write_logs_task
         logger = SecureLogger('portal.services.vendors.kaleyra')
@@ -108,26 +115,15 @@ class KaleyraClient:
                 'url': url,
                 'method': 'POST',
                 'headers': {
-                    'api-key': str(self.api_key),  # Full API key for debugging
+                    'api-key': 'REDACTED',
                     'Content-Type': headers.get('Content-Type')
                 },
-                'payload': data,  # Complete payload
-                'payload_full': {
-                    'to': normalized_phone,  # Full phone number
-                    'sender': sender_id,
-                    'type': message_type,
-                    'body': message,  # Full message
-                    'template_id': template_id
-                },
                 'sender_id': sender_id,
-                'phone_full': normalized_phone,  # Full phone number
-                'phone_normalized': normalized_phone,
-                'message_full': message,  # Full message content
+                'phone_masked': normalized_phone[-4:] if normalized_phone else '',
                 'message_length': len(message),
                 'message_type': message_type,
                 'template_id': template_id,
                 'base_url': self.base_url,
-                'sid': self.sid
             }
         
         logger.info(
@@ -182,6 +178,11 @@ class KaleyraClient:
                         user=None,
                         extra_data=response_log_data
                     )
+                    try:
+                        from portal.services.hub_cost_service import record_hub_cost
+                        record_hub_cost('sms', 'kaleyra', unit_count=1, reference_id=result.get('id') if isinstance(result, dict) else None)
+                    except Exception:
+                        pass
                 else:
                     logger.warning(
                         f'Kaleyra SMS Response - Error | Status: {response_status} | Response: {result if result else response_text}',
@@ -279,7 +280,7 @@ class KaleyraClient:
             
             raise Exception(f"Kaleyra API error: {str(e)}")
     
-    def send_otp(self, phone_number: str, otp: str) -> bool:
+    def send_otp(self, phone_number: str, otp: str) -> tuple[bool, Optional[str]]:
         """
         Send OTP via SMS using template ID with variables
         
@@ -294,26 +295,24 @@ class KaleyraClient:
             otp: OTP code
         
         Returns:
-            True if sent successfully, False otherwise
+            (True, None) if sent successfully; (False, error_message) otherwise
         """
+        url = f"{self.base_url}/messages"
+        data: dict = {}
         try:
             # Normalize phone number to 91XXXXXXXXXX format (no + prefix)
             normalized = normalize_phone_number(phone_number)
             # Kaleyra API requires format: 91XXXXXXXXXX (without + prefix)
             normalized_phone = normalized.lstrip('+') if normalized.startswith('+') else normalized
             
-            # Kaleyra API endpoint: Use /messages for template-based OTP (JSON API)
-            # Correct format: https://api.in.kaleyra.io/v1/{SID}/messages
-            # This is the recommended endpoint for template-based OTP with variables
-            url = f"{self.base_url}/messages"
             headers = {
                 "api-key": str(self.api_key),
                 "Content-Type": "application/json"
             }
             
-            # Request body according to Kaleyra API documentation for template-based OTP
-            # DLT template_id: 1007640321725099860 | Header: PYSWAP
-            # Template: "Dear User, Your one time password for Payswap registration is {#var#}. Please do not share this OTP any one. Powered by PAYSWAP."
+            # Request body: must match DLT-approved template exactly (Reg_otp in DLT/template-data.csv)
+            # Template ID 1007640321725099860 | Header: PYSWAP | Same for Portal MFA and ParkPe (auth, scanner OTP)
+            # Body = exact template text with {#var#} replaced by OTP
             template_body = f"Dear User, Your one time password for Payswap registration is {otp}. Please do not share this OTP any one. Powered by PAYSWAP."
             
             data = {
@@ -327,40 +326,23 @@ class KaleyraClient:
                 }
             }
             
-            # TEMPORARY: Full details for debugging - no masking
+            # Log request without secrets, OTP, or full phone (SEC: no credential leakage)
             from portal.tasks.write_logs_task import write_logs_task
-            
-            # Log complete request details - NO MASKING
+            masked_phone = f"{normalized_phone[:4]}****{normalized_phone[-4:]}" if len(normalized_phone) >= 8 else "****"
             request_log_data = {
                 'action': 'kaleyra_otp_request',
                 'url': url,
                 'method': 'POST',
-                'headers': {
-                    'api-key': str(self.api_key),  # Full API key
-                    'Content-Type': headers.get('Content-Type')
-                },
-                'payload': data,  # Complete payload
-                'payload_full': {
-                    'to': normalized_phone,  # Full phone number
-                    'sender': self.sender_id,
-                    'type': 'OTP',  # OTP type
-                    'template_id': self.otp_template_id,
-                    'body': template_body,  # Full template text with OTP
-                    'variables': {'var1': otp}  # Template variable
-                },
+                'headers': {'Content-Type': headers.get('Content-Type')},
                 'template_id': self.otp_template_id,
                 'sender_id': self.sender_id,
-                'phone_full': normalized_phone,  # Full phone number
-                'phone_normalized': normalized_phone,
-                'otp_code': otp,  # Full OTP code
-                'variable_name': 'var1',  # Template variable name
-                'base_url': self.base_url
+                'phone_masked': masked_phone,
+                'variable_name': 'var1',
+                'base_url': self.base_url,
             }
-            
-            # Log via write_logs_task for database storage - FULL DETAILS
             write_logs_task.delay(
                 log_level='INFO',
-                message=f'Kaleyra OTP SMS Request - POST {url} | Phone: {normalized_phone} | OTP: {otp} | Template: {self.otp_template_id} | Sender: {self.sender_id} | Type: OTP | Variable: var1={otp}',
+                message=f'Kaleyra OTP SMS Request - POST {url} | Phone: {masked_phone} | Template: {self.otp_template_id}',
                 module_name='portal.services.vendors.kaleyra',
                 url=None,
                 request_id=None,
@@ -399,25 +381,19 @@ class KaleyraClient:
                         if len(result.get('data', [])) > 0:
                             is_success = True
                 
-                # Log response details
+                # Log response details (VAPT-001: never log OTP or full phone)
                 response_log_data = {
                     'action': 'kaleyra_otp_response',
                     'status_code': response_status,
-                    'response_headers': dict(response.headers),  # All headers
-                    'response_body': response_body,  # Complete JSON response
-                    'response_text': response_text if response_text else None,  # Full response text
-                    'message_id': message_id,  # Important: Save this for DLR tracking
-                    'success': is_success,  # 200 or 202 means success
+                    'message_id': message_id,  # For DLR tracking
+                    'success': is_success,
                     'request_url': url,
-                    'request_payload': data,  # Complete request payload
-                    'otp_code': otp,  # Full OTP code
-                    'phone_full': normalized_phone  # Full phone number
+                    'otp_len': len(str(otp or '')),
+                    'phone_masked': mask_phone_for_log(normalized_phone),
                 }
                 
-                # Response logging is done via write_logs_task below
-                
-                # Also log via write_logs_task for database storage - FULL DETAILS
-                response_msg = f'Kaleyra OTP SMS Response - Status: {response_status} | Phone: {normalized_phone} | OTP: {otp}'
+                # Message must not contain OTP or full phone (VAPT-001)
+                response_msg = f'Kaleyra OTP SMS Response - Status: {response_status} | Phone: {mask_phone_for_log(normalized_phone)}'
                 if message_id:
                     response_msg += f' | Message ID: {message_id}'
                 response_msg += f' | Response: {str(result) if result else response_text if response_text else "No response"}'
@@ -444,10 +420,20 @@ class KaleyraClient:
                 
                 # Check for success indicators (use is_success from above)
                 success = is_success
-                
-                # Final result logging is done via write_logs_task above
-                
-                return success
+                if success:
+                    try:
+                        from portal.services.hub_cost_service import record_hub_cost
+                        record_hub_cost('sms', 'kaleyra', unit_count=1, reference_id=message_id)
+                    except Exception:
+                        pass
+                    return True, None
+                # Non-success: return error from API response if available
+                err_msg = "OTP send failed"
+                if isinstance(result, dict) and result.get("message"):
+                    err_msg = str(result.get("message"))
+                elif response_text:
+                    err_msg = response_text[:200] if len(response_text) > 200 else response_text
+                return False, err_msg
         except httpx.HTTPStatusError as e:
             # Log HTTP errors with complete details
             error_detail = "Unknown error"
@@ -487,7 +473,7 @@ class KaleyraClient:
                 session_id=None
             )
             
-            return False
+            return False, error_detail
         except Exception as e:
             # Log all other errors with complete details
             # Get url and data from local context or use defaults
@@ -518,7 +504,7 @@ class KaleyraClient:
                 session_id=None
             )
             
-            return False
+            return False, str(e)
     
     def send_template_sms(
         self,
@@ -585,14 +571,11 @@ class KaleyraClient:
                 'url': url,
                 'method': 'POST',
                 'headers': {
-                    'api-key': str(self.api_key),
+                    'api-key': 'REDACTED',
                     'Content-Type': headers.get('Content-Type')
                 },
-                'payload': data,
                 'template_id': template_id,
-                'template_content': template_content,
-                'variables': variables,
-                'phone_full': normalized_phone,
+                'phone_masked': normalized_phone[-4:] if normalized_phone else '',
                 'message_type': message_type
             }
             
@@ -772,7 +755,7 @@ class KaleyraClient:
         except ValueError as e:
             raise ValueError(f"Invalid phone number: {e}") from e
 
-        url = f"{self.base_url}/voice/click-to-call"
+        url = f"{self.voice_base_url}/voice/click-to-call"
         headers = {
             "api-key": str(self.api_key),
             "Content-Type": "application/x-www-form-urlencoded",
@@ -784,5 +767,20 @@ class KaleyraClient:
         with httpx.Client() as client:
             response = client.post(url, data=data, headers=headers, timeout=15)
             result = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+            if not response.is_success:
+                from portal.tasks.write_logs_task import write_logs_task
+                write_logs_task.delay(
+                    log_level="ERROR",
+                    message="click_to_call_kaleyra_error",
+                    module_name="portal.services.vendors.kaleyra",
+                    url=url,
+                    extra_data={
+                        "status_code": response.status_code,
+                        "response_body": response.text[:500],
+                        "from_masked": from_norm[-4:] if from_norm else "",
+                        "to_masked": to_norm[-4:] if to_norm else "",
+                        "category": "connect_call",
+                    },
+                )
             response.raise_for_status()
             return result

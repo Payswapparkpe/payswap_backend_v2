@@ -50,6 +50,18 @@ def _api_prefix_from_request(request) -> str:
     return "/api/v2"
 
 
+def get_voucher_for_partner(request, voucher_code: str):
+    """
+    VAPT-006: Resolve voucher by code and enforce partner scope.
+    Returns voucher if found and metadata.partner_id matches request.partner.id, else None.
+    Caller should return 404 when None (same as voucher not found).
+    """
+    voucher_service = VoucherService()
+    return voucher_service.validate_voucher_code(
+        voucher_code, expected_partner_id=getattr(request, 'partner', None) and request.partner.id
+    )
+
+
 class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Issue single voucher
@@ -171,6 +183,17 @@ class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
                             status_code=status.HTTP_402_PAYMENT_REQUIRED,
                             request=request
                         )
+                    try:
+                        from portal.services.hub_income_service import record_hub_income
+                        record_hub_income(
+                            'voucher',
+                            amount=charge_amount,
+                            transaction_amount=Decimal(str(result['amount'])),
+                            reference_id=result['reference_number'],
+                            partner=partner,
+                        )
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.error(f'Error charging partner for service: {str(e)}', exc_info=True)
                 # Don't fail the request if transaction recording fails, but log it
@@ -282,19 +305,9 @@ class BulkVoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIVie
             batch.metadata['api_key_id'] = api_key.id
             batch.save(update_fields=['metadata'])
             
-            # Process batch (will be processed asynchronously)
+            # Process batch via Celery (PERF-003: durable, retriable, no in-request thread)
             from portal.tasks.voucher_tasks import process_bulk_voucher_issuance_task
-            import threading
-            
-            # Process in background thread
-            def process_batch_async():
-                try:
-                    process_bulk_voucher_issuance_task(batch.id)
-                except Exception as e:
-                    logger.error(f'Error processing batch {batch.id}: {str(e)}')
-            
-            thread = threading.Thread(target=process_batch_async, daemon=True)
-            thread.start()
+            process_bulk_voucher_issuance_task.delay(batch.id)
             
             # Log operation
             log_voucher_operation(
@@ -374,9 +387,8 @@ class VoucherRedeemPINView(IdempotencyMixin, StandardResponseMixin, views.APIVie
             pin = serializer.validated_data['pin']
             redemption_amount = serializer.validated_data.get('amount')
             
-            try:
-                voucher = GiftVoucher.objects.get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -497,17 +509,14 @@ class VoucherRedeemOTPRequestView(StandardResponseMixin, views.APIView):
             voucher_code = unformat_voucher_code(serializer.validated_data['voucher_code'])
             mobile_number = serializer.validated_data['mobile_number']
             
-            # Get voucher
-            try:
-                voucher = GiftVoucher.objects.get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
                     request=request
                 )
             
-            # Request OTP
             voucher_service = VoucherService()
             result = voucher_service.request_redemption_otp(
                 voucher_code=voucher_code,
@@ -578,9 +587,8 @@ class VoucherRedeemOTPVerifyView(IdempotencyMixin, StandardResponseMixin, views.
             otp = serializer.validated_data['otp']
             redemption_amount = serializer.validated_data.get('amount')
             
-            try:
-                voucher = GiftVoucher.objects.get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -668,18 +676,16 @@ class VoucherBalanceView(StandardResponseMixin, views.APIView):
             partner = request.partner
             api_key = request.api_key
             
-            # Unformat voucher code
             voucher_code = unformat_voucher_code(voucher_code)
             
-            # Get voucher
-            try:
-                voucher = GiftVoucher.objects.select_related('brand', 'client').get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
                     request=request
                 )
+            voucher = GiftVoucher.objects.select_related('brand', 'client').get(pk=voucher.pk)
             
             serializer = VoucherBalanceResponseSerializer({
                 'voucher_code': format_voucher_code(voucher.voucher_code),
@@ -740,17 +746,14 @@ class VoucherPINChangeRequestView(StandardResponseMixin, views.APIView):
             voucher_code = unformat_voucher_code(voucher_code)
             mobile_number = serializer.validated_data['mobile_number']
             
-            # Get voucher
-            try:
-                voucher = GiftVoucher.objects.get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
                     request=request
                 )
             
-            # Request OTP
             voucher_service = VoucherService()
             result = voucher_service.request_pin_change_otp(
                 voucher_code=voucher_code,
@@ -821,17 +824,14 @@ class VoucherPINChangeVerifyView(StandardResponseMixin, views.APIView):
             otp = serializer.validated_data['otp']
             new_pin = serializer.validated_data['new_pin']
             
-            # Get voucher
-            try:
-                voucher = GiftVoucher.objects.get(voucher_code=voucher_code)
-            except GiftVoucher.DoesNotExist:
+            voucher = get_voucher_for_partner(request, voucher_code)
+            if voucher is None:
                 return self.error_response(
                     message="Voucher not found",
                     status_code=status.HTTP_404_NOT_FOUND,
                     request=request
                 )
             
-            # Change PIN
             voucher_service = VoucherService()
             result = voucher_service.change_pin_with_otp(
                 voucher_code=voucher_code,

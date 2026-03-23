@@ -10,9 +10,9 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="lottie-feedback" [class.success]="type === 'success'" [class.error]="type === 'error'">
+    <div class="lottie-feedback" [class.success]="type === 'success'" [class.error]="type === 'error'" [class.pending]="type === 'pending'">
       <div class="feedback-icon">
-        <span class="material-icons">{{ type === 'success' ? 'check_circle' : 'error' }}</span>
+        <span class="material-icons">{{ iconName }}</span>
       </div>
       @if (message) {
         <p class="feedback-message">{{ message }}</p>
@@ -45,6 +45,9 @@ import { CommonModule } from '@angular/common';
     .lottie-feedback.error .feedback-icon .material-icons {
       color: var(--error);
     }
+    .lottie-feedback.pending .feedback-icon .material-icons {
+      color: var(--warning, #ed6c02);
+    }
     .feedback-message {
       margin-top: 1rem;
       font-size: 1.125rem;
@@ -55,6 +58,9 @@ import { CommonModule } from '@angular/common';
     .lottie-feedback.error .feedback-message {
       color: var(--error);
     }
+    .lottie-feedback.pending .feedback-message {
+      color: var(--text-secondary);
+    }
     @keyframes scaleIn {
       from { transform: scale(0.5); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
@@ -62,6 +68,15 @@ import { CommonModule } from '@angular/common';
   `],
 })
 export class LottieFeedbackComponent {
-  @Input() type: 'success' | 'error' = 'success';
+  @Input() type: 'success' | 'error' | 'pending' = 'success';
   @Input() message = '';
+
+  get iconName(): string {
+    switch (this.type) {
+      case 'success': return 'check_circle';
+      case 'error': return 'error';
+      case 'pending': return 'schedule';
+      default: return 'check_circle';
+    }
+  }
 }

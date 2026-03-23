@@ -1,8 +1,9 @@
 """
-API Key service: resolve key from plain value, revoke, and optional IP check.
+API Key service: resolve key from plain value, revoke, create, and optional IP check.
 """
 import hashlib
-from typing import Optional, Tuple
+import secrets
+from typing import Any, Dict, List, Optional, Tuple
 
 from django.utils import timezone
 
@@ -36,6 +37,40 @@ def revoke_api_key(api_key: APIKey, reason: str, revoked_by=None) -> None:
     api_key.save(update_fields=["status", "revoked_at", "revoked_reason", "updated_at"])
 
 
+def create_api_key(
+    partner: ResellerPartner,
+    key_name: str,
+    key_type: str = "LIVE",
+    permissions: Optional[Dict[str, Any]] = None,
+    rate_limits: Optional[Dict[str, Any]] = None,
+    rate_limit: Optional[Dict[str, Any]] = None,
+    ip_whitelist: Optional[List[str]] = None,
+    created_by=None,
+) -> Tuple[APIKey, str, str]:
+    """
+    Create a new API key for a partner. Returns (APIKey, plain_key, plain_secret).
+    Plain key/secret are shown only once; store hashed in DB.
+    """
+    plain_key = secrets.token_urlsafe(32)
+    plain_secret = secrets.token_urlsafe(32)
+    key_prefix = f"psk_{key_type.lower()}_{plain_key[:8]}"
+    api_key_obj = APIKey(
+        partner=partner,
+        key_name=key_name,
+        api_key=_hash_key(plain_key),
+        api_secret=_hash_key(plain_secret),
+        key_prefix=key_prefix[:20],
+        key_type=key_type,
+        status="ACTIVE",
+        permissions=permissions or {},
+        rate_limit=rate_limits if rate_limits is not None else (rate_limit or {}),
+        ip_whitelist=ip_whitelist or [],
+        created_by=created_by,
+    )
+    api_key_obj.save()
+    return (api_key_obj, plain_key, plain_secret)
+
+
 class APIKeyService:
     """Convenience class for admin and callers that prefer service object."""
 
@@ -44,3 +79,27 @@ class APIKeyService:
 
     def revoke_api_key(self, api_key: APIKey, reason: str, revoked_by=None) -> None:
         revoke_api_key(api_key, reason, revoked_by)
+
+    @classmethod
+    def create_api_key(
+        cls,
+        partner: ResellerPartner,
+        key_name: str,
+        key_type: str = "LIVE",
+        permissions: Optional[Dict[str, Any]] = None,
+        rate_limits: Optional[Dict[str, Any]] = None,
+        rate_limit: Optional[Dict[str, Any]] = None,
+        ip_whitelist: Optional[List[str]] = None,
+        created_by=None,
+    ) -> Tuple[APIKey, str, str]:
+        """Create a new API key. Returns (APIKey, plain_key, plain_secret)."""
+        return create_api_key(
+            partner=partner,
+            key_name=key_name,
+            key_type=key_type,
+            permissions=permissions,
+            rate_limits=rate_limits,
+            rate_limit=rate_limit,
+            ip_whitelist=ip_whitelist,
+            created_by=created_by,
+        )

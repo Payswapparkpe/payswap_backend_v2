@@ -1,0 +1,37 @@
+<div class="connect-threads-list" [class.embedded]="embedded()">
+  <div class="page-head">
+    @if (!embedded()) {
+      <a routerLink="/connect" class="back-link">← Connect</a>
+    }
+    <h1>Chats</h1>
+    <p class="page-subtitle">Threads where you are the vehicle owner or the scanner.</p>
+  </div>
+
+  @if (loading()) {
+    <p class="loading">Loading…</p>
+  } @else if (error(); as err) {
+    <p class="error">{{ err }}</p>
+    <button type="button" class="btn btn-outline" (click)="load()">Retry</button>
+  } @else if (threads().length === 0) {
+    <div class="empty-state">
+      <span class="material-icons">chat_bubble_outline</span>
+      <p>No chats yet. Scan a vehicle QR to start a conversation with an owner.</p>
+      <a routerLink="/connect/scan" class="btn btn-primary">Scan QR</a>
+    </div>
+  } @else {
+    <ul class="thread-list">
+      @for (t of threads(); track t.id) {
+        <li>
+          <a [routerLink]="['/connect/chats', t.id]" class="thread-row">
+            <span class="material-icons">chat</span>
+            <div class="thread-info">
+              <span class="thread-vehicle">{{ t.registration_number_masked }}</span>
+              <span class="thread-role">{{ t.is_owner ? 'You are owner' : 'You scanned' }} · {{ t.owner_display_name }}</span>
+            </div>
+            <span class="material-icons thread-arrow">chevron_right</span>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>

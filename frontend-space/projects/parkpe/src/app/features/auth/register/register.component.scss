@@ -250,6 +250,13 @@
   margin-top: -0.25rem;
 }
 
+.field-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
 .form-group-checkbox {
   display: flex;
   align-items: center;
@@ -324,4 +331,110 @@
 
 .back-home {
   margin-top: 0.5rem;
+}
+
+/* Pincode + address */
+.pincode-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+
+  .form-control {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.btn-get-address {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.loading {
+    pointer-events: none;
+    opacity: 0.8;
+  }
+}
+
+.btn-secondary {
+  background: var(--primary-100);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-200);
+  border-radius: var(--radius-md);
+
+  &:hover:not(:disabled) {
+    background: var(--primary-200);
+    border-color: var(--primary-300);
+  }
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-select {
+  cursor: pointer;
+  appearance: auto;
+  padding-right: 2rem;
+}
+
+.spinner.small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+/* OTP step */
+.otp-input {
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-size: 1.25rem;
+}
+
+.resend-row {
+  margin: -0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.resend-countdown {
+  color: var(--text-muted);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--primary-600);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    color: var(--primary-700);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  margin-top: 0.5rem;
+
+  &:hover:not(:disabled) {
+    background: var(--primary-50);
+    color: var(--primary-700);
+    border-color: var(--primary-200);
+  }
 }

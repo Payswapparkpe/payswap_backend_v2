@@ -1,0 +1,213 @@
+<article
+  class="vehicle-card-smart"
+  [class.vehicle-card-smart--compact]="compact()"
+  [class.vehicle-card-smart--shell]="compact()"
+  [class.vehicle-card-smart--dashboard]="isDashboard()"
+  [class.vehicle-card-smart--dashboard-row]="isDashboardRow()"
+  [attr.aria-label]="vehicle().registration_number + ' – ' + (needsRcInfo() ? 'Get vehicle information' : brandModel())">
+  <!-- Same-size card: CTA when no RC, full card when RC available -->
+  <div
+    class="vehicle-card-smart__inner"
+    [class.vehicle-card-smart__inner--cta]="needsRcInfo()">
+    @if (needsRcInfo()) {
+      <!-- No RC / locked: Get your vehicle information → connect page (pay ₹50, then fetch RC) -->
+      <div
+        class="vehicle-card-smart__cta-content"
+        [class.vehicle-card-smart__cta-content--row]="isDashboardRow()">
+        <div class="vehicle-card-smart__cta-text-block">
+          <header class="vehicle-card-smart__head">
+            <span class="vehicle-card-smart__icon-wrap" aria-hidden="true">
+              @if (isBike()) {
+                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--bike">two_wheeler</span>
+              } @else {
+                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--car">directions_car</span>
+              }
+            </span>
+          </header>
+          <p class="vehicle-card-smart__reg">{{ vehicle().registration_number }}</p>
+          <p class="vehicle-card-smart__meta">
+            {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
+          </p>
+          <p class="vehicle-card-smart__cta-hint">Verified RC data not loaded yet.</p>
+        </div>
+        <div class="vehicle-card-smart__cta-action-block">
+          <a
+            [routerLink]="['/connect/vehicles', vehicle().id]"
+            class="vehicle-card-smart__cta-btn"
+            aria-label="Get your vehicle information – pay ₹50 to fetch verified RC data">
+            <span class="material-icons" aria-hidden="true">info</span>
+            Get your vehicle information
+          </a>
+          <p class="vehicle-card-smart__cta-sub">Pay ₹50 to fetch verified RC (1st vehicle free). Verify ownership on Connect page to see full details.</p>
+        </div>
+      </div>
+    } @else if (isDashboardRow()) {
+      <!-- Dashboard + single vehicle: horizontal strip on wide screens -->
+      <div class="vehicle-card-smart__dash-row-layout">
+        <div class="vehicle-card-smart__dash-row-main">
+          <header class="vehicle-card-smart__head">
+            <div class="vehicle-card-smart__head-badges">
+              @if (isRcVerified()) {
+                <span class="vehicle-card-smart__badge vehicle-card-smart__badge--verified" aria-label="RC verified by government">
+                  <span class="material-icons" aria-hidden="true">verified</span>
+                  RC Verified
+                </span>
+              }
+              @if (vehicle().is_primary) {
+                <span class="vehicle-card-smart__badge vehicle-card-smart__badge--primary">Primary</span>
+              }
+            </div>
+            <span class="vehicle-card-smart__icon-wrap" aria-hidden="true">
+              @if (isEv()) {
+                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--ev">ev_station</span>
+              } @else if (isBike()) {
+                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--bike">two_wheeler</span>
+              } @else {
+                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--car">directions_car</span>
+              }
+            </span>
+          </header>
+          <p class="vehicle-card-smart__reg">{{ vehicle().registration_number }}</p>
+          <p class="vehicle-card-smart__meta vehicle-card-smart__meta--clamp">
+            {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
+          </p>
+          @if (fuelLabel() || rcStatusLabel()) {
+            <p class="vehicle-card-smart__meta-tight">
+              @if (fuelLabel(); as fuel) {
+                <span>Fuel: {{ fuel }}</span>
+              }
+              @if (fuelLabel() && rcStatusLabel()) {
+                <span class="vehicle-card-smart__meta-sep" aria-hidden="true"> · </span>
+              }
+              @if (rcStatusLabel(); as rcStatus) {
+                <span>RC: {{ rcStatus }}</span>
+              }
+            </p>
+          }
+        </div>
+        <div class="vehicle-card-smart__dash-row-aside">
+          <div class="vehicle-card-smart__chips" role="list">
+            @for (chip of statusChips(); track chip.label) {
+              <span
+                role="listitem"
+                class="vehicle-card-smart__chip vehicle-card-smart__chip--{{ chip.status }}"
+                [attr.aria-label]="chip.label">
+                <span class="material-icons vehicle-card-smart__chip-icon" aria-hidden="true">{{ chip.icon }}</span>
+                <span class="vehicle-card-smart__chip-label">{{ chip.label }}</span>
+              </span>
+            }
+          </div>
+          <div class="vehicle-card-smart__actions vehicle-card-smart__actions--row-aside">
+            <a
+              [routerLink]="['/connect/vehicles', vehicle().id]"
+              class="vehicle-card-smart__action vehicle-card-smart__action--primary"
+              aria-label="View vehicle and QR">
+              <span class="material-icons" aria-hidden="true">qr_code_2</span>
+              Connect
+            </a>
+            @if (isCar() && !isEv()) {
+              <a
+                [routerLink]="['/fastag']"
+                [queryParams]="{ registration_number: vehicle().registration_number }"
+                class="vehicle-card-smart__action"
+                aria-label="Recharge FASTag">
+                <span class="material-icons" aria-hidden="true">toll</span>
+                Recharge
+              </a>
+            }
+          </div>
+        </div>
+      </div>
+    } @else {
+      <!-- RC available: default vertical layout (Connect list, multi-vehicle dashboard, etc.) -->
+      <header class="vehicle-card-smart__head">
+        <div class="vehicle-card-smart__head-badges">
+          @if (isRcVerified()) {
+            <span class="vehicle-card-smart__badge vehicle-card-smart__badge--verified" aria-label="RC verified by government">
+              <span class="material-icons" aria-hidden="true">verified</span>
+              RC Verified
+            </span>
+          }
+          @if (vehicle().is_primary) {
+            <span class="vehicle-card-smart__badge vehicle-card-smart__badge--primary">Primary</span>
+          }
+        </div>
+        <span class="vehicle-card-smart__icon-wrap" aria-hidden="true">
+          @if (isEv()) {
+            <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--ev">ev_station</span>
+          } @else if (isBike()) {
+            <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--bike">two_wheeler</span>
+          } @else {
+            <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--car">directions_car</span>
+          }
+        </span>
+      </header>
+
+      <p class="vehicle-card-smart__reg">{{ vehicle().registration_number }}</p>
+      <p class="vehicle-card-smart__meta" [class.vehicle-card-smart__meta--clamp]="isDashboard()">
+        {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
+      </p>
+      @if (isDashboard() && (fuelLabel() || rcStatusLabel())) {
+        <p class="vehicle-card-smart__meta-tight">
+          @if (fuelLabel(); as fuel) {
+            <span>Fuel: {{ fuel }}</span>
+          }
+          @if (fuelLabel() && rcStatusLabel()) {
+            <span class="vehicle-card-smart__meta-sep" aria-hidden="true"> · </span>
+          }
+          @if (rcStatusLabel(); as rcStatus) {
+            <span>RC: {{ rcStatus }}</span>
+          }
+        </p>
+      } @else if (!isDashboard()) {
+        @if (fuelLabel(); as fuel) {
+          <p class="vehicle-card-smart__fuel">Fuel: {{ fuel }}</p>
+        }
+        @if (rcStatusLabel(); as rcStatus) {
+          <p class="vehicle-card-smart__rc-status">RC: {{ rcStatus }}</p>
+        }
+      }
+
+      <div class="vehicle-card-smart__chips" role="list">
+        @for (chip of statusChips(); track chip.label) {
+          <span
+            role="listitem"
+            class="vehicle-card-smart__chip vehicle-card-smart__chip--{{ chip.status }}"
+            [attr.aria-label]="chip.label">
+            <span class="material-icons vehicle-card-smart__chip-icon" aria-hidden="true">{{ chip.icon }}</span>
+            <span class="vehicle-card-smart__chip-label">{{ chip.label }}</span>
+          </span>
+        }
+      </div>
+
+      <div class="vehicle-card-smart__actions">
+        <a
+          [routerLink]="['/connect/vehicles', vehicle().id]"
+          class="vehicle-card-smart__action vehicle-card-smart__action--primary"
+          aria-label="View vehicle and QR">
+          <span class="material-icons" aria-hidden="true">qr_code_2</span>
+          Connect
+        </a>
+        @if (isCar() && !isEv()) {
+          <a
+            [routerLink]="['/fastag']"
+            [queryParams]="{ registration_number: vehicle().registration_number }"
+            class="vehicle-card-smart__action"
+            aria-label="Recharge FASTag">
+            <span class="material-icons" aria-hidden="true">toll</span>
+            Recharge
+          </a>
+        }
+        @if (!isDashboard()) {
+          <a
+            [routerLink]="['/connect/vehicles', vehicle().id, 'edit']"
+            class="vehicle-card-smart__action"
+            aria-label="Manage vehicle">
+            <span class="material-icons" aria-hidden="true">settings</span>
+            Manage
+          </a>
+        }
+      </div>
+    }
+  </div>
+</article>

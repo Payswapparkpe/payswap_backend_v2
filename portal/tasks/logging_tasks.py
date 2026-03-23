@@ -254,3 +254,50 @@ def batch_log_cleanup_task(days_to_keep: int = 30):
             traceback=str(e)
         )
         raise
+
+
+@shared_task(name='portal.tasks.create_connect_scan_log', bind=True, max_retries=2)
+def create_connect_scan_log_task(
+    self,
+    qr_code: str,
+    vehicle_id: int,
+    scanned_by_id: Optional[int] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    location_lat: Optional[str] = None,
+    location_lng: Optional[str] = None,
+):
+    """
+    Create ConnectScanLog asynchronously (off request path for scale).
+    Pass IDs only; avoids serializing model instances and reduces DB write pressure on scan.
+    """
+    from portal.models import ConnectScanLog, Vehicle
+    from decimal import Decimal, InvalidOperation
+    try:
+        vehicle = None
+        if vehicle_id:
+            try:
+                vehicle = Vehicle.objects.get(pk=vehicle_id)
+            except Vehicle.DoesNotExist:
+                return {'status': 'skipped', 'reason': 'vehicle_not_found'}
+        lat = None
+        lng = None
+        try:
+            if location_lat:
+                lat = Decimal(str(location_lat))
+            if location_lng:
+                lng = Decimal(str(location_lng))
+        except (InvalidOperation, ValueError):
+            pass
+        ConnectScanLog.objects.create(
+            qr_code=(qr_code or '')[:128],
+            vehicle=vehicle,
+            scanned_by_id=scanned_by_id,
+            ip_address=ip_address,
+            user_agent=(user_agent or '')[:500],
+            location_lat=lat,
+            location_lng=lng,
+        )
+        return {'status': 'success', 'qr_code': qr_code[:16]}
+    except Exception as e:
+        raise self.retry(exc=e, countdown=5)

@@ -18,20 +18,6 @@ class Command(BaseCommand):
                 'requires_kyc': False,  # Admin has direct access, KYC check at user level when granting permissions
             },
             {
-                'name': 'AEPS',
-                'code': 'AEPS',
-                'description': 'Aadhaar Enabled Payment System - Cash withdrawal and balance enquiry',
-                'status': 'pending',
-                'requires_kyc': False,  # Admin has direct access, KYC check at user level when granting permissions
-            },
-            {
-                'name': 'DMT',
-                'code': 'DMT',
-                'description': 'Domestic Money Transfer - Money transfer services',
-                'status': 'pending',
-                'requires_kyc': False,  # Admin has direct access, KYC check at user level when granting permissions
-            },
-            {
                 'name': 'Recharges',
                 'code': 'RECHARGES',
                 'description': 'Mobile, DTH, and Data Recharge services',

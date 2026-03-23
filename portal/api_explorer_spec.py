@@ -10,7 +10,7 @@ import re
 VENDOR_CATEGORIES = {
     'payment': {'name': 'Payment Gateway', 'icon': 'ti-credit-card'},
     'verification': {'name': 'KYC & Verification', 'icon': 'ti-file-check'},
-    'banking': {'name': 'Banking (AEPS/DMT)', 'icon': 'ti-building-bank'},
+    'banking': {'name': 'Banking (AEPS/DMT – Payswap only)', 'icon': 'ti-building-bank'},
     'bbps': {'name': 'BBPS (Bill Pay)', 'icon': 'ti-receipt'},
     'communication': {'name': 'SMS / Communication', 'icon': 'ti-message'},
     'esign': {'name': 'E-Signature', 'icon': 'ti-signature'},
@@ -22,29 +22,22 @@ VENDOR_TO_CATEGORY = {
     'cashfree_pg': 'payment',
     'cashfree': 'verification',
     'instantpay': 'verification',
-    'paypoint': 'banking',
-    'paypoint_dmt': 'banking',
     'euronet': 'bbps',
     'mobikwik': 'bbps',
     'kaleyra': 'communication',
     'leegality': 'esign',
 }
 
-# Market / Service catalog: service_code -> list of vendor codes (for admin service cards)
+# Market / Service catalog: service_code -> list of vendor codes (AEPS/DMT removed)
 SERVICE_VENDORS = {
     'bbps': ['euronet', 'mobikwik'],
-    'aeps': ['paypoint'],
-    'dmt': ['paypoint_dmt'],
     'kyc': ['cashfree', 'instantpay'],
     'sms': ['kaleyra'],
     'payment': ['cashfree_pg'],
 }
 
-# Service display names for catalog
 SERVICE_DISPLAY_NAMES = {
     'bbps': 'BBPS (Bill Payment)',
-    'aeps': 'AEPS (Aadhaar Banking)',
-    'dmt': 'DMT (Money Transfer)',
     'kyc': 'KYC & Verification',
     'sms': 'SMS & OTP',
     'payment': 'Payment Gateway',
@@ -270,40 +263,6 @@ def get_all_collections():
                 {"method": "POST", "path": "/api/v1/bbps/bill/fetch/", "title": "Fetch Bill", "description": "Fetch bill details (Mobikwik).", "sample_body": None},
                 {"method": "POST", "path": "/api/v1/bbps/bill/pay/", "title": "Pay Bill", "description": "Pay bill (Mobikwik).", "sample_body": None},
                 {"method": "GET", "path": "/api/v1/bbps/bill/status/<ref_id>/", "title": "Payment Status", "description": "Bill payment status (Mobikwik).", "sample_body": None},
-            ],
-        },
-        {
-            "id": "v1-vendor-paypoint-aeps",
-            "name": "API v1 – PayPoint (AEPS)",
-            "icon": "ti-fingerprint",
-            "description": "AEPS APIs routed to PayPoint (API key based).",
-            "base": "/api/v1",
-            "vendor_code": "paypoint",
-            "endpoints": [
-                {"method": "POST", "path": "/api/v1/aeps/balance/", "title": "Balance Enquiry", "description": "AEPS balance (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/withdrawal/", "title": "Cash Withdrawal", "description": "AEPS withdrawal (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/mini-statement/", "title": "Mini Statement", "description": "AEPS mini statement (PayPoint).", "sample_body": None},
-                {"method": "GET", "path": "/api/v1/aeps/status/<ref_id>/", "title": "Transaction Status", "description": "AEPS status (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/agent-registration/", "title": "Agent Registration", "description": "Register AEPS agent (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/update-agent-details/", "title": "Update Agent", "description": "Update agent details (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/agent-service-status/", "title": "Agent Service Status", "description": "Agent service status (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/agent-authentication/", "title": "Agent Auth", "description": "Agent authentication (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/aeps/two-factor-auth/", "title": "Two Factor Auth", "description": "2FA for AEPS (PayPoint).", "sample_body": None},
-            ],
-        },
-        {
-            "id": "v1-vendor-paypoint-dmt",
-            "name": "API v1 – PayPoint (DMT)",
-            "icon": "ti-transfer",
-            "description": "DMT APIs routed to PayPoint (API key based).",
-            "base": "/api/v1",
-            "vendor_code": "paypoint_dmt",
-            "endpoints": [
-                {"method": "POST", "path": "/api/v1/dmt/register-sender/", "title": "Register Sender", "description": "Register DMT sender (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/dmt/add-beneficiary/", "title": "Add Beneficiary", "description": "Add beneficiary (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/dmt/remit/", "title": "Remit", "description": "Send money (PayPoint).", "sample_body": None},
-                {"method": "GET", "path": "/api/v1/dmt/status/<ref_id>/", "title": "Transaction Status", "description": "DMT status (PayPoint).", "sample_body": None},
-                {"method": "POST", "path": "/api/v1/dmt/beneficiaries/", "title": "Get Beneficiaries", "description": "List beneficiaries (PayPoint).", "sample_body": None},
             ],
         },
         {

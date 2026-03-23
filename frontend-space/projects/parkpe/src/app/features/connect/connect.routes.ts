@@ -8,10 +8,8 @@ import { Routes } from '@angular/router';
 export const CONNECT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./connect-hub/connect-hub.component').then(
-        (m) => m.ConnectHubComponent
-      ),
+    redirectTo: 'vehicles',
+    pathMatch: 'full',
   },
   {
     path: 'info',
@@ -28,15 +26,28 @@ export const CONNECT_ROUTES: Routes = [
       ),
   },
   {
-    path: 'vehicles',
+    path: 'chats',
+    loadComponent: () =>
+      import('./connect-chats-shell/connect-chats-shell.component').then(
+        (m) => m.ConnectChatsShellComponent
+      ),
     children: [
       {
-        path: '',
+        path: ':threadId',
         loadComponent: () =>
-          import('./connect-vehicles-list/connect-vehicles-list.component').then(
-            (m) => m.ConnectVehiclesListComponent
+          import('./connect-thread-chat/connect-thread-chat.component').then(
+            (m) => m.ConnectThreadChatComponent
           ),
       },
+    ],
+  },
+  {
+    path: 'vehicles',
+    loadComponent: () =>
+      import('./connect-vehicles-shell/connect-vehicles-shell.component').then(
+        (m) => m.ConnectVehiclesShellComponent
+      ),
+    children: [
       {
         path: 'add',
         loadComponent: () =>
@@ -60,6 +71,7 @@ export const CONNECT_ROUTES: Routes = [
       },
     ],
   },
+
   {
     path: 'app',
     loadComponent: () =>

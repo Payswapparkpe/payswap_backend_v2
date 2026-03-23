@@ -1,0 +1,3812 @@
+{
+  "info": {
+    "_postman_id": "9cb6ee9c-1df7-4f70-bf02-71eb26fb40eb",
+    "name": "🔐 MobiKwik Recharge & Bill Payment — UAT Collection",
+    "description": "Complete UAT collection for MobiKwik Recharge & Bill Payment API integration.\n\n✅ FEATURES:\n• Auto RSA-2048 + AES-256-GCM hybrid encryption on every encrypted request\n• Auto token generation & refresh (tracks expiry, regenerates before 30min buffer)\n• Auto unique reqid generation (timestamp + random + prefix)\n• Auto log saving for every request/response\n• Auto-saves txId, mobikwikStamp for Status Check\n• Token status indicator in console\n• Full UAT log export ready for document submission\n\n🚀 SETUP STEPS:\n1. Import this collection\n2. Import the MobiKwik_UAT environment\n3. Fill in: CLIENT_ID, CLIENT_SECRET, MEMBER_ID, RSA_PUBLIC_KEY_PEM, KEY_VERSION\n4. Run '⚙️ SETUP — Load Forge Crypto Library' request FIRST\n5. Run '🔐 Token Generation > ✅ Success' to get your token\n6. Run all other requests in order\n\n📋 API EXECUTION ORDER:\nPrepaid: Validation → Payment → Status Check\nPostpaid: View Bill → Payment → Status Check",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "778628",
+    "_collection_link": "https://go.postman.co/collection/778628-9cb6ee9c-1df7-4f70-bf02-71eb26fb40eb?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "⚙️ SETUP — Load Forge Crypto Library",
+      "item": [
+        {
+          "name": "🔧 Load Forge.js from CDN",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// ── Load Forge.js from CDN (sandbox-compatible version) ──────────────────────────",
+                  "",
+                  "// Use the forge.min.js but with proper sandbox patching",
+                  "pm.sendRequest({",
+                  "    url: 'https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js',",
+                  "    method: 'GET'",
+                  "}, function (err, res) {",
+                  "    if (err) {",
+                  "        console.error('❌ Failed to fetch forge.js:', err);",
+                  "        throw new Error('Failed to fetch forge.js from CDN');",
+                  "    }",
+                  "    ",
+                  "    let forgeJs = res.text();",
+                  "    ",
+                  "    // Patch the forge.js to work in Postman sandbox",
+                  "    // Replace the IIFE that checks for window with a sandbox-compatible version",
+                  "    const patchedForgeJs = `",
+                  "(function() {",
+                  "    var window = {};",
+                  "    var self = window;",
+                  "    var global = window;",
+                  "    var exports = {};",
+                  "    var module = { exports: exports };",
+                  "    var define = undefined;",
+                  "    ",
+                  "    ${forgeJs}",
+                  "    ",
+                  "    // Make forge available globally",
+                  "    if (typeof forge === 'undefined' && module.exports) {",
+                  "        forge = module.exports;",
+                  "    }",
+                  "    if (typeof forge === 'undefined' && window.forge) {",
+                  "        forge = window.forge;",
+                  "    }",
+                  "})();",
+                  "",
+                  "// ── Encryption helper function for MobiKwik APIs ──────────────────────────────",
+                  "// This function is available globally after eval(FORGE_JS)",
+                  "function encryptMobikwikPayload(plainPayload) {",
+                  "    const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "    const keyVersion = pm.environment.get('KEY_VERSION') || '1';",
+                  "    ",
+                  "    if (!rsaPem || rsaPem.includes('PASTE')) {",
+                  "        throw new Error('RSA_PUBLIC_KEY_PEM not set in environment!');",
+                  "    }",
+                  "    ",
+                  "    if (typeof forge === 'undefined') {",
+                  "        throw new Error('Forge library not loaded properly');",
+                  "    }",
+                  "    ",
+                  "    // Convert plainPayload to string if it's an object",
+                  "    const payloadStr = typeof plainPayload === 'string' ? plainPayload : JSON.stringify(plainPayload);",
+                  "    ",
+                  "    // AES-256-GCM encryption",
+                  "    const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "    const ivBytes = forge.random.getBytesSync(16);",
+                  "    const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "    cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "    cipher.update(forge.util.createBuffer(payloadStr, 'utf8'));",
+                  "    cipher.finish();",
+                  "    const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "    ",
+                  "    // RSA-2048 PKCS1 encrypt session key",
+                  "    const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "    const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "    const ivBase64 = forge.util.encode64(ivBytes);",
+                  "    ",
+                  "    // Return encrypted request body",
+                  "    return {",
+                  "        encryptedSessionKey: encSessionKey,",
+                  "        encryptedPayload: encPayload,",
+                  "        keyVersion: keyVersion,",
+                  "        iv: ivBase64",
+                  "    };",
+                  "}",
+                  "",
+                  "// Alias for compatibility",
+                  "var mobikwikEncryptPayload = encryptMobikwikPayload;",
+                  "var encryptPayload = encryptMobikwikPayload;",
+                  "var buildEncryptedRequestBody = encryptMobikwikPayload;",
+                  "`;",
+                  "    ",
+                  "    pm.collectionVariables.set('FORGE_JS', patchedForgeJs);",
+                  "    pm.collectionVariables.set('FORGE_LOADED', 'true');",
+                  "    console.log('✅ Forge.js loaded and patched for sandbox compatibility');",
+                  "    console.log('✅ Encryption helper function (encryptMobikwikPayload) bundled into FORGE_JS');",
+                  "    ",
+                  "    // ── Now perform encryption ────────────────────────────",
+                  "    const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "    const memberId = pm.environment.get('MEMBER_ID');",
+                  "    ",
+                  "    if (!rsaPem || rsaPem.includes('PASTE')) {",
+                  "        console.error('❌ RSA_PUBLIC_KEY_PEM not set in environment!');",
+                  "        pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify({error: 'RSA_PUBLIC_KEY_PEM not set'}));",
+                  "        pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify({error: 'RSA_PUBLIC_KEY_PEM not set'}));",
+                  "        return;",
+                  "    }",
+                  "    ",
+                  "    if (!memberId) {",
+                  "        console.error('❌ MEMBER_ID not set in environment!');",
+                  "        pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify({error: 'MEMBER_ID not set'}));",
+                  "        pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify({error: 'MEMBER_ID not set'}));",
+                  "        return;",
+                  "    }",
+                  "    ",
+                  "    // Build plain payload",
+                  "    const plainPayload = {",
+                  "        memberId: memberId",
+                  "    };",
+                  "    console.log('📤 Plain payload:', JSON.stringify(plainPayload));",
+                  "    pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "    ",
+                  "    // Execute patched forge in sandbox",
+                  "    try {",
+                  "        eval(patchedForgeJs);",
+                  "        ",
+                  "        if (typeof forge === 'undefined') {",
+                  "            throw new Error('Forge library not loaded properly');",
+                  "        }",
+                  "        ",
+                  "        // AES-256-GCM encryption",
+                  "        const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "        const ivBytes = forge.random.getBytesSync(16);",
+                  "        const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "        cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "        cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "        cipher.finish();",
+                  "        const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "        ",
+                  "        // RSA-2048 PKCS1 encrypt session key",
+                  "        const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "        const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "        const ivBase64 = forge.util.encode64(ivBytes);",
+                  "        ",
+                  "        // Build encrypted request body",
+                  "        const keyVersion = pm.environment.get('KEY_VERSION') || '1';",
+                  "        const encryptedBody = {",
+                  "            encryptedSessionKey: encSessionKey,",
+                  "            encryptedPayload: encPayload,",
+                  "            keyVersion: keyVersion,",
+                  "            iv: ivBase64",
+                  "        };",
+                  "        ",
+                  "        pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "        console.log('✅ Encryption complete! LAST_ENCRYPTED_BODY stored in collection variables');",
+                  "        console.log('🔐 Encrypted body preview:', JSON.stringify(encryptedBody).substring(0, 200) + '...');",
+                  "        ",
+                  "    } catch (e) {",
+                  "        console.error('❌ Encryption failed:', e.message);",
+                  "        pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify({error: e.message}));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Test that forge.js was loaded successfully",
+                  "pm.test('✅ Forge library loaded successfully', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(pm.response.text().length).to.be.greaterThan(100000);",
+                  "});",
+                  "",
+                  "// Test that encryption was performed and stored",
+                  "pm.test('✅ Encryption completed and stored', function() {",
+                  "    const encryptedBody = pm.collectionVariables.get('LAST_ENCRYPTED_BODY');",
+                  "    pm.expect(encryptedBody).to.be.a('string');",
+                  "    ",
+                  "    const parsed = JSON.parse(encryptedBody);",
+                  "    pm.expect(parsed.error).to.be.undefined;",
+                  "    pm.expect(parsed.encryptedSessionKey).to.be.a('string');",
+                  "    pm.expect(parsed.encryptedPayload).to.be.a('string');",
+                  "    pm.expect(parsed.iv).to.be.a('string');",
+                  "    pm.expect(parsed.keyVersion).to.be.a('string');",
+                  "});",
+                  "",
+                  "// Test that plain payload was stored",
+                  "pm.test('✅ Plain payload stored', function() {",
+                  "    const plainPayload = pm.collectionVariables.get('LAST_PLAIN_PAYLOAD');",
+                  "    pm.expect(plainPayload).to.be.a('string');",
+                  "    ",
+                  "    const parsed = JSON.parse(plainPayload);",
+                  "    pm.expect(parsed.memberId).to.be.a('string');",
+                  "});",
+                  "",
+                  "// Test that FORGE_LOADED flag is set",
+                  "pm.test('✅ FORGE_LOADED flag set', function() {",
+                  "    pm.expect(pm.collectionVariables.get('FORGE_LOADED')).to.equal('true');",
+                  "});",
+                  "",
+                  "// Log success info",
+                  "const forgeJs = pm.response.text();",
+                  "console.log('✅ forge.js loaded and saved! Size: ' + forgeJs.length + ' chars');",
+                  "console.log('');",
+                  "console.log('🚀 READY TO TEST! Next steps:');",
+                  "console.log('   1. Fill CLIENT_ID, CLIENT_SECRET, MEMBER_ID, RSA_PUBLIC_KEY_PEM, KEY_VERSION in environment');",
+                  "console.log('   2. Run Token Generation > Success request');",
+                  "console.log('   3. Run Balance Check, Validation, etc. in order');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js",
+              "protocol": "https",
+              "host": [
+                "cdn",
+                "jsdelivr",
+                "net"
+              ],
+              "path": [
+                "npm",
+                "node-forge@1.3.1",
+                "dist",
+                "forge.min.js"
+              ]
+            },
+            "description": "Loads node-forge 1.3.1 from jsDelivr CDN. Supports: AES-256-GCM, RSA-2048, PKCS1 padding, Base64 encoding — all required for MobiKwik API encryption."
+          },
+          "response": []
+        }
+      ],
+      "description": "▶️ RUN THIS FIRST before any encrypted API call.\nLoads the node-forge cryptography library from CDN and stores it in the collection variable for reuse.\nOnly needs to be run once per Postman session."
+    },
+    {
+      "name": "🔐 1. Token Generation API",
+      "item": [
+        {
+          "name": "✅ Point 1 — Token Generation (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Warn if credentials are still placeholder",
+                  "const clientId = pm.environment.get('CLIENT_ID');",
+                  "const clientSecret = pm.environment.get('CLIENT_SECRET');",
+                  "if (!clientId || clientId.includes('PASTE')) {",
+                  "    console.error('❌ CLIENT_ID not set in environment! Fill it before running.');",
+                  "}",
+                  "if (!clientSecret || clientSecret.includes('PASTE')) {",
+                  "    console.error('❌ CLIENT_SECRET not set in environment! Fill it before running.');",
+                  "}",
+                  "console.log('🔐 Sending Token Generation request...');",
+                  "console.log('   clientId: ' + clientId);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "const url = pm.request.url.toString();",
+                  "const reqBody = JSON.parse(pm.request.body.raw);",
+                  "",
+                  "// ── Save Token Automatically ──────────────────────",
+                  "pm.test('✅ Token Generated Successfully', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data.token).to.be.a('string');",
+                  "    ",
+                  "    const token = responseJson.data.token;",
+                  "    const expiryStr = responseJson.data.expiryTime;",
+                  "    ",
+                  "    // Save token to environment",
+                  "    pm.environment.set('TOKEN', token);",
+                  "    pm.environment.set('TOKEN_EXPIRY', expiryStr);",
+                  "    ",
+                  "    // Convert expiry string to epoch ms (format: YYYY-MM-DD HH:mm:ss)",
+                  "    const expiryDate = new Date(expiryStr.replace(' ', 'T') + 'Z');",
+                  "    pm.environment.set('TOKEN_EXPIRY_EPOCH', expiryDate.getTime().toString());",
+                  "    ",
+                  "    console.log('');",
+                  "    console.log('✅ TOKEN SAVED AUTOMATICALLY');",
+                  "    console.log('   Token  : ' + token.substring(0, 20) + '...');",
+                  "    console.log('   Expires: ' + expiryStr);",
+                  "    console.log('   → Token auto-attached to all subsequent API requests via {{TOKEN}}');",
+                  "});",
+                  "",
+                  "// ── Save to UAT Logs ──────────────────────────────",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 1 — Token Generation (Success)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: url,",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        method: 'POST',",
+                  "        headers: { 'Content-Type': 'application/json' },",
+                  "        body: { clientId: reqBody.clientId, clientSecret: '***REDACTED***' }",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log entry #' + logs.length + ' saved.');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"clientId\": \"{{CLIENT_ID}}\",\n    \"clientSecret\": \"{{CLIENT_SECRET}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v1/verify/retailer",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v1",
+                "verify",
+                "retailer"
+              ]
+            },
+            "description": "UAT Point 1 — Token Generation Success Case.\nSends valid CLIENT_ID and CLIENT_SECRET.\nAuto-saves token and expiryTime to environment variables."
+          },
+          "response": [
+            {
+              "name": "✅ Point 1 — Token Generation (Success)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"clientId\": \"{{CLIENT_ID}}\",\n    \"clientSecret\": \"{{CLIENT_SECRET}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v1/verify/retailer",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v1",
+                    "verify",
+                    "retailer"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Mon, 16 Mar 2026 17:01:22 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "e9e1e948-b80a-4dc0-b5bf-460e2245615f"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "set-cookie",
+                  "value": "__cf_bm=dcoAP0skPAYQDwj1crT5_FvXkgm0tjPrP.ew.rFeKU4-1773680482.7419384-1.0.1.1-jSE9Wg2Ue.9cnLmKU0uESLHy8aBFgbfmM0m0bMx41K4nv_lURpYp0S9cMRMvlt_054nFgrkrqlkldV5wJZ2d9eBoDosOtSw.XqfDahmBZEfkPXaCA2TB2jyGWZaD6BYy_9jP2p0HnDEiseZg1gUZRw; HttpOnly; Secure; Path=/; Domain=mobikwik.com; Expires=Mon, 16 Mar 2026 17:31:22 GMT"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dd551c92eb88171-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"token\": \"wAtAwATfBOF7nfybiJIPUa_ngoxxEbbZFR-Ow65wPIc\",\n        \"expiryTime\": \"2026-03-17 22:31:22\"\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "❌ Point 2 — Token Generation (Failed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "console.log('❌ Sending Token Generation FAILURE test with wrong credentials...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "",
+                  "pm.test('❌ Token Generation Failed as expected', function() {",
+                  "    pm.expect(responseJson.success).to.be.false;",
+                  "    pm.expect(responseJson.message.code).to.equal('1308');",
+                  "    console.log('✅ Failure case confirmed: code=1308, text=' + responseJson.message.text);",
+                  "});",
+                  "",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 2 — Token Generation (Failed)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: { method: 'POST', body: { clientId: 'WRONG_ID', clientSecret: 'WRONG_SECRET' } },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"clientId\": \"{{CLIENT_ID}}1\",\n    \"clientSecret\": \"{{CLIENT_SECRET}}2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v1/verify/retailer",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v1",
+                "verify",
+                "retailer"
+              ]
+            },
+            "description": "UAT Point 2 — Token Generation Failed Case.\nDeliberately sends wrong credentials to capture the 1308 error response."
+          },
+          "response": [
+            {
+              "name": "❌ Point 2 — Token Generation (Failed)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"clientId\": \"{{CLIENT_ID}}1\",\n    \"clientSecret\": \"{{CLIENT_SECRET}}2\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v1/verify/retailer",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v1",
+                    "verify",
+                    "retailer"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Mon, 16 Mar 2026 17:03:29 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "2b7fed04-0edf-4fac-82fe-abb57bc6b810"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "Content-Security-Policy-Report-Only",
+                  "value": "script-src 'none'; connect-src 'none'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=3ImRy4mosqiynGD9UZod8Gj5GTAtLRHK963N46fihZ8-1773680608.9854987-1.0.1.1-.wQe03qqxuBj9e0vuPfEzoV6UpSJ2pZiLS0DDwDuW3HqhNPpRfobjaT3oh5kZ.ebxgssOpJxVEsW4RW7e6yrWBICuNrZFYhZYsp4_5gGMaSR5SXf6iTy5r74fLMonioVOcir4q5RR_xK8XOZ.vSKv6U50vDtDRd8_g5yc79.pCFp.Gqjkekt3a.cuRnQvbW7; report-to cf-csp-endpoint"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Report-To",
+                  "value": "{\"group\":\"cf-csp-endpoint\",\"max_age\":86400,\"endpoints\":[{\"url\":\"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=3ImRy4mosqiynGD9UZod8Gj5GTAtLRHK963N46fihZ8-1773680608.9854987-1.0.1.1-.wQe03qqxuBj9e0vuPfEzoV6UpSJ2pZiLS0DDwDuW3HqhNPpRfobjaT3oh5kZ.ebxgssOpJxVEsW4RW7e6yrWBICuNrZFYhZYsp4_5gGMaSR5SXf6iTy5r74fLMonioVOcir4q5RR_xK8XOZ.vSKv6U50vDtDRd8_g5yc79.pCFp.Gqjkekt3a.cuRnQvbW7\"}]}"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dd554de2ccf68e2-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": false,\n    \"message\": {\n        \"code\": \"1308\",\n        \"text\": \"Error processing encrypted request: Invalid request\"\n    }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "POST /recharge/v1/verify/retailer\n\nNO encryption required. Send plain JSON.\nToken valid for 24 hours. Daily limit: 100 tokens.\n\n⚠️ Token Rotation: Requesting a new token while one is active causes old token to expire in 5 mins."
+    },
+    {
+      "name": "💰 2. Balance Check API",
+      "item": [
+        {
+          "name": "✅ Point 3 — Balance Check (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ── Check forge is loaded ──────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── Check token ────────────────────────────────────",
+                  "const token = pm.environment.get('TOKEN');",
+                  "if (!token) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── Read pre-generated encrypted body from collection variables ────────────",
+                  "const encryptedBodyStr = pm.collectionVariables.get('LAST_ENCRYPTED_BODY');",
+                  "if (!encryptedBodyStr) {",
+                  "    throw new Error('❌ LAST_ENCRYPTED_BODY not found! Run \"🔧 Load Forge.js from CDN\" request first to generate encrypted payload.');",
+                  "}",
+                  "",
+                  "const encryptedBody = JSON.parse(encryptedBodyStr);",
+                  "",
+                  "// Check for errors in the stored encrypted body",
+                  "if (encryptedBody.error) {",
+                  "    throw new Error('❌ Encryption error: ' + encryptedBody.error);",
+                  "}",
+                  "",
+                  "console.log('📤 Using pre-generated encrypted body from collection variables');",
+                  "console.log('🔐 Encrypted body:', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── Set the request body ────────────────────────────",
+                  "pm.request.body.raw = JSON.stringify(encryptedBody);",
+                  "console.log('✅ Request body set with encrypted payload');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "",
+                  "pm.test('✅ Balance Check Successful', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data.balance).to.be.a('number');",
+                  "    console.log('💰 Current Balance: ₹' + responseJson.data.balance);",
+                  "});",
+                  "",
+                  "// ── Plain memberId logging (derived from LAST_PLAIN_PAYLOAD, fallback to env MEMBER_ID) ──",
+                  "let plainPayload = {};",
+                  "try {",
+                  "    plainPayload = JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}');",
+                  "} catch (e) {",
+                  "    plainPayload = {};",
+                  "}",
+                  "const plainMemberId = plainPayload && plainPayload.memberId ? plainPayload.memberId : pm.environment.get('MEMBER_ID');",
+                  "",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 3 — Balance Check (Success)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        plainMemberId: plainMemberId,",
+                  "        decryptedPayload: (function () {",
+                  "            const dp = plainPayload || {};",
+                  "            if (dp && typeof dp === 'object') {",
+                  "                // Ensure memberId is present (if decryptedPayload exists)",
+                  "                if (plainMemberId && !dp.memberId) dp.memberId = plainMemberId;",
+                  "                return dp;",
+                  "            }",
+                  "            return {};",
+                  "        })(),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log #' + logs.length + ' saved.');",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}",
+                "description": "Auto-filled from Token Generation API"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"__note\": \"This body is replaced by the pre-request script with encrypted payload\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerBalance",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerBalance"
+              ]
+            },
+            "description": "UAT Point 3 — Balance Check Success.\nPre-request script auto-encrypts the memberId payload using AES-256-GCM + RSA-2048."
+          },
+          "response": []
+        },
+        {
+          "name": "Point 4 - Balance Check (Failed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ── Check forge is loaded ──────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── Check token ────────────────────────────────────",
+                  "const token = pm.environment.get('TOKEN');",
+                  "if (!token) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── Read pre-generated encrypted body from collection variables ────────────",
+                  "const encryptedBodyStr = pm.collectionVariables.get('LAST_ENCRYPTED_BODY');",
+                  "if (!encryptedBodyStr) {",
+                  "    throw new Error('❌ LAST_ENCRYPTED_BODY not found! Run \"🔧 Load Forge.js from CDN\" request first to generate encrypted payload.');",
+                  "}",
+                  "",
+                  "const encryptedBody = JSON.parse(encryptedBodyStr);",
+                  "",
+                  "// Check for errors in the stored encrypted body",
+                  "if (encryptedBody.error) {",
+                  "    throw new Error('❌ Encryption error: ' + encryptedBody.error);",
+                  "}",
+                  "",
+                  "console.log('📤 Using pre-generated encrypted body from collection variables');",
+                  "console.log('🔐 Encrypted body:', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── Set the request body ────────────────────────────",
+                  "pm.request.body.raw = JSON.stringify(encryptedBody);",
+                  "console.log('✅ Request body set with encrypted payload');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "",
+                  "pm.test('✅ Balance Check Successful', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data.balance).to.be.a('number');",
+                  "    console.log('💰 Current Balance: ₹' + responseJson.data.balance);",
+                  "});",
+                  "",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 3 — Balance Check (Success)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log #' + logs.length + ' saved.');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}",
+                "description": "Auto-filled from Token Generation API"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"__note\": \"This body is replaced by the pre-request script with encrypted payload\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerBalance",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerBalance"
+              ]
+            },
+            "description": "UAT Point 3 — Balance Check Success.\nPre-request script auto-encrypts the memberId payload using AES-256-GCM + RSA-2048."
+          },
+          "response": [
+            {
+              "name": "Point 4 - Balance Check (Failed)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}",
+                    "description": "Auto-filled from Token Generation API"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"__note\": \"This body is replaced by the pre-request script with encrypted payload\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerBalance",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerBalance"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 06:38:51 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "50c149af-079c-4e7c-b5c2-e1c17538499d"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dd9ff445e9fc1d9-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"balance\": 0\n    }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "POST /recharge/v3/retailerBalance\n\n⚠️ REQUIRES ENCRYPTION: AES-256-GCM + RSA-2048\nRequires valid token in Authorization header.\nReturns current wallet balance of the retailer."
+    },
+    {
+      "name": "✅ 3. Validation API",
+      "item": [
+        {
+          "name": "✅ Point 5 — Validation (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// PRE-REQUEST SCRIPT: ✅ Point 5 — Validation (Success)",
+                  "// Encrypts payload from request body using AES-256-GCM + RSA-2048",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Check Forge is loaded ──────────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge library not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── 2. Check Token ────────────────────────────────────────",
+                  "if (!pm.environment.get('TOKEN')) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── 3. Preserve original plaintext before overwriting ─────",
+                  "const originalRaw = pm.request.body.raw;",
+                  "pm.collectionVariables.set('LAST_POINT5_PLAINTEXT_RAW', originalRaw);",
+                  "",
+                  "// ── 4. Parse plaintext from request body ──────────────────",
+                  "let plainPayload;",
+                  "try {",
+                  "    plainPayload = JSON.parse(originalRaw);",
+                  "} catch (e) {",
+                  "    throw new Error('❌ Failed to parse request body as JSON: ' + e.message + '\\nBody was: ' + originalRaw);",
+                  "}",
+                  "",
+                  "console.log('📤 Validation Request (Success Case)');",
+                  "console.log('   Payload: ' + JSON.stringify(plainPayload));",
+                  "",
+                  "// ── 5. Load Forge and encrypt ─────────────────────────────",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "if (!rsaPem) {",
+                  "    throw new Error('❌ RSA_PUBLIC_KEY_PEM environment variable is required!');",
+                  "}",
+                  "",
+                  "// Generate random 256-bit AES session key (32 bytes)",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "",
+                  "// Generate random 16-byte IV",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "",
+                  "// AES-256-GCM encrypt the JSON payload",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "",
+                  "// Append GCM auth tag to encrypted payload",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "",
+                  "// RSA-2048 PKCS1 encrypt the AES session key",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "",
+                  "// Base64 encode the IV",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "",
+                  "// ── 6. Build encrypted request body ───────────────────────",
+                  "const encryptedBody = {",
+                  "    encryptedSessionKey: encSessionKey,",
+                  "    encryptedPayload: encPayload,",
+                  "    keyVersion: pm.environment.get('KEY_VERSION'),",
+                  "    iv: ivBase64",
+                  "};",
+                  "",
+                  "// Store for logging/debugging",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── 7. Update request body ────────────────────────────────",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "",
+                  "console.log('🔐 Validation payload encrypted successfully');",
+                  "console.log('   Key Version: ' + encryptedBody.keyVersion);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "",
+                  "pm.test('✅ Validation Successful', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data.status).to.equal('RECHARGEVALIDATIONSUCCESS');",
+                  "    pm.expect(responseJson.data.businessError).to.be.false;",
+                  "    console.log('✅ Validation passed — status: ' + responseJson.data.status);",
+                  "    console.log('   Proceed to Recharge/Payment API');",
+                  "});",
+                  "",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 5 — Validation API (Success)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amt\": \"100\",\n    \"cn\": \"9876876768\",\n    \"op\": \"7\",\n    \"cir\": \"1\",\n    \"agentId\": \"MK01MK01INB523643654\",\n    \"planCode\": \"bsnl-Andhra-Pradesh-topup-plans-Rs-100.0\",\n    \"adParams\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerValidation",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerValidation"
+              ]
+            },
+            "description": "UAT Point 5 — Validation Success. Uses RECHARGE_CN, RECHARGE_OP, RECHARGE_CIR, RECHARGE_AMT, RECHARGE_PLAN_CODE from environment."
+          },
+          "response": [
+            {
+              "name": "✅ Point 5 — Validation (Success)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"amt\": \"100\",\n    \"cn\": \"9876876768\",\n    \"op\": \"7\",\n    \"cir\": \"1\",\n    \"agentId\": \"MK01MK01INB523643654\",\n    \"planCode\": \"bsnl-Andhra-Pradesh-topup-plans-Rs-100.0\",\n    \"adParams\": {}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerValidation",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerValidation"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 06:56:24 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "1e049354-3764-4162-a3bf-5d9c588014b5"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda18f83b73c1d9-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"status\": \"RECHARGEVALIDATIONSUCCESS\",\n        \"description\": \"\",\n        \"balance\": 0,\n        \"discountedPrice\": 0,\n        \"walletAmount\": 0,\n        \"pgAmount\": 0,\n        \"superCashBurned\": 0,\n        \"zipBalanceUsed\": 0,\n        \"autoPaySupported\": false,\n        \"spinTheWheelApplied\": false,\n        \"rewardWidgetEnabled\": false,\n        \"scratchCardEnabled\": false,\n        \"callForHelpEnabled\": false,\n        \"businessError\": false\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "❌ Point 6 — Validation (Failed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// PRE-REQUEST SCRIPT: ❌ Point 6 — Validation (Failed)",
+                  "// Encrypts payload from request body using AES-256-GCM + RSA-2048",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Check Forge is loaded ──────────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge library not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── 2. Check Token ────────────────────────────────────────",
+                  "if (!pm.environment.get('TOKEN')) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── 3. Preserve original plaintext before overwriting ─────",
+                  "const originalRaw = pm.request.body.raw;",
+                  "pm.collectionVariables.set('LAST_POINT6_PLAINTEXT_RAW', originalRaw);",
+                  "",
+                  "// ── 4. Parse plaintext from request body ──────────────────",
+                  "let plainPayload;",
+                  "try {",
+                  "    plainPayload = JSON.parse(originalRaw);",
+                  "} catch (e) {",
+                  "    throw new Error('❌ Failed to parse request body as JSON: ' + e.message + '\\nBody was: ' + originalRaw);",
+                  "}",
+                  "",
+                  "console.log('❌ Validation Request (Failure Case)');",
+                  "console.log('   Payload: ' + JSON.stringify(plainPayload));",
+                  "",
+                  "// ── 5. Load Forge and encrypt ─────────────────────────────",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "if (!rsaPem) {",
+                  "    throw new Error('❌ RSA_PUBLIC_KEY_PEM environment variable is required!');",
+                  "}",
+                  "",
+                  "// Generate random 256-bit AES session key (32 bytes)",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "",
+                  "// Generate random 16-byte IV",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "",
+                  "// AES-256-GCM encrypt the JSON payload",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "",
+                  "// Append GCM auth tag to encrypted payload",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "",
+                  "// RSA-2048 PKCS1 encrypt the AES session key",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "",
+                  "// Base64 encode the IV",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "",
+                  "// ── 6. Build encrypted request body ───────────────────────",
+                  "const encryptedBody = {",
+                  "    encryptedSessionKey: encSessionKey,",
+                  "    encryptedPayload: encPayload,",
+                  "    keyVersion: pm.environment.get('KEY_VERSION'),",
+                  "    iv: ivBase64",
+                  "};",
+                  "",
+                  "// Store for logging/debugging",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── 7. Update request body ────────────────────────────────",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "",
+                  "console.log('🔐 Validation (Failure) payload encrypted successfully');",
+                  "console.log('   Key Version: ' + encryptedBody.keyVersion);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// POST-RESPONSE SCRIPT: ❌ Point 6 — Validation (Failed)",
+                  "// Validates failure response and logs to UAT_LOGS",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Parse Response (robust) ────────────────────────────",
+                  "let responseJson;",
+                  "try {",
+                  "    responseJson = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test('❌ Response is valid JSON', function() {",
+                  "        pm.expect.fail('Failed to parse response as JSON: ' + e.message);",
+                  "    });",
+                  "    // Log raw response for debugging",
+                  "    const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "    logs.push({",
+                  "        id: logs.length + 1,",
+                  "        api: 'Point 6 — Validation API (Failed)',",
+                  "        timestamp: new Date().toISOString(),",
+                  "        url: pm.request.url.toString(),",
+                  "        httpStatus: pm.response.code,",
+                  "        request: {",
+                  "            decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "            encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "        },",
+                  "        response: pm.response.text().substring(0, 2000),",
+                  "        error: 'Response was not valid JSON'",
+                  "    });",
+                  "    pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "    return;",
+                  "}",
+                  "",
+                  "// ── 2. Test for Expected Failure ──────────────────────────",
+                  "pm.test('❌ Validation Failed as expected', function() {",
+                  "    pm.expect(responseJson.success).to.be.false;",
+                  "    const status = responseJson.data ? responseJson.data.status : responseJson.message ? responseJson.message.code : '';",
+                  "    console.log('✅ Failure confirmed — status/code: ' + status);",
+                  "});",
+                  "",
+                  "// ── 3. Save to UAT Logs ───────────────────────────────────",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 6 — Validation API (Failed)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log saved for Validation (Failed)');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amt\": \"10\",\n    \"cn\": \"8434625057\",\n    \"op\": \"140\",\n    \"cir\": \"22\",\n    \"agentId\": \"MK01MK01INB523643654\",\n    \"planCode\": \"Vi-UP-WEST-Uttarakhand-121-made-for-you-Rs-1.0\",\n    \"adParams\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerValidation",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerValidation"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "❌ Point 6 — Validation (Failed)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"amt\": \"10\",\n    \"cn\": \"8434625057\",\n    \"op\": \"140\",\n    \"cir\": \"22\",\n    \"agentId\": \"MK01MK01INB523643654\",\n    \"planCode\": \"Vi-UP-WEST-Uttarakhand-121-made-for-you-Rs-1.0\",\n    \"adParams\": {}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerValidation",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerValidation"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 07:00:08 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "46a172dc-3af0-4ef0-989f-bb1aafe31cdb"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "Content-Security-Policy-Report-Only",
+                  "value": "script-src 'none'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=jrGMHCGR74M6wozZ04zS7zxSAxT4kd3TcOXrXgvQzlQ-1773730807.780123-1.0.1.1-BN6p5Rpdp072BIK.KkhYeM1C0ZEDMDaMriMJVX.K39kRAoIVbl0Ya7CbRT9YCCbhmd_LknS3d0zIHFGLd3nD98f7V3aRBrGrtpfPxtnO9kKLXuhlTgNdtGadIzbqidUZ8.nFC._NWmKnO1UPpdyIhwgefbDL.xhvd8oYtoZZq_fx4qqaySyFN8dVUd13jSkD; report-to cf-csp-endpoint"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Report-To",
+                  "value": "{\"group\":\"cf-csp-endpoint\",\"max_age\":86400,\"endpoints\":[{\"url\":\"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=jrGMHCGR74M6wozZ04zS7zxSAxT4kd3TcOXrXgvQzlQ-1773730807.780123-1.0.1.1-BN6p5Rpdp072BIK.KkhYeM1C0ZEDMDaMriMJVX.K39kRAoIVbl0Ya7CbRT9YCCbhmd_LknS3d0zIHFGLd3nD98f7V3aRBrGrtpfPxtnO9kKLXuhlTgNdtGadIzbqidUZ8.nFC._NWmKnO1UPpdyIhwgefbDL.xhvd8oYtoZZq_fx4qqaySyFN8dVUd13jSkD\"}]}"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda1e6c9f7ec652-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": false,\n    \"message\": {\n        \"code\": \"RECHARGEVALIDATIONFAILURE\",\n        \"text\": \"Service is temporarily down\"\n    },\n    \"data\": {\n        \"status\": \"RECHARGEVALIDATIONFAILURE\",\n        \"description\": \"Service is temporarily down\",\n        \"balance\": 0,\n        \"discountedPrice\": 0,\n        \"walletAmount\": 0,\n        \"pgAmount\": 0,\n        \"superCashBurned\": 0,\n        \"zipBalanceUsed\": 0,\n        \"autoPaySupported\": false,\n        \"spinTheWheelApplied\": false,\n        \"rewardWidgetEnabled\": false,\n        \"scratchCardEnabled\": false,\n        \"callForHelpEnabled\": false,\n        \"businessError\": false\n    }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "POST /recharge/v3/retailerValidation\n\nPREPAID RECHARGE ONLY — Step 1 of Prepaid flow.\n⚠️ REQUIRES ENCRYPTION.\nValidates mobile number, operator, circle, amount and plan code before initiating recharge."
+    },
+    {
+      "name": "📋 4. View Bill API",
+      "item": [
+        {
+          "name": "✅ Point 7 — View Bill (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// PRE-REQUEST SCRIPT: ✅ Point 7 — View Bill (Success)",
+                  "// Encrypts payload using AES-256-GCM + RSA-2048",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Check Forge is loaded ──────────────────────────────",
+                  "const forgeJs = pm.collectionVariables.get('FORGE_JS');",
+                  "if (!forgeJs || pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge library not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── 2. Check Token ────────────────────────────────────────",
+                  "const token = pm.environment.get('TOKEN');",
+                  "if (!token) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── 3. Build plaintext payload ────────────────────────────",
+                  "const plainPayload = {\"cn\":\"80003948751\",\"op\":\"249\",\"cir\":\"1\",\"adParams\":{}};",
+                  "",
+                  "// Validate required fields",
+                  "if (!plainPayload.cn) {",
+                  "    throw new Error('❌ BILL_CN environment variable is required!');",
+                  "}",
+                  "if (!plainPayload.op) {",
+                  "    throw new Error('❌ BILL_OP environment variable is required!');",
+                  "}",
+                  "",
+                  "console.log('📤 View Bill Request (Success Case)');",
+                  "console.log('   Consumer Number: ' + plainPayload.cn);",
+                  "console.log('   Operator: ' + plainPayload.op);",
+                  "console.log('   Circle: ' + (plainPayload.cir || '(empty)'));",
+                  "",
+                  "// Store plaintext for debugging",
+                  "pm.collectionVariables.set('PLAINTEXT_VIEWBILL', JSON.stringify(plainPayload));",
+                  "",
+                  "// ── 4. Load Forge and encrypt ─────────────────────────────",
+                  "eval(forgeJs);",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "if (!rsaPem) {",
+                  "    throw new Error('❌ RSA_PUBLIC_KEY_PEM environment variable is required!');",
+                  "}",
+                  "",
+                  "// Generate random 256-bit AES session key (32 bytes)",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "",
+                  "// Generate random 16-byte IV",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "",
+                  "// AES-256-GCM encrypt the JSON payload",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "",
+                  "// Append GCM auth tag to encrypted payload",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "",
+                  "// RSA-2048 PKCS1 encrypt the AES session key",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "",
+                  "// Base64 encode the IV",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "",
+                  "// ── 5. Build encrypted request body ───────────────────────",
+                  "const encryptedBody = {",
+                  "    encryptedSessionKey: encSessionKey,",
+                  "    encryptedPayload: encPayload,",
+                  "    keyVersion: pm.environment.get('KEY_VERSION'),",
+                  "    iv: ivBase64",
+                  "};",
+                  "",
+                  "// Store for logging/debugging",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── 6. Update request body ────────────────────────────────",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "",
+                  "console.log('🔐 View Bill payload encrypted successfully');",
+                  "console.log('   Key Version: ' + encryptedBody.keyVersion);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// POST-RESPONSE SCRIPT: ✅ Point 7 — View Bill (Success)",
+                  "// Validates response and handles encrypted/plaintext responses",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Validate HTTP Status ───────────────────────────────",
+                  "pm.test('✅ HTTP Status is 200', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "// ── 2. Parse Response ─────────────────────────────────────",
+                  "let responseJson;",
+                  "try {",
+                  "    responseJson = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test('❌ Response is valid JSON', function() {",
+                  "        pm.expect.fail('Failed to parse response as JSON: ' + e.message);",
+                  "    });",
+                  "    return;",
+                  "}",
+                  "",
+                  "// ── 3. Handle encrypted vs plaintext response ─────────────",
+                  "let decryptedData = responseJson;",
+                  "",
+                  "// Check if response contains encrypted data (has encryptedPayload field)",
+                  "if (responseJson.encryptedPayload && responseJson.iv && responseJson.encryptedSessionKey) {",
+                  "    console.log('🔐 Response is encrypted, attempting decryption...');",
+                  "    ",
+                  "    try {",
+                  "        const forgeJs = pm.collectionVariables.get('FORGE_JS');",
+                  "        if (forgeJs) {",
+                  "            eval(forgeJs);",
+                  "            ",
+                  "            // Note: Decryption requires private key which client typically doesn't have",
+                  "            // Server responses are usually plaintext even when requests are encrypted",
+                  "            console.log('⚠️ Encrypted response detected but decryption requires private key');",
+                  "            console.log('   Storing encrypted response as-is');",
+                  "        }",
+                  "    } catch (decryptError) {",
+                  "        console.warn('⚠️ Could not decrypt response: ' + decryptError.message);",
+                  "    }",
+                  "}",
+                  "",
+                  "// Store response for debugging",
+                  "pm.collectionVariables.set('LAST_VIEWBILL_DECRYPTED', JSON.stringify(decryptedData));",
+                  "",
+                  "// ── 4. Test for Success ───────────────────────────────────",
+                  "pm.test('✅ View Bill Successful', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});",
+                  "",
+                  "// ── 5. Log bill details if available ──────────────────────",
+                  "if (responseJson.success && responseJson.data) {",
+                  "    const billData = responseJson.data;",
+                  "    console.log('📋 Bill Details Retrieved:');",
+                  "    ",
+                  "    if (billData.billAmount !== undefined) {",
+                  "        console.log('   Bill Amount: ₹' + billData.billAmount);",
+                  "    }",
+                  "    if (billData.dueDate) {",
+                  "        console.log('   Due Date: ' + billData.dueDate);",
+                  "    }",
+                  "    if (billData.billDate) {",
+                  "        console.log('   Bill Date: ' + billData.billDate);",
+                  "    }",
+                  "    if (billData.customerName) {",
+                  "        console.log('   Customer: ' + billData.customerName);",
+                  "    }",
+                  "    if (billData.billNumber) {",
+                  "        console.log('   Bill Number: ' + billData.billNumber);",
+                  "    }",
+                  "    ",
+                  "    // Store bill data for subsequent payment request",
+                  "    pm.environment.set('LAST_BILL_AMOUNT', billData.billAmount || '');",
+                  "    pm.environment.set('LAST_BILL_DATA', JSON.stringify(billData));",
+                  "}",
+                  "",
+                  "// ── 6. Handle failure response ────────────────────────────",
+                  "if (!responseJson.success) {",
+                  "    console.error('❌ View Bill Failed');",
+                  "    if (responseJson.message) {",
+                  "        console.error('   Error Code: ' + (responseJson.message.code || 'N/A'));",
+                  "        console.error('   Error Text: ' + (responseJson.message.text || 'N/A'));",
+                  "    }",
+                  "}",
+                  "",
+                  "// ── 7. Save to UAT Logs ───────────────────────────────────",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 7 — View Bill API (Success)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log saved for View Bill (Success)');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cn\": \"151608882\",\n    \"op\": \"31\",\n    \"cir\": \"\",\n    \"adParams\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerViewbill",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerViewbill"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "✅ Point 7 — View Bill (Success)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"cn\": \"151608882\",\n    \"op\": \"31\",\n    \"cir\": \"\",\n    \"adParams\": {}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerViewbill",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerViewbill"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 07:09:24 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "15b02cc9-b905-44d7-ac1e-9d17c7629108"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda2c00f895efe6-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": [\n        {\n            \"billAmount\": \"1400.0\",\n            \"billnetamount\": \"1400.0\",\n            \"billdate\": \"05 Jan 2026\",\n            \"dueDate\": \"2026-03-14\",\n            \"minBillAmount\": 1400,\n            \"acceptPayment\": true,\n            \"acceptPartPay\": true,\n            \"cellNumber\": \"80003948751\",\n            \"userName\": \"DIBAKAR\"\n        }\n    ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "❌ Point 8 — View Bill (Failed — Invalid Consumer)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// PRE-REQUEST SCRIPT: ❌ Point 8 — View Bill (Failed — Invalid Consumer)",
+                  "// Encrypts payload from request body using AES-256-GCM + RSA-2048",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Check Forge is loaded ──────────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge library not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── 2. Check Token ────────────────────────────────────────",
+                  "if (!pm.environment.get('TOKEN')) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── 3. Get original plaintext from request body ───────────",
+                  "const originalRaw = pm.request.body.raw;",
+                  "",
+                  "// ── 4. Parse plaintext from request body ──────────────────",
+                  "let plainPayload;",
+                  "try {",
+                  "    plainPayload = JSON.parse(originalRaw);",
+                  "} catch (e) {",
+                  "    throw new Error('❌ Failed to parse request body as JSON: ' + e.message + '\\nBody was: ' + originalRaw);",
+                  "}",
+                  "",
+                  "// Preserve original plaintext for logging",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "",
+                  "console.log('❌ View Bill Request (Failure Case — Invalid Consumer)');",
+                  "console.log('   Payload: ' + JSON.stringify(plainPayload));",
+                  "",
+                  "// ── 5. Load Forge and encrypt ─────────────────────────────",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "if (!rsaPem) {",
+                  "    throw new Error('❌ RSA_PUBLIC_KEY_PEM environment variable is required!');",
+                  "}",
+                  "",
+                  "// Generate random 256-bit AES session key (32 bytes)",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "",
+                  "// Generate random 16-byte IV",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "",
+                  "// AES-256-GCM encrypt the JSON payload",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "",
+                  "// Append GCM auth tag to encrypted payload",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "",
+                  "// RSA-2048 PKCS1 encrypt the AES session key",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "",
+                  "// Base64 encode the IV",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "",
+                  "// ── 6. Build encrypted request body ───────────────────────",
+                  "const encryptedBody = {",
+                  "    encryptedSessionKey: encSessionKey,",
+                  "    encryptedPayload: encPayload,",
+                  "    keyVersion: pm.environment.get('KEY_VERSION'),",
+                  "    iv: ivBase64",
+                  "};",
+                  "",
+                  "// Store encrypted body for logging/debugging",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── 7. Update request body ────────────────────────────────",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "",
+                  "console.log('🔐 View Bill (Failure) payload encrypted successfully');",
+                  "console.log('   Key Version: ' + encryptedBody.keyVersion);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// ============================================================",
+                  "// POST-RESPONSE SCRIPT: ❌ Point 8 — View Bill (Failed — Invalid Consumer)",
+                  "// Validates failure response and logs to UAT_LOGS",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Parse Response (robust) ────────────────────────────",
+                  "let responseJson;",
+                  "try {",
+                  "    responseJson = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test('❌ Response is valid JSON', function() {",
+                  "        pm.expect.fail('Failed to parse response as JSON: ' + e.message);",
+                  "    });",
+                  "    // Log raw response for debugging",
+                  "    const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "    logs.push({",
+                  "        id: logs.length + 1,",
+                  "        api: 'Point 8 — View Bill API (Failed — Invalid Consumer)',",
+                  "        timestamp: new Date().toISOString(),",
+                  "        url: pm.request.url.toString(),",
+                  "        httpStatus: pm.response.code,",
+                  "        request: {",
+                  "            decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "            encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "        },",
+                  "        response: pm.response.text().substring(0, 2000),",
+                  "        error: 'Response was not valid JSON'",
+                  "    });",
+                  "    pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "    return;",
+                  "}",
+                  "",
+                  "// ── 2. Test for Expected Failure ──────────────────────────",
+                  "pm.test('❌ View Bill Failed as expected (Invalid Consumer)', function() {",
+                  "    pm.expect(responseJson.success).to.be.false;",
+                  "    const errorCode = responseJson.message ? responseJson.message.code : '';",
+                  "    const errorText = responseJson.message ? responseJson.message.text : '';",
+                  "    console.log('✅ Failure confirmed — Error Code: ' + errorCode);",
+                  "    console.log('   Error Text: ' + errorText);",
+                  "});",
+                  "",
+                  "// ── 3. Log failure details ────────────────────────────────",
+                  "if (!responseJson.success && responseJson.message) {",
+                  "    console.log('❌ View Bill Failed (Expected)');",
+                  "    console.log('   Error Code: ' + (responseJson.message.code || 'N/A'));",
+                  "    console.log('   Error Text: ' + (responseJson.message.text || 'N/A'));",
+                  "}",
+                  "",
+                  "// ── 4. Save to UAT Logs ───────────────────────────────────",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({",
+                  "    id: logs.length + 1,",
+                  "    api: 'Point 8 — View Bill API (Failed — Invalid Consumer)',",
+                  "    timestamp: new Date().toISOString(),",
+                  "    url: pm.request.url.toString(),",
+                  "    httpStatus: pm.response.code,",
+                  "    request: {",
+                  "        decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'),",
+                  "        encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}')",
+                  "    },",
+                  "    response: responseJson",
+                  "});",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+                  "console.log('📝 Log saved for View Bill (Failed — Invalid Consumer)');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerViewbill",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerViewbill"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "POST /recharge/v3/retailerViewbill\n\nPOSTPAID BILL PAYMENT ONLY — Step 1 of Postpaid flow.\n⚠️ REQUIRES ENCRYPTION.\nFetches bill details: amount, due date, billing period for consumer confirmation."
+    },
+    {
+      "name": "⚡ 5. Recharge / Payment API",
+      "item": [
+        {
+          "name": "✅ Point 9 — Recharge (Success)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "// ── AUTO-GENERATE UNIQUE reqid ────────────────────",
+                  "const now = new Date();",
+                  "const pad = n => String(n).padStart(2,'0');",
+                  "const reqId = 'RCH' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + (Math.floor(Math.random()*9000)+1000);",
+                  "pm.environment.set('LAST_REQ_ID', reqId);",
+                  "console.log('🆔 Auto-generated reqid: ' + reqId);",
+                  "",
+                  "const plainPayload = {",
+                  "    cn: pm.environment.get('RECHARGE_CN'),",
+                  "    op: pm.environment.get('RECHARGE_OP'),",
+                  "    cir: pm.environment.get('RECHARGE_CIR') || '',",
+                  "    amt: pm.environment.get('RECHARGE_AMT'),",
+                  "    reqid: reqId,",
+                  "    remitterName: pm.environment.get('REMITTER_NAME'),",
+                  "    paymentRefID: pm.environment.get('PAYMENT_REF_ID'),",
+                  "    paymentMode: pm.environment.get('PAYMENT_MODE'),",
+                  "    paymentAccountInfo: pm.environment.get('PAYMENT_ACCOUNT_INFO')",
+                  "};",
+                  "console.log('⚡ Initiating Recharge:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Recharge payload encrypted. Sending...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const responseJson = pm.response.json();",
+                  "",
+                  "pm.test('✅ Recharge Successful', function() {",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data.status).to.equal('SUCCESS');",
+                  "    ",
+                  "    // Auto-save txId and mobikwikstamp",
+                  "    const txId = responseJson.data.txId;",
+                  "    const stamp = responseJson.data.mobikwikstamp;",
+                  "    pm.environment.set('LAST_TX_ID', txId);",
+                  "    pm.environment.set('LAST_MOBIKWIK_STAMP', stamp);",
+                  "    pm.environment.set('LAST_TX_STATUS', responseJson.data.status);",
+                  "    ",
+                  "    console.log('');",
+                  "    console.log('✅ RECHARGE SUCCESSFUL');",
+                  "    console.log('   txId          : ' + txId);",
+                  "    console.log('   mobikwikstamp : ' + stamp);",
+                  "    console.log('   balance after : ₹' + responseJson.data.balance);",
+                  "    console.log('   → txId saved to LAST_TX_ID for Status Check API');",
+                  "});",
+                  "",
+                  "const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+                  "logs.push({ id: logs.length + 1, api: 'Point 9 — Recharge API (Success)', timestamp: new Date().toISOString(), url: pm.request.url.toString(), httpStatus: pm.response.code, request: { decryptedPayload: JSON.parse(pm.collectionVariables.get('LAST_PLAIN_PAYLOAD') || '{}'), encryptedBody: JSON.parse(pm.collectionVariables.get('LAST_ENCRYPTED_BODY') || '{}') }, response: responseJson });",
+                  "pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cn\": \"9876543210\",\n  \"op\": \"7\",\n  \"cir\": \"\",\n  \"amt\": \"10\",\n  \"reqid\": \"20260318768974378\",\n  \"remitterName\": \"P****na T****g\",\n  \"customerMobile\": \"9999999999\",\n  \"paymentRefID\": \"NX231107767681728991\",\n  \"paymentMode\": \"UPI\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"1234567890@ybl\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerPayment"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "✅ Point 9 — Recharge (Success)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cn\": \"9876543210\",\n  \"op\": \"7\",\n  \"cir\": \"\",\n  \"amt\": \"10\",\n  \"reqid\": \"20260318768974378\",\n  \"remitterName\": \"P****na T****g\",\n  \"customerMobile\": \"9999999999\",\n  \"paymentRefID\": \"NX231107767681728991\",\n  \"paymentMode\": \"UPI\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"1234567890@ybl\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerPayment"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 08:06:37 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "b510114b-a13c-4002-b777-e4813d6939d6"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "Content-Security-Policy-Report-Only",
+                  "value": "script-src 'none'; connect-src 'none'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=XmQhx_IcdZfa549.2TjWoOq2GGlqu6hLvzoNJ28QB4E-1773734797.2301624-1.0.1.1-shpgtnIM3KS2u1bHB8gza4hxsVq2tcDqwbJsdZbTnZIU_2CFS3CpO7GQjjAPQwXrEzXcNM6WbjAhaBiRQVsuB9fa3Yhb7ZOthZ0KdYe0m2Z4jnpWXAjAmUyDtIZac7PBg305DrXul4zryw1x5QojWMSLtyeodyaRwxMXptRZzaZjwgiVd0YQSP28MS5zRBWy; report-to cf-csp-endpoint"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Report-To",
+                  "value": "{\"group\":\"cf-csp-endpoint\",\"max_age\":86400,\"endpoints\":[{\"url\":\"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=XmQhx_IcdZfa549.2TjWoOq2GGlqu6hLvzoNJ28QB4E-1773734797.2301624-1.0.1.1-shpgtnIM3KS2u1bHB8gza4hxsVq2tcDqwbJsdZbTnZIU_2CFS3CpO7GQjjAPQwXrEzXcNM6WbjAhaBiRQVsuB9fa3Yhb7ZOthZ0KdYe0m2Z4jnpWXAjAmUyDtIZac7PBg305DrXul4zryw1x5QojWMSLtyeodyaRwxMXptRZzaZjwgiVd0YQSP28MS5zRBWy\"}]}"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda7fd2adfc4723-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"status\": \"SUCCESS\",\n        \"txId\": \"224659897\",\n        \"balance\": 20000,\n        \"couponstatus\": \"null\",\n        \"mobikwikstamp\": \"MBK766724661\",\n        \"opRefNo\": \"null\",\n        \"googleVoucherCode\": \"null\",\n        \"discountprice\": 10\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "❌ Point 10 — Recharge (Failed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "// ── AUTO-GENERATE UNIQUE reqid ────────────────────",
+                  "const now = new Date();",
+                  "const pad = n => String(n).padStart(2,'0');",
+                  "const reqId = 'RCH' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + (Math.floor(Math.random()*9000)+1000);",
+                  "pm.environment.set('LAST_REQ_ID', reqId);",
+                  "console.log('🆔 Auto-generated reqid: ' + reqId);",
+                  "",
+                  "const plainPayload = ",
+                  "{",
+                  "  \"cn\": \"7797833489\",",
+                  "  \"op\": \"19\",",
+                  "  \"cir\": \"\",",
+                  "  \"amt\": \"200\",",
+                  "  \"reqid\": reqId,",
+                  "  \"remitterName\": \"<>\",",
+                  "  \"paymentRefID\": \"xxxx\",",
+                  "  \"paymentMode\": \"xxxx\",",
+                  "  \"agentId\": \"MK01MK01INB523643654\",",
+                  "  \"paymentAccountInfo\": \"xxxx@ybl\",",
+                  "  \"customerMobile\": \"99xxxxxxxx\"",
+                  "};",
+                  "console.log('⚡ Initiating Recharge:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Recharge payload encrypted. Sending...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cn\": \"7797833489\",\n  \"op\": \"19\",\n  \"cir\": \"\",\n  \"amt\": \"200\",\n  \"reqid\": \"testshkdfc\",\n  \"remitterName\": \"<>\",\n  \"paymentRefID\": \"xxxx\",\n  \"paymentMode\": \"xxxx\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"xxxx@ybl\",\n  \"customerMobile\": \"99xxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerPayment"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "❌ Point 10 — Recharge (Failed)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cn\": \"7797833489\",\n  \"op\": \"19\",\n  \"cir\": \"\",\n  \"amt\": \"200\",\n  \"reqid\": \"testshkdfc\",\n  \"remitterName\": \"<>\",\n  \"paymentRefID\": \"xxxx\",\n  \"paymentMode\": \"xxxx\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"xxxx@ybl\",\n  \"customerMobile\": \"99xxxxxxxx\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerPayment"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 07:42:20 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "f1fcb6dd-22c3-4451-8643-788b24c10f45"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "set-cookie",
+                  "value": "__cf_bm=TePLRiH73h5XeuzeQ6Wiarubdv6WA4xEjT37qrWFfFU-1773733319.5043674-1.0.1.1-AiwcfsSLPZndiZIHPzXklQBCxDasapp8D1RPpUBDbTxWrSDhSBtxUx3S0syXQrczDvT4CubedEwfuzVSzR1GkvPcoe766aBn91F7feGREPqqF6NKzRFuIV1rRKANEGpKPvvzn3fIhM5Tr8l_PPcm7g; HttpOnly; Secure; Path=/; Domain=mobikwik.com; Expires=Tue, 17 Mar 2026 08:12:20 GMT"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda5bbeed0c7f23-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": false,\n    \"message\": {\n        \"code\": \"500\",\n        \"text\": \"Sorry! Unexpected error occurred during transaction.\"\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "⏳ Point 11 — Recharge (Pending — SUCCESSPENDING)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "// ── AUTO-GENERATE UNIQUE reqid ────────────────────",
+                  "const now = new Date();",
+                  "const pad = n => String(n).padStart(2,'0');",
+                  "const reqId = 'RCH' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + (Math.floor(Math.random()*9000)+1000);",
+                  "pm.environment.set('LAST_REQ_ID', reqId);",
+                  "console.log('🆔 Auto-generated reqid: ' + reqId);",
+                  "",
+                  "const plainPayload = ",
+                  "{",
+                  "  \"cn\": \"9459738434\",",
+                  "  \"op\": \"3\",",
+                  "  \"cir\": \"\",",
+                  "  \"amt\": \"10\",",
+                  "  \"reqid\": \"2026031897967560\",",
+                  "  \"remitterName\": \"<>\",",
+                  "  \"paymentRefID\": \"xxxx\",",
+                  "  \"paymentMode\": \"xxxx\",",
+                  "  \"agentId\": \"MK01MK01INB523643654\",",
+                  "  \"paymentAccountInfo\": \"xxxx@ybl\",",
+                  "  \"customerMobile\": \"99xxxxxxxx\"",
+                  "};",
+                  "console.log('⚡ Initiating Recharge:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Recharge payload encrypted. Sending...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cn\": \"9459738434\",\n  \"op\": \"3\",\n  \"cir\": \"\",\n  \"amt\": \"200\",\n  \"reqid\": \"testshkdfc\",\n  \"remitterName\": \"<>\",\n  \"paymentRefID\": \"xxxx\",\n  \"paymentMode\": \"xxxx\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"xxxx@ybl\",\n  \"customerMobile\": \"99xxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerPayment"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "⏳ Point 11 — Recharge (Pending — SUCCESSPENDING)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cn\": \"9459738434\",\n  \"op\": \"3\",\n  \"cir\": \"\",\n  \"amt\": \"200\",\n  \"reqid\": \"testshkdfc\",\n  \"remitterName\": \"<>\",\n  \"paymentRefID\": \"xxxx\",\n  \"paymentMode\": \"xxxx\",\n  \"agentId\": \"MK01MK01INB523643654\",\n  \"paymentAccountInfo\": \"xxxx@ybl\",\n  \"customerMobile\": \"99xxxxxxxx\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerPayment",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerPayment"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 07:48:44 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "efb93513-b104-4b84-b9d9-665483b1d584"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda653e4c3e6ce7-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"status\": \"SUCCESSPENDING\",\n        \"txId\": \"Init\",\n        \"balance\": 20000,\n        \"couponstatus\": \"null\",\n        \"mobikwikstamp\": \"BSS766724656\",\n        \"googleVoucherCode\": \"null\",\n        \"discountprice\": 10\n    }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "POST /recharge/v3/retailerPayment\n\nCORE TRANSACTION API — Initiates the actual recharge or bill payment.\n⚠️ REQUIRES ENCRYPTION.\n⚠️ reqid is AUTO-GENERATED uniquely per request.\nSaves txId and mobikwikStamp automatically for Status Check API."
+    },
+    {
+      "name": "🔍 6. Transaction Status Check API",
+      "item": [
+        {
+          "name": "✅ Point 12 — Status Check (Success  case",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "",
+                  "",
+                  "const plainPayload = { \"txId\": \"RCH202603171336377451\" };",
+                  "console.log('⚡ Initiating Status Check:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Success Check Status Api Calling ...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"txId\": \"20260318768974376\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerStatus",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerStatus"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "✅ Point 12 — Status Check (Success  case",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{ \"txId\": \"20260318768974376\" }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerStatus",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerStatus"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 08:09:28 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "8fc52bd1-80fc-4e8a-a03c-1d2c9a826cbe"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda83feca13b62a-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"cellNumber\": \"9876543210\",\n        \"rechargeRetailAmount\": 10,\n        \"discountprice\": 10,\n        \"txStatus\": \"RECHARGESUCCESS\",\n        \"statusDetails\": \"Recharge Successful\",\n        \"txDate\": 1773734797000,\n        \"mobikwikstamp\": \"MBK766724661\",\n        \"mobikwikrefno\": \"224659897\",\n        \"operatorrefno\": \"null\",\n        \"operatorname\": \"mtnl\",\n        \"circlename\": \"Andhra Pradesh\"\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "✅ Point 13 — failed case",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "",
+                  "",
+                  "const plainPayload = { \"txId\": \"2026031898687943\" };",
+                  "console.log('⚡ Initiating Status Check:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Success Check Status Api Calling ...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"txId\": \"2026031898687943\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerStatus",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerStatus"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "✅ Point 14 — Pending Case",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') throw new Error('Run SETUP first.');",
+                  "if (!pm.environment.get('TOKEN')) throw new Error('Run Token Generation API first.');",
+                  "",
+                  "",
+                  "",
+                  "const plainPayload = { \"txId\": \"2026031897967560\" };",
+                  "console.log('⚡ Initiating Status Check:', JSON.stringify(plainPayload));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "const encryptedBody = { encryptedSessionKey: encSessionKey, encryptedPayload: encPayload, keyVersion: pm.environment.get('KEY_VERSION'), iv: ivBase64 };",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "console.log('🔐 Success Check Status Api Calling ...');"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"txId\": \"2026031897967560\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerStatus",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerStatus"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "✅ Point 14 — Pending Case",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "{{TOKEN}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{ \"txId\": \"2026031897967560\" }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/recharge/v3/retailerStatus",
+                  "host": [
+                    "{{BASE_URL}}"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerStatus"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 08:16:07 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "a83f9e68-484e-42c9-9ef0-2fbbe5fc56da"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "Content-Security-Policy-Report-Only",
+                  "value": "script-src 'none'; connect-src 'none'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=OylwrOQaUQpTTRIE78.lb94Cp4v3D3nA41TpFb0q8ic-1773735367.6339202-1.0.1.1-FnwUR3pKmHI3RUsceGb2hWU9Xt_0Li9zL6PLKfMUNx9AL26mFiWfBM.TtJO8RgvBh9XlO8OUmm78eXWeFSP_HzFZst2ZnadHDwlDcxXzO7MGXC5qP0JAozrlGEUtrZPU7BRFVFOSYPguOE5Jc88pDDzquTWHAvwKRUpVIXOWCc5wZi9irKVNAgP7oQPVjyZ_; report-to cf-csp-endpoint"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Report-To",
+                  "value": "{\"group\":\"cf-csp-endpoint\",\"max_age\":86400,\"endpoints\":[{\"url\":\"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=OylwrOQaUQpTTRIE78.lb94Cp4v3D3nA41TpFb0q8ic-1773735367.6339202-1.0.1.1-FnwUR3pKmHI3RUsceGb2hWU9Xt_0Li9zL6PLKfMUNx9AL26mFiWfBM.TtJO8RgvBh9XlO8OUmm78eXWeFSP_HzFZst2ZnadHDwlDcxXzO7MGXC5qP0JAozrlGEUtrZPU7BRFVFOSYPguOE5Jc88pDDzquTWHAvwKRUpVIXOWCc5wZi9irKVNAgP7oQPVjyZ_\"}]}"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda8dbfbe52b62c-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"cellNumber\": \"9459738434\",\n        \"rechargeRetailAmount\": 10,\n        \"discountprice\": 10,\n        \"txStatus\": \"RECHARGESUCCESSPENDING\",\n        \"statusDetails\": \"Recharge Successful\",\n        \"txDate\": 1773733709000,\n        \"mobikwikstamp\": \"BSS766724656\",\n        \"mobikwikrefno\": \"Init\",\n        \"operatorname\": \"bsnl\",\n        \"circlename\": \"All Circles\"\n    }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "POST /recharge/v3/retailerStatus\n\n⚠️ REQUIRES ENCRYPTION.\nCall this API when Recharge returns SUCCESSPENDING, timeout, or error.\n\nUse txId = reqid from Recharge API OR mobikwikstamp from Recharge response.\nLAST_TX_ID is auto-filled from the Recharge API — Status Check uses it automatically.\n\nStatus Values:\n• RECHARGESUCCESS → Transaction complete\n• RECHARGESUCCESSPENDING → Still pending from operator\n• RECHARGEFAILURE → Transaction failed"
+    },
+    {
+      "name": "samples",
+      "item": [
+        {
+          "name": "point3",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "7HtAiTaGXNHVtN6TuRuOgc84PDGhlLxuWPzYqIesd-U"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"encryptedSessionKey\":\"Q9xIttF7qVwP45alpTyCNHOl8Hu5TemII9PbCywKzwuFtfy3KrPASGydpDNQFWn5AgL88nJQQdbi5TfVFwhqFOx319ZSyIEEQ6XYkyAK/CFkApx6IuXGDDR4v2mc7G7+xax/S/o+GrXcnN2fQZCkl6X13qOmRu1/mkbdE3FCs5OUf2CdNDixSHn6A9xWCo+x4wqtywBD5winA/dZFrje4tnRHVKb+8+2VxCzXlAeZO4lwZAYAeGvqE8UaQaB4fiN9U8Ymz+gAbOhOCkBl0FQwJi+wZR5HeIUp+KChGpMFxAQPqdtvQ2m69j+v+gPx/ZFlqes2kTEYXGG9BlBtSyokw==\",\"encryptedPayload\":\"aReRMwAQrQjOscAnCk3ot0Uvs+iXteaGwTqptxHjpSupMumPvYJ7Izl6UA42LLAobw==\",\"keyVersion\":\"1.0\",\"iv\":\"YHtgdvF2R6FXGn9S28U0yQ==\"}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerBalance",
+              "protocol": "https",
+              "host": [
+                "alpha3",
+                "mobikwik",
+                "com"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "point4",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "7HtAiTaGXNHVtN6TuRuOgc84PDGhlLxuWPzYqIesd-U"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"encryptedSessionKey\": \"Kq+9Nvekb4J4LPGP2fGzUqbN2t/oe2KMpYbO1EGHEZs0cCz3m4K2MP1KpOUYEltv5jfzz0P8bzRcq5OYWxVFMajPnRY2P/9F8/kzdYrC9zSBK6HBd97Z8iRe4QKcE0mu0NhXC3YB3F+3tbBvTWOmch3mK73HvSbTQHr06jTTN+qTsY5rR1fPreUPq7m0GSHdrGWUhfXbvo9JPJjkNqYmjXKZxLIGNl1xJ11biwNo+zWJGXsA+IHRh7i5JfAEUtXDKs/uYFjp4XkBsdmYKaKGCXgaXACkCQ1E2jPSM726730/0tJT2iUgQ4urHJVScaUpQ==\",\n    \"encryptedPayload\": \"moPVfVYVQb4eZj0jwXbRpc2HWj/6Db4mAwEv9kdpB/8=\",\n    \"keyVersion\": \"1.0\",\n    \"iv\": \"GdFQf0PVUY4ng0wHh47t4A==\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerBalance",
+              "protocol": "https",
+              "host": [
+                "alpha3",
+                "mobikwik",
+                "com"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "point 5 Success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "7HtAiTaGXNHVtN6TuRuOgc84PDGhlLxuWPzYqIesd-U"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"encryptedSessionKey\": \"FjKl2FJVv8u/9NkKhQD3/MU9yx4SK/y2/RoAcciPS1D6LGELhMK91sTZiEoju22/u2EE2GZpb5Nc7gTS4UUlIVSnAMrEEDVhOH6xLqzjHaFGW2gsQ7dFw/lhOFGz0/MglDgfYI9ySJwBk6FQe6IN/zPJysGRYy7DKDtH56WdPkxMVyW2bgzgXqnA0rVuj48ZHk7q64pFrSQjVV4Fk3AtBdSwmguj1lY0QLsMY9PgwbmIpa34KxZNpUZlDn2oXaP0b/0V1nOHVZNNzy/sQwrFgAg8SLzhikuTt5BJw4Gj2a/pYVyf0m4obEBmhF5NAPdfB61yUbrE0rY/2RLU4UanDg==\",\n  \"encryptedPayload\": \"Pb2h6d7cbl5oIWMI8wac8QsRNRxFVO+OwxqSjHbxy9/VrUC/v4gxowZsI4slGg7OHGV5w0oX4rv8JIIdN6SbYxaf4xnJiEnztGzZ/eTbs16xFj7Pt8kcEdJE61M0caw9gsIGOGyF6L0T/c5JvkVh3UshMUZMKofxrh8kvpACrmCmsfyVNu2nVaWT8q/9GrCpDYrfmpz/QOYf5slROaJ50KWmNV2X/os=\",\n  \"keyVersion\": \"1.0\",\n  \"iv\": \"jVOjYMRepeyfXQ+dZDGpoA==\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerValidation",
+              "protocol": "https",
+              "host": [
+                "alpha3",
+                "mobikwik",
+                "com"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerValidation"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "point 5 Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "7HtAiTaGXNHVtN6TuRuOgc84PDGhlLxuWPzYqIesd-U"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"encryptedSessionKey\": \"FjKl2FJVv8u/9NkKhQD3/MU9yx4SK/y2/RoAcciPS1D6LGELhMK91sTZiEoju22/u2EE2GZpb5Nc7gTS4UUlIVSnAMrEEDVhOH6xLqzjHaFGW2gsQ7dFw/lhOFGz0/MglDgfYI9ySJwBk6FQe6IN/zPJysGRYy7DKDtH56WdPkxMVyW2bgzgXqnA0rVuj48ZHk7q64pFrSQjVV4Fk3AtBdSwmguj1lY0QLsMY9PgwbmIpa34KxZNpUZlDn2oXaP0b/0V1nOHVZNNzy/sQwrFgAg8SLzhikuTt5BJw4Gj2a/pYVyf0m4obEBmhF5NAPdfB61yUbrE0rY/2RLU4UanDg==\",\n  \"encryptedPayload\": \"Pb2h6d7cbl5oIWMI8wac8QsRNRxFVO+OwxqSjHbxy9/VrUC/v4gxowZsI4slGg7OHGV5w0oX4rv8JIIdN6SbYxaf4xnJiEnztGzZ/eTbs16xFj7Pt8kcEdJE61M0caw9gsIGOGyF6L0T/c5JvkVh3UshMUZMKofxrh8kvpACrmCmsfyVNu2nVaWT8q/9GrCpDYrfmpz/QOYf5slROaJ50KWmNV2X/os=\",\n  \"keyVersion\": \"1.0\",\n  \"iv\": \"jVOjYMRepeyfXQ+dZDGpoA==\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://alpha3.mobikwik.com/recharge/v3/retailerValidation",
+                  "protocol": "https",
+                  "host": [
+                    "alpha3",
+                    "mobikwik",
+                    "com"
+                  ],
+                  "path": [
+                    "recharge",
+                    "v3",
+                    "retailerValidation"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": null,
+              "header": [
+                {
+                  "key": "Date",
+                  "value": "Tue, 17 Mar 2026 06:47:28 GMT"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json;charset=UTF-8"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                },
+                {
+                  "key": "Server",
+                  "value": "cloudflare"
+                },
+                {
+                  "key": "request-id",
+                  "value": "2984aab9-f94b-4c0f-8813-16b329dcc162"
+                },
+                {
+                  "key": "Content-Encoding",
+                  "value": "gzip"
+                },
+                {
+                  "key": "vary",
+                  "value": "Accept-Encoding"
+                },
+                {
+                  "key": "cf-cache-status",
+                  "value": "DYNAMIC"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "Strict-Transport-Security",
+                  "value": "max-age=15552000; includeSubDomains; preload"
+                },
+                {
+                  "key": "CF-RAY",
+                  "value": "9dda0be0ebd4df2a-DEL"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"success\": true,\n    \"data\": {\n        \"status\": \"RECHARGEVALIDATIONSUCCESS\",\n        \"description\": \"\",\n        \"balance\": 0,\n        \"discountedPrice\": 0,\n        \"walletAmount\": 0,\n        \"pgAmount\": 0,\n        \"superCashBurned\": 0,\n        \"zipBalanceUsed\": 0,\n        \"autoPaySupported\": false,\n        \"spinTheWheelApplied\": false,\n        \"rewardWidgetEnabled\": false,\n        \"scratchCardEnabled\": false,\n        \"callForHelpEnabled\": false,\n        \"businessError\": false\n    }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Point 6 Validation Failed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// ============================================================",
+                  "// PRE-REQUEST SCRIPT: Point 6 Validation Failed",
+                  "// Encrypts payload from request body using AES-256-GCM + RSA-2048",
+                  "// ============================================================",
+                  "",
+                  "// ── 1. Check Forge is loaded ──────────────────────────────",
+                  "if (pm.collectionVariables.get('FORGE_LOADED') !== 'true') {",
+                  "    throw new Error('❌ Forge library not loaded! Run \"🔧 Load Forge.js from CDN\" request first.');",
+                  "}",
+                  "",
+                  "// ── 2. Check Token ────────────────────────────────────────",
+                  "if (!pm.environment.get('TOKEN')) {",
+                  "    throw new Error('❌ No token found! Run Token Generation API first.');",
+                  "}",
+                  "",
+                  "// ── 3. Preserve original plaintext before overwriting ─────",
+                  "const originalRaw = pm.request.body.raw;",
+                  "pm.collectionVariables.set('LAST_POINT6_PLAINTEXT_RAW', originalRaw);",
+                  "",
+                  "// ── 4. Parse plaintext from request body ──────────────────",
+                  "let plainPayload;",
+                  "try {",
+                  "    plainPayload = JSON.parse(originalRaw);",
+                  "} catch (e) {",
+                  "    throw new Error('❌ Failed to parse request body as JSON: ' + e.message + '\\nBody was: ' + originalRaw);",
+                  "}",
+                  "",
+                  "// Store memberId if present",
+                  "if (plainPayload.memberId) {",
+                  "    pm.collectionVariables.set('LAST_MEMBER_ID', plainPayload.memberId);",
+                  "}",
+                  "",
+                  "console.log('❌ Validation Request (Failure Case)');",
+                  "console.log('   Payload: ' + JSON.stringify(plainPayload));",
+                  "",
+                  "// ── 5. Load Forge and encrypt ─────────────────────────────",
+                  "eval(pm.collectionVariables.get('FORGE_JS'));",
+                  "",
+                  "const rsaPem = pm.environment.get('RSA_PUBLIC_KEY_PEM');",
+                  "if (!rsaPem) {",
+                  "    throw new Error('❌ RSA_PUBLIC_KEY_PEM environment variable is required!');",
+                  "}",
+                  "",
+                  "// Generate random 256-bit AES session key (32 bytes)",
+                  "const sessionKeyBytes = forge.random.getBytesSync(32);",
+                  "",
+                  "// Generate random 16-byte IV",
+                  "const ivBytes = forge.random.getBytesSync(16);",
+                  "",
+                  "// AES-256-GCM encrypt the JSON payload",
+                  "const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+                  "cipher.start({ iv: ivBytes, tagLength: 128 });",
+                  "cipher.update(forge.util.createBuffer(JSON.stringify(plainPayload), 'utf8'));",
+                  "cipher.finish();",
+                  "",
+                  "// Append GCM auth tag to encrypted payload",
+                  "const encPayload = forge.util.encode64(cipher.output.getBytes() + cipher.mode.tag.getBytes());",
+                  "",
+                  "// RSA-2048 PKCS1 encrypt the AES session key",
+                  "const pubKey = forge.pki.publicKeyFromPem(rsaPem);",
+                  "const encSessionKey = forge.util.encode64(pubKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5'));",
+                  "",
+                  "// Base64 encode the IV",
+                  "const ivBase64 = forge.util.encode64(ivBytes);",
+                  "",
+                  "// ── 6. Build encrypted request body ───────────────────────",
+                  "const encryptedBody = {",
+                  "    encryptedSessionKey: encSessionKey,",
+                  "    encryptedPayload: encPayload,",
+                  "    keyVersion: pm.environment.get('KEY_VERSION'),",
+                  "    iv: ivBase64",
+                  "};",
+                  "",
+                  "// Store for logging/debugging",
+                  "pm.collectionVariables.set('LAST_PLAIN_PAYLOAD', JSON.stringify(plainPayload));",
+                  "pm.collectionVariables.set('LAST_ENCRYPTED_BODY', JSON.stringify(encryptedBody));",
+                  "",
+                  "// ── 7. Update request body ────────────────────────────────",
+                  "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(encryptedBody) });",
+                  "",
+                  "console.log('🔐 Validation (Failure) payload encrypted successfully');",
+                  "console.log('   Key Version: ' + encryptedBody.keyVersion);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{TOKEN}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"amt\": \"100\",\n    \"cn\": \"123\",\n    \"op\": \"7\",\n    \"cir\": \"1\",\n    \"planCode\": \"bsnl-Andhra-Pradesh-topup-plans-Rs-100.0\",\n    \"adParams\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/recharge/v3/retailerValidation",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "recharge",
+                "v3",
+                "retailerValidation"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ============================================================",
+          "// COLLECTION-LEVEL PRE-REQUEST SCRIPT",
+          "// Runs before EVERY request in this collection",
+          "// ============================================================",
+          "",
+          "// ── 1. AUTO TIMESTAMP ──────────────────────────────────────",
+          "const now = new Date();",
+          "pm.environment.set('REQUEST_TIMESTAMP', now.toISOString());",
+          "pm.collectionVariables.set('CURRENT_DATE', now.toISOString().split('T')[0]);",
+          "pm.collectionVariables.set('CURRENT_EPOCH', now.getTime().toString());",
+          "",
+          "// ── 2. AUTO REQ ID GENERATOR ──────────────────────────────",
+          "// Format: PREFIX + DATE(YYYYMMDD) + TIME(HHmmss) + RANDOM(4 digits)",
+          "// Total: stays unique per request",
+          "function generateReqId(prefix) {",
+          "    prefix = prefix || 'RCH';",
+          "    const pad = n => String(n).padStart(2,'0');",
+          "    const datePart = [",
+          "        now.getFullYear(),",
+          "        pad(now.getMonth()+1),",
+          "        pad(now.getDate())",
+          "    ].join('');",
+          "    const timePart = [",
+          "        pad(now.getHours()),",
+          "        pad(now.getMinutes()),",
+          "        pad(now.getSeconds())",
+          "    ].join('');",
+          "    const rand = Math.floor(Math.random()*9000)+1000;",
+          "    return prefix + datePart + timePart + rand;",
+          "}",
+          "pm.collectionVariables.set('generateReqId', generateReqId.toString());",
+          "",
+          "// ── 3. AUTO TOKEN EXPIRY CHECK ────────────────────────────",
+          "// Checks if token is expired or expiring within 30 minutes",
+          "// Sets flag so Token Generation request knows to re-run",
+          "const tokenExpiryEpoch = parseInt(pm.environment.get('TOKEN_EXPIRY_EPOCH') || '0');",
+          "const THIRTY_MIN_MS = 30 * 60 * 1000;",
+          "const tokenValid = tokenExpiryEpoch > 0 && (tokenExpiryEpoch - now.getTime()) > THIRTY_MIN_MS;",
+          "pm.collectionVariables.set('TOKEN_IS_VALID', tokenValid ? 'true' : 'false');",
+          "",
+          "if (!tokenValid && tokenExpiryEpoch > 0) {",
+          "    console.warn('⚠️  TOKEN EXPIRED or expiring in < 30 min. Run Token Generation API to refresh.');",
+          "} else if (tokenExpiryEpoch > 0) {",
+          "    const minsLeft = Math.floor((tokenExpiryEpoch - now.getTime()) / 60000);",
+          "    console.log('✅ Token valid. Expires in ~' + minsLeft + ' minutes.');",
+          "}",
+          "",
+          "// ── 4. LOG UTILITY SETUP ──────────────────────────────────",
+          "// Initialise log store array if not present",
+          "if (!pm.collectionVariables.get('UAT_LOGS')) {",
+          "    pm.collectionVariables.set('UAT_LOGS', JSON.stringify([]));",
+          "}",
+          "",
+          "// Helper: saveLog(apiName, url, requestBody, responseBody, status)",
+          "function saveLog(apiName, url, reqBody, resBody, httpStatus) {",
+          "    try {",
+          "        const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+          "        logs.push({",
+          "            id: logs.length + 1,",
+          "            api: apiName,",
+          "            timestamp: new Date().toISOString(),",
+          "            url: url,",
+          "            httpStatus: httpStatus,",
+          "            request: reqBody,",
+          "            response: resBody",
+          "        });",
+          "        // Keep only last 50 logs to avoid memory issues",
+          "        if (logs.length > 50) logs.shift();",
+          "        pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+          "        console.log('📝 Log saved for: ' + apiName + ' | HTTP ' + httpStatus);",
+          "    } catch(e) {",
+          "        console.error('❌ Failed to save log:', e.message);",
+          "    }",
+          "}",
+          "pm.collectionVariables.set('saveLog', saveLog.toString());",
+          "",
+          "// ── 5. ENCRYPT UTILITY (requires forge to be loaded) ──────",
+          "// Call encryptPayload(plainObject) in individual request pre-scripts",
+          "function encryptPayload(plainObject, rsaPem, keyVersion) {",
+          "    try {",
+          "        const forgeJs = pm.collectionVariables.get('FORGE_JS');",
+          "        if (!forgeJs) {",
+          "            throw new Error('Forge library not loaded. Run SETUP request first.');",
+          "        }",
+          "        eval(forgeJs);",
+          "",
+          "        // Step 1: Serialize JSON payload to UTF-8 string",
+          "        const jsonStr = JSON.stringify(plainObject);",
+          "",
+          "        // Step 2: Generate random 256-bit AES session key (32 bytes)",
+          "        const sessionKeyBytes = forge.random.getBytesSync(32);",
+          "",
+          "        // Step 3: Generate random 16-byte IV",
+          "        const ivBytes = forge.random.getBytesSync(16);",
+          "",
+          "        // Step 4: AES-256-GCM encrypt the JSON payload",
+          "        const cipher = forge.cipher.createCipher('AES-GCM', sessionKeyBytes);",
+          "        cipher.start({",
+          "            iv: ivBytes,",
+          "            tagLength: 128",
+          "        });",
+          "        cipher.update(forge.util.createBuffer(jsonStr, 'utf8'));",
+          "        cipher.finish();",
+          "        const encryptedBytes = cipher.output.getBytes();",
+          "        const authTag = cipher.mode.tag.getBytes();",
+          "        // Append GCM auth tag to encrypted payload",
+          "        const encryptedPayloadBase64 = forge.util.encode64(encryptedBytes + authTag);",
+          "",
+          "        // Step 5: RSA-2048 PKCS1 encrypt the AES session key",
+          "        const publicKey = forge.pki.publicKeyFromPem(rsaPem);",
+          "        const encryptedSessionKeyBytes = publicKey.encrypt(sessionKeyBytes, 'RSAES-PKCS1-V1_5');",
+          "        const encryptedSessionKeyBase64 = forge.util.encode64(encryptedSessionKeyBytes);",
+          "",
+          "        // Step 6: Base64 encode the IV",
+          "        const ivBase64 = forge.util.encode64(ivBytes);",
+          "",
+          "        return {",
+          "            encryptedSessionKey: encryptedSessionKeyBase64,",
+          "            encryptedPayload: encryptedPayloadBase64,",
+          "            keyVersion: keyVersion || pm.environment.get('KEY_VERSION'),",
+          "            iv: ivBase64",
+          "        };",
+          "    } catch(e) {",
+          "        console.error('❌ Encryption failed:', e.message);",
+          "        throw e;",
+          "    }",
+          "}",
+          "pm.collectionVariables.set('encryptPayload', encryptPayload.toString());",
+          "",
+          "console.log('🔧 Collection utilities ready | ' + now.toISOString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ============================================================",
+          "// COLLECTION-LEVEL TEST SCRIPT",
+          "// Runs after EVERY request — handles common logging",
+          "// ============================================================",
+          "",
+          "// Auto-log every request/response",
+          "try {",
+          "    const logs = JSON.parse(pm.collectionVariables.get('UAT_LOGS') || '[]');",
+          "    const lastLog = logs[logs.length - 1];",
+          "    // Only add if not already logged by individual request test script",
+          "    if (!lastLog || lastLog.url !== pm.request.url.toString()) {",
+          "        logs.push({",
+          "            id: logs.length + 1,",
+          "            api: pm.info.requestName,",
+          "            timestamp: new Date().toISOString(),",
+          "            url: pm.request.url.toString(),",
+          "            httpStatus: pm.response ? pm.response.code : 0,",
+          "            request: { headers: pm.request.headers.toObject() },",
+          "            response: pm.response ? pm.response.text().substring(0, 2000) : ''",
+          "        });",
+          "        if (logs.length > 50) logs.shift();",
+          "        pm.collectionVariables.set('UAT_LOGS', JSON.stringify(logs));",
+          "    }",
+          "} catch(e) {}",
+          "",
+          "// Global test: Check for 401 token error across all APIs",
+          "if (pm.response && pm.response.code === 200) {",
+          "    try {",
+          "        const body = pm.response.json();",
+          "        if (body && body.message && body.message.code === '401') {",
+          "            console.error('🔴 TOKEN EXPIRED — Run Token Generation API to get a new token');",
+          "            pm.environment.set('TOKEN', '');",
+          "            pm.environment.set('TOKEN_EXPIRY_EPOCH', '0');",
+          "        }",
+          "    } catch(e) {}",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "FORGE_JS",
+      "value": "",
+      "description": "AUTO-MANAGED: forge.js library text loaded from CDN by SETUP request"
+    },
+    {
+      "key": "FORGE_LOADED",
+      "value": "false",
+      "description": "AUTO-MANAGED: Flag indicating forge library is loaded"
+    },
+    {
+      "key": "UAT_LOGS",
+      "value": "[]",
+      "description": "AUTO-MANAGED: JSON array of all API call logs for UAT document"
+    },
+    {
+      "key": "TOKEN_IS_VALID",
+      "value": "false",
+      "description": "AUTO-MANAGED: Token validity flag checked before each request"
+    },
+    {
+      "key": "CURRENT_DATE",
+      "value": "",
+      "description": "AUTO-MANAGED: Current date YYYY-MM-DD"
+    },
+    {
+      "key": "CURRENT_EPOCH",
+      "value": "",
+      "description": "AUTO-MANAGED: Current epoch milliseconds"
+    },
+    {
+      "key": "generateReqId",
+      "value": "",
+      "description": "AUTO-MANAGED: Serialised generateReqId function"
+    },
+    {
+      "key": "encryptPayload",
+      "value": "",
+      "description": "AUTO-MANAGED: Serialised encryptPayload function"
+    },
+    {
+      "key": "saveLog",
+      "value": "",
+      "description": "AUTO-MANAGED: Serialised saveLog function"
+    },
+    {
+      "key": "UAT_EXPORT_TEXT",
+      "value": ""
+    },
+    {
+      "key": "LAST_PLAIN_PAYLOAD",
+      "value": ""
+    },
+    {
+      "key": "LAST_ENCRYPTED_BODY",
+      "value": ""
+    },
+    {
+      "key": "PLAINTEXT_VIEWBILL",
+      "value": ""
+    },
+    {
+      "key": "LAST_VIEWBILL_DECRYPTED",
+      "value": ""
+    },
+    {
+      "key": "LAST_POINT5_PLAINTEXT_RAW",
+      "value": ""
+    },
+    {
+      "key": "LAST_POINT6_PLAINTEXT_RAW",
+      "value": ""
+    },
+    {
+      "key": "LAST_POINT8_PLAINTEXT_RAW",
+      "value": ""
+    },
+    {
+      "key": "FORGE_SOURCE",
+      "value": ""
+    },
+    {
+      "key": "FORGE",
+      "value": ""
+    },
+    {
+      "key": "forge",
+      "value": ""
+    },
+    {
+      "key": "POINT4_INVALID_TOKEN_SOURCE",
+      "value": ""
+    },
+    {
+      "key": "POINT4_INVALID_TOKEN_LEN",
+      "value": ""
+    }
+  ]
+}
