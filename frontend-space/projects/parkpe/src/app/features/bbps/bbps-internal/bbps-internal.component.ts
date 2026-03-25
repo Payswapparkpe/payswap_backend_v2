@@ -750,12 +750,22 @@ export class BBPSInternalComponent implements OnInit {
       next: (res) => {
         this.voucherPaying.set(false);
         if (res.success) {
+          const payStatus = (res.status ?? '').toString().toUpperCase();
+          const isPending =
+            payStatus.includes('PENDING') ||
+            payStatus.includes('SUBMITTED') ||
+            payStatus.includes('INIT');
           this.closeVoucherPayModal();
           this.playBharatConnectMogo();
-          this.notification.showSuccess('Bill paid successfully');
+          if (isPending) {
+            this.notification.showInfo('Payment submitted. Final confirmation is pending.');
+          } else {
+            this.notification.showSuccess('Bill paid successfully');
+          }
           this.router.navigate(['/payment/status'], {
             queryParams: {
-              status: 'success',
+              status: isPending ? 'failed' : 'success',
+              reason: isPending ? 'not_confirmed' : undefined,
               transactionId: res.transactionId ?? '',
               amount: amt,
             },
@@ -789,13 +799,22 @@ export class BBPSInternalComponent implements OnInit {
       next: (res) => {
         this.voucherPaying.set(false);
         if (res.success) {
+          const hasPending = (res.results ?? []).some((r) => {
+            const s = (r.status ?? '').toString().toUpperCase();
+            return s.includes('PENDING') || s.includes('SUBMITTED') || s.includes('INIT');
+          });
           this.closeVoucherPayModal();
           this.cart.set([]);
           this.playBharatConnectMogo();
-          this.notification.showSuccess(`Cart paid successfully. ${res.results?.length ?? 0} bill(s).`);
+          if (hasPending) {
+            this.notification.showInfo(`Cart payment submitted. ${res.results?.length ?? 0} bill(s) pending confirmation.`);
+          } else {
+            this.notification.showSuccess(`Cart paid successfully. ${res.results?.length ?? 0} bill(s).`);
+          }
           this.router.navigate(['/payment/status'], {
             queryParams: {
-              status: 'success',
+              status: hasPending ? 'failed' : 'success',
+              reason: hasPending ? 'not_confirmed' : undefined,
               transactionId: res.results?.[0]?.transactionId ?? '',
               amount: res.total,
             },

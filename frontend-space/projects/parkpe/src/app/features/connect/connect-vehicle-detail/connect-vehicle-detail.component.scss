@@ -348,6 +348,8 @@
     position: sticky;
     top: 0.75rem;
     align-self: start;
+    max-height: calc(100vh - 1.5rem);
+    overflow-y: auto;
   }
 }
 
@@ -527,20 +529,10 @@
 }
 
 .rc-cards-scroll {
-  max-height: 70vh;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   padding-right: 0.25rem;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-default);
-    border-radius: 3px;
-  }
 }
 
 .rc-card {
@@ -588,8 +580,6 @@
       white-space: pre-wrap;
       font-family: ui-monospace, monospace;
       font-size: 0.8rem;
-      max-height: 8rem;
-      overflow-y: auto;
     }
     &.rc-value-multi {
       white-space: pre-wrap;

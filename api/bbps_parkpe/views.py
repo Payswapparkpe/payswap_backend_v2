@@ -26,6 +26,8 @@ from portal.utils.transaction_id import generate_transaction_id
 
 logger = get_logger(__name__)
 MOBIKWIK_OPERATOR_ICON_BASE = "https://static.mobikwik.com/appdata/operator_icons"
+BBPS_PAY_DESCRIPTION = "BBPS voucher bill payment"
+BBPS_ROLLBACK_DESCRIPTION = "BBPS voucher rollback credit"
 
 
 def _cashfree_payments_normalize(payments_raw):
@@ -682,7 +684,7 @@ class BBPSPayBillView(APIView):
                         balance_after=None,
                         reference_id=ref_id,
                         service_code="BBPS",
-                        description=bbps_pay_description,
+                        description=BBPS_PAY_DESCRIPTION,
                     )
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -782,7 +784,7 @@ class BBPSPayBillView(APIView):
                                 balance_after=None,
                                 reference_id=ref_id,
                                 service_code="BBPS",
-                                description=bbps_rollback_description,
+                                description=BBPS_ROLLBACK_DESCRIPTION,
                             )
                     except Exception:
                         logger.exception("parkpe_bbps_pay rollback_failed_service_unavailable", extra_data={"ref_id": ref_id})
@@ -856,7 +858,7 @@ class BBPSPayBillView(APIView):
                                 balance_after=None,
                                 reference_id=ref_id,
                                 service_code="BBPS",
-                                description=bbps_rollback_description,
+                                description=BBPS_ROLLBACK_DESCRIPTION,
                             )
                     except Exception:
                         logger.exception("parkpe_bbps_pay rollback_failed_vendor_failed", extra_data={"ref_id": ref_id})
@@ -963,7 +965,7 @@ class BBPSPayBillView(APIView):
                             balance_after=None,
                             reference_id=ref_id,
                             service_code="BBPS",
-                            description=bbps_rollback_description,
+                            description=BBPS_ROLLBACK_DESCRIPTION,
                         )
                 except Exception:
                     logger.exception("parkpe_bbps_pay rollback_failed_unexpected_error", extra_data={"ref_id": ref_id})
