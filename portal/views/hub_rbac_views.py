@@ -135,9 +135,47 @@ class HubRoleCreateView(SuperAdminRequiredMixin, CreateView):
     fields = ("department", "project", "name", "code", "description", "is_active")
     success_url = reverse_lazy("hub_rbac_hubrole_list")
 
+    def _permission_groups(self):
+        grouped = {}
+        action_order = ["view", "add", "change", "delete", "others"]
+        for perm in Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename"):
+            label = perm.content_type.app_label
+            app_bucket = grouped.setdefault(
+                label,
+                {
+                    "view": [],
+                    "add": [],
+                    "change": [],
+                    "delete": [],
+                    "others": [],
+                },
+            )
+            codename = (perm.codename or "").lower()
+            if codename.startswith("view_"):
+                app_bucket["view"].append(perm)
+            elif codename.startswith("add_"):
+                app_bucket["add"].append(perm)
+            elif codename.startswith("change_"):
+                app_bucket["change"].append(perm)
+            elif codename.startswith("delete_"):
+                app_bucket["delete"].append(perm)
+            else:
+                app_bucket["others"].append(perm)
+
+        output = []
+        for label, buckets in grouped.items():
+            action_groups = [
+                {"action": action, "permissions": buckets[action]}
+                for action in action_order
+                if buckets[action]
+            ]
+            output.append({"app_label": label, "action_groups": action_groups})
+        return output
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["all_permissions"] = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+        ctx["permission_groups"] = self._permission_groups()
         ctx["assigned_ids"] = set()
         return ctx
 
@@ -158,9 +196,47 @@ class HubRoleUpdateView(SuperAdminRequiredMixin, UpdateView):
     context_object_name = "hubrole"
     success_url = reverse_lazy("hub_rbac_hubrole_list")
 
+    def _permission_groups(self):
+        grouped = {}
+        action_order = ["view", "add", "change", "delete", "others"]
+        for perm in Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename"):
+            label = perm.content_type.app_label
+            app_bucket = grouped.setdefault(
+                label,
+                {
+                    "view": [],
+                    "add": [],
+                    "change": [],
+                    "delete": [],
+                    "others": [],
+                },
+            )
+            codename = (perm.codename or "").lower()
+            if codename.startswith("view_"):
+                app_bucket["view"].append(perm)
+            elif codename.startswith("add_"):
+                app_bucket["add"].append(perm)
+            elif codename.startswith("change_"):
+                app_bucket["change"].append(perm)
+            elif codename.startswith("delete_"):
+                app_bucket["delete"].append(perm)
+            else:
+                app_bucket["others"].append(perm)
+
+        output = []
+        for label, buckets in grouped.items():
+            action_groups = [
+                {"action": action, "permissions": buckets[action]}
+                for action in action_order
+                if buckets[action]
+            ]
+            output.append({"app_label": label, "action_groups": action_groups})
+        return output
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["all_permissions"] = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+        ctx["permission_groups"] = self._permission_groups()
         ctx["assigned_ids"] = set(self.object.permissions.values_list("pk", flat=True))
         return ctx
 
@@ -195,24 +271,74 @@ class UserHubAssignmentCreateView(SuperAdminRequiredMixin, CreateView):
     fields = ("user", "department", "project", "designation", "is_active")
     success_url = reverse_lazy("hub_rbac_assignment_list")
 
+    def get_initial(self):
+        initial = super().get_initial()
+        user_id = (self.request.GET.get("user_id") or "").strip()
+        if user_id.isdigit():
+            initial["user"] = int(user_id)
+        return initial
+
+    def _selected_department_project(self, form):
+        department = None
+        project = None
+        if form.is_bound:
+            dept_id = (self.request.POST.get("department") or "").strip()
+            proj_id = (self.request.POST.get("project") or "").strip()
+            if dept_id.isdigit():
+                department = Department.objects.filter(pk=int(dept_id)).first()
+            if proj_id.isdigit():
+                project = Project.objects.filter(pk=int(proj_id)).first()
+        else:
+            department = form.initial.get("department") or form.instance.department
+            project = form.initial.get("project") or form.instance.project
+        return department, project
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["hub_roles"] = HubRole.objects.filter(is_active=True).select_related("department", "project").order_by("department__name", "project__name", "name")
-        ctx["filtered_roles"] = []
+        form = ctx.get("form")
+        department, project = self._selected_department_project(form)
+        hub_roles = HubRole.objects.none()
+        if department and project:
+            hub_roles = HubRole.objects.filter(
+                department=department,
+                project=project,
+                is_active=True,
+            ).select_related("department", "project").order_by("name")
+        ctx["hub_roles"] = hub_roles
+        ctx["filtered_roles"] = list(hub_roles)
         ctx["assigned_role_ids"] = set()
         return ctx
 
     def form_valid(self, form):
+        duplicate_qs = UserHubAssignment.objects.filter(
+            user=form.cleaned_data["user"],
+            department=form.cleaned_data["department"],
+            project=form.cleaned_data["project"],
+        )
+        if duplicate_qs.exists():
+            form.add_error(
+                None,
+                "This user is already assigned to the selected department and project.",
+            )
+            return self.form_invalid(form)
+
+        role_ids = self.request.POST.getlist("roles")
+        valid_roles = HubRole.objects.filter(
+            pk__in=role_ids,
+            department=form.cleaned_data["department"],
+            project=form.cleaned_data["project"],
+            is_active=True,
+        )
+        if role_ids and valid_roles.count() != len(set(role_ids)):
+            form.add_error(
+                None,
+                "Selected roles must belong to the same department and project, and be active.",
+            )
+            return self.form_invalid(form)
+
         form.instance.created_by = self.request.user
         response = super().form_valid(form)
-        role_ids = self.request.POST.getlist("roles")
         if role_ids:
-            valid_roles = HubRole.objects.filter(
-                pk__in=role_ids,
-                department=self.object.department,
-                project=self.object.project,
-                is_active=True,
-            )
             self.object.roles.set(valid_roles)
         messages.success(self.request, "Sub Admin assignment created.")
         return response
@@ -236,8 +362,33 @@ class UserHubAssignmentUpdateView(SuperAdminRequiredMixin, UpdateView):
         return ctx
 
     def form_valid(self, form):
-        response = super().form_valid(form)
+        duplicate_qs = UserHubAssignment.objects.filter(
+            user=form.cleaned_data["user"],
+            department=form.cleaned_data["department"],
+            project=form.cleaned_data["project"],
+        ).exclude(pk=self.object.pk)
+        if duplicate_qs.exists():
+            form.add_error(
+                None,
+                "This user is already assigned to the selected department and project.",
+            )
+            return self.form_invalid(form)
+
         role_ids = self.request.POST.getlist("roles")
-        self.object.roles.set(HubRole.objects.filter(pk__in=role_ids))
+        valid_roles = HubRole.objects.filter(
+            pk__in=role_ids,
+            department=form.cleaned_data["department"],
+            project=form.cleaned_data["project"],
+            is_active=True,
+        )
+        if role_ids and valid_roles.count() != len(set(role_ids)):
+            form.add_error(
+                None,
+                "Selected roles must belong to the same department and project, and be active.",
+            )
+            return self.form_invalid(form)
+
+        response = super().form_valid(form)
+        self.object.roles.set(valid_roles)
         messages.success(self.request, "Sub Admin assignment updated.")
         return response

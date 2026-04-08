@@ -133,6 +133,7 @@ export interface ApiBackend {
   getVouchers(params?: { page?: number; limit?: number }): Observable<import('../models/voucher.model').VoucherListResponse>;
   getVoucherDetail(id: number): Observable<import('../models/voucher.model').VoucherDetail>;
   revealVoucherPin(id: number): Observable<import('../models/voucher.model').VoucherRevealPinResponse>;
+  claimVoucher(body: { voucherCode: string; pin: string }): Observable<import('../models/voucher.model').VoucherClaimResponse>;
   getPaymentOrders(params?: { page?: number; limit?: number; status?: string }): Observable<{ orders: PaymentOrder[]; total: number }>;
   getVoucherStatement(params?: { page?: number; limit?: number }): Observable<{ entries: VoucherStatementEntry[]; total: number }>;
 

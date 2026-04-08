@@ -8,8 +8,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="PARKPE - Smart parking, payments & vehicle services platform" />
   <meta name="theme-color" content="#004aad" />
+  <!--
+    No <link rel="manifest">: ngrok free (ERR_NGROK_6024) serves HTML on subrequests until "Visit Site" is clicked;
+    manifest.webmanifest would then get HTML → DevTools "Manifest: Syntax error". Add manifest in real deployment if needed.
+  -->
   <!-- CSP removed in dev so Cashfree script loads. For production set CSP via server headers. -->
-  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="assets/parkpe-logo.svg" />
 
   <!-- Google Fonts - Ubuntu -->

@@ -181,9 +181,11 @@ export class RegisterComponent {
         this.otpForm.reset();
         this.startResendCountdown();
         this.notification.showSuccess('OTP sent to your mobile number.');
+        this.cdr.detectChanges();
       },
       error: (err) => {
         this.loading = false;
+        this.cdr.detectChanges();
         const msg = err?.error?.message || err?.error?.detail || 'Failed to send OTP.';
         this.notification.showError(msg);
       },
@@ -205,11 +207,13 @@ export class RegisterComponent {
     this.authService.registerVerify(verifyPayload).subscribe({
       next: () => {
         this.loading = false;
+        this.cdr.detectChanges();
         this.notification.showSuccess('Account created successfully!');
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading = false;
+        this.cdr.detectChanges();
         const msg = err?.error?.message || err?.error?.detail || 'Verification failed.';
         this.notification.showError(msg);
       },
@@ -229,9 +233,11 @@ export class RegisterComponent {
         this.loading = false;
         this.startResendCountdown();
         this.notification.showSuccess('OTP sent again.');
+        this.cdr.detectChanges();
       },
       error: (err) => {
         this.loading = false;
+        this.cdr.detectChanges();
         const msg = err?.error?.message || err?.error?.detail || 'Failed to resend OTP.';
         this.notification.showError(msg);
       },

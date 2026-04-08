@@ -79,6 +79,8 @@ urlpatterns = [
     # Users
     path('users/', views.UserListView.as_view(), name='user_list'),
     path('users/create/', views.UserCreateView.as_view(), name='user_create'),
+    path('users/<int:user_id>/edit/', views.UserEditView.as_view(), name='user_edit'),
+    path('users/<int:user_id>/delete/', views.UserDeleteView.as_view(), name='user_delete'),
     path('users/<int:user_id>/', views.UserDetailView.as_view(), name='user_detail'),
     
     # KYC

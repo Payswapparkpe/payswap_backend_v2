@@ -102,6 +102,7 @@
               }
             ],
             "styles": [
+              "projects/parkpe/src/tailwind.css",
               "projects/parkpe/src/styles.scss"
             ]
           },
@@ -133,8 +134,15 @@
           "builder": "@angular/build:dev-server",
           "options": {
             "port": 4201,
+            "host": "0.0.0.0",
             "proxyConfig": "projects/parkpe/proxy.conf.json",
-            "allowedHosts": true
+            "allowedHosts": [
+              "localhost",
+              "127.0.0.1",
+              ".ngrok-free.dev",
+              ".ngrok-free.app",
+              ".ngrok.io"
+            ]
           },
           "configurations": {
             "production": {

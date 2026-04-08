@@ -24,6 +24,47 @@ import traceback
 logger = get_logger('portal.tasks.voucher')
 
 
+def _resolve_parkpe_user_id_from_mobile(mobile_raw) -> Optional[int]:
+    """
+    If exactly one Profile matches normalized phone, return user id; else None.
+    Used when bulk-issuing ParkPe brand vouchers with a mobile_number column.
+    """
+    from portal.models import Profile
+    from portal.utils.phone_utils import safe_normalize_phone, phone_lookup_candidates
+
+    if mobile_raw is None:
+        return None
+    s = str(mobile_raw).strip()
+    if not s:
+        return None
+    # Excel may float-serialize mobiles as 9876543210.0
+    if s.endswith(".0") and len(s) > 2:
+        head = s[:-2]
+        if head.isdigit():
+            s = head
+
+    normalized_phone, err = safe_normalize_phone(s)
+    if err:
+        logger.warning(
+            "bulk_voucher_parkpe_phone_normalize_failed",
+            extra_data={"error": err, "raw_len": len(s)},
+        )
+        return None
+
+    candidates = phone_lookup_candidates(normalized_phone)
+    qs = Profile.objects.filter(phone__in=candidates).select_related("user")
+    cnt = qs.count()
+    if cnt == 0:
+        return None
+    if cnt > 1:
+        logger.warning(
+            "bulk_voucher_parkpe_phone_multiple_profiles",
+            extra_data={"match_count": cnt},
+        )
+        return None
+    return qs.first().user_id
+
+
 @shared_task(name='portal.tasks.process_bulk_voucher_issuance', bind=True, max_retries=3)
 def process_bulk_voucher_issuance_task(self, batch_id: int) -> Dict[str, Any]:
     """
@@ -244,6 +285,21 @@ def process_bulk_voucher_issuance_task(self, batch_id: int) -> Dict[str, Any]:
                     }
                     if batch.batch_reference_number:
                         metadata['batch_reference_number'] = batch.batch_reference_number
+
+                    try:
+                        from portal.services.parkpe_voucherx_bridge import get_parkpe_brand_id
+
+                        parkpe_brand_id = get_parkpe_brand_id()
+                    except Exception:
+                        parkpe_brand_id = None
+                    if (
+                        parkpe_brand_id
+                        and brand.id == parkpe_brand_id
+                        and item.get("mobile_number")
+                    ):
+                        uid = _resolve_parkpe_user_id_from_mobile(item["mobile_number"])
+                        if uid:
+                            metadata["parkpe_user_id"] = uid
                     
                     # Create voucher
                     voucher = GiftVoucher.objects.create(

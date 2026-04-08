@@ -1,8 +1,9 @@
-import { Component, inject, input, OnInit, signal } from '@angular/core';
+import { Component, effect, inject, input, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ConnectService, ConnectVehicle, ConnectVehiclesMeta } from '../services/connect.service';
 import { ConnectVehicleCardComponent } from '../connect-vehicle-card/connect-vehicle-card.component';
+import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
 
 @Component({
   selector: 'app-connect-vehicles-list',
@@ -13,12 +14,25 @@ import { ConnectVehicleCardComponent } from '../connect-vehicle-card/connect-veh
 })
 export class ConnectVehiclesListComponent implements OnInit {
   private connect = inject(ConnectService);
+  private mobilityStore = inject(MobilityStateStore);
   /** When true, used inside vehicles shell (no back link, fits in left column). */
   embedded = input<boolean>(false);
   vehicles = signal<ConnectVehicle[]>([]);
   meta = signal<ConnectVehiclesMeta | null>(null);
   loading = signal(true);
   error = signal<string | null>(null);
+
+  constructor() {
+    let skipRevisionEffect = true;
+    effect(() => {
+      this.mobilityStore.connectVehicleListRevision();
+      if (skipRevisionEffect) {
+        skipRevisionEffect = false;
+        return;
+      }
+      this.load();
+    });
+  }
 
   ngOnInit() {
     this.load();

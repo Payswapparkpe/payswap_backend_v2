@@ -44,6 +44,11 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
                 </div>
               </div>
               <p class="voucher-date">{{ v.issuedAt | date:'mediumDate' }}</p>
+              @if (v.linkedUserPhone) {
+                <p class="voucher-linked">Linked: {{ v.linkedUserPhone }}</p>
+              } @else if (v.parkpeLinked === false) {
+                <p class="voucher-linked not-linked">Not linked</p>
+              }
               <span class="material-icons chevron">chevron_right</span>
             </a>
           }
@@ -94,6 +99,8 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
     .amount-row .label { color: var(--text-secondary); font-size: 0.875rem; }
     .amount-row .value.highlight { font-weight: 700; color: var(--primary-700); font-size: 1.25rem; }
     .voucher-date { font-size: 0.8125rem; color: var(--text-muted); margin: 0; }
+    .voucher-linked { font-size: 0.72rem; color: var(--text-secondary); margin: 0.35rem 0 0; }
+    .voucher-linked.not-linked { color: var(--text-muted); }
     .chevron { position: absolute; right: 1rem; bottom: 1rem; color: var(--text-muted); font-size: 24px; }
     .pagination-hint { font-size: 0.875rem; color: var(--text-muted); margin-top: 1rem; }
     .actions-footer { margin-top: 2rem; }

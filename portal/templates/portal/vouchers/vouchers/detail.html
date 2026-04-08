@@ -91,6 +91,19 @@
             {% endif %}
         </div>
         {% endif %}
+        <div>
+            <p class="text-sm text-gray-600 mb-1">Mapped User Mobile</p>
+            {% if is_voucher_mapped and mapped_user_mobile %}
+                {% if can_see_voucher_sensitive %}
+                <p class="font-semibold text-gray-900">{{ mapped_user_mobile }}</p>
+                {% else %}
+                <p class="font-semibold text-gray-900">{{ mapped_user_mobile|slice:":2" }}******{{ mapped_user_mobile|slice:"-4:" }}</p>
+                <p class="text-xs text-gray-500 mt-1">Full number visible only with sensitive-details permission</p>
+                {% endif %}
+            {% else %}
+            <p class="font-semibold text-gray-500">Not mapped</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 

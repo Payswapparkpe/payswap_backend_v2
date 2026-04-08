@@ -38,8 +38,10 @@ def get_user_hub_permissions(user, project_code=None, department_code=None):
     ).prefetch_related("roles__permissions", "department", "project")
 
     if project_code:
+        project_code = str(project_code).strip().lower()
         qs = qs.filter(project__code=project_code)
     if department_code:
+        department_code = str(department_code).strip().lower()
         qs = qs.filter(department__code=department_code)
 
     perms = set()

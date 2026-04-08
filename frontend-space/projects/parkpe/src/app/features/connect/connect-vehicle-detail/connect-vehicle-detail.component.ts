@@ -305,6 +305,9 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
     this.connect.confirmDeleteVehicle(v.id, otp).subscribe({
       next: () => {
         this.deleteModalOpen.set(false);
+        const rest = this.store.connectVehicles().filter((x) => x.id !== v.id);
+        this.store.setConnectVehicles(rest);
+        this.store.notifyConnectVehicleListChanged();
         this.router.navigate(['/connect/vehicles']);
       },
       error: (err) => {

@@ -300,8 +300,8 @@ LOGGING = {
     },
 }
 
-# Email settings
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# Email settings (certifi CA for STARTTLS — see portal.mail_backends.PayswapSMTPBackend)
+EMAIL_BACKEND = "portal.mail_backends.PayswapSMTPBackend"
 EMAIL_HOST = payswap_config.SMTP_HOST
 EMAIL_PORT = payswap_config.SMTP_PORT
 EMAIL_USE_TLS = payswap_config.SMTP_USE_TLS

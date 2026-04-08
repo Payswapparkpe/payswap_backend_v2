@@ -44,6 +44,11 @@ export class MobilityStateStore {
 
   readonly connectVehicles = signal<ConnectVehicle[]>([]);
   readonly connectVehiclesTs = signal<number | null>(null);
+  /**
+   * Incremented when the Connect vehicle list may be stale (create / update / delete elsewhere).
+   * `ConnectVehiclesListComponent` watches this and refetches; keeps sidebar in sync without a full reload.
+   */
+  readonly connectVehicleListRevision = signal(0);
 
   readonly activeBooking = signal<Booking | null>(null);
   readonly activeBookingTs = signal<number | null>(null);
@@ -90,6 +95,11 @@ export class MobilityStateStore {
     this.connectVehicles.set(vehicles);
     this.connectVehiclesTs.set(Date.now());
     this.write(this.VEHICLES_KEY, vehicles);
+  }
+
+  /** Call after a vehicle is created, updated, or deleted so mounted lists/dashboard snapshots refresh. */
+  notifyConnectVehicleListChanged(): void {
+    this.connectVehicleListRevision.update((n) => n + 1);
   }
 
   setActiveBooking(booking: Booking | null): void {

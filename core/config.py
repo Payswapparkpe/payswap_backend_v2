@@ -132,7 +132,7 @@ class PayswapConfig(BaseSettings):
     MOBIKWIK_BBPS_SECRET_KEY: Optional[SecretStr] = Field(default=None, description='Mobikwik BBPS Secret Key (checksum)')
     MOBIKWIK_BBPS_BASE_URL: str = Field(
         default='https://alpha3.mobikwik.com',
-        description='Mobikwik BBPS API base URL (testing: alpha3.mobikwik.com; change for production)'
+        description='Mobikwik BBPS API base URL (UAT: alpha3.mobikwik.com; B2B production: rapi-b2b.mobikwik.com)'
     )
     MOBIKWIK_BBPS_ENVIRONMENT: str = Field(default='UAT', description='UAT or PRODUCTION')
     MOBIKWIK_BBPS_USE_ENCRYPTION: bool = Field(
@@ -163,6 +163,14 @@ class PayswapConfig(BaseSettings):
     MOBIKWIK_BBPS_TOKEN_PATH: Optional[str] = Field(
         default=None,
         description='Override token API path (e.g. /oauth/token or /v1/token). Set from Mobikwik RT-Recharge & Bill Payment API doc if token fails.'
+    )
+    MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION: bool = Field(
+        default=False,
+        description='When True, Token API uses encrypted body. B2B host rapi-b2b.mobikwik.com also enables this automatically unless MOBIKWIK_BBPS_TOKEN_PLAIN_JSON=True.',
+    )
+    MOBIKWIK_BBPS_TOKEN_PLAIN_JSON: bool = Field(
+        default=False,
+        description='When True, Token API sends plain JSON even on rapi-b2b (only if Mobikwik confirms). Default False.',
     )
     MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE: str = Field(
         default='Asia/Kolkata',
@@ -236,7 +244,7 @@ class PayswapConfig(BaseSettings):
     PAYPOINT_DMT_ENVIRONMENT: str = Field(default='UAT', description='UAT or PRODUCTION')
 
     # ============================================================================
-    # EMAIL
+    # EMAIL (Microsoft 365 / Outlook SMTP by default; smtp.office365.com:587 + TLS)
     # ============================================================================
     SMTP_HOST: str = Field(default="smtp.office365.com")
     SMTP_PORT: int = Field(default=587)
@@ -246,9 +254,9 @@ class PayswapConfig(BaseSettings):
     SMTP_DEFAULT_FROM: str = Field(default="no-reply@payswap.in")
 
     # ============================================================================
-    # EMAIL SMTP Parkpe (for voucher system – Zoho etc.)
+    # EMAIL SMTP Parkpe (optional – voucher emails; if unset, uses default SMTP above)
     # ============================================================================
-    SMTP_HOST_Parkpe: Optional[str] = Field(default=None, description="Parkpe SMTP host (e.g. smtppro.zoho.in)")
+    SMTP_HOST_Parkpe: Optional[str] = Field(default=None, description="Optional separate host for ParkPe voucher mail")
     SMTP_PORT_Parkpe: Optional[int] = Field(default=587)
     SMTP_USER_Parkpe: Optional[str] = Field(default=None)
     SMTP_PASSWORD_Parkpe: Optional[SecretStr] = Field(default=None)

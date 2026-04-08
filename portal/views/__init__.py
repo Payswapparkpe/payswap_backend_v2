@@ -31,7 +31,13 @@ from portal.views.profile_views import (
     ProfileUpdateView,
     SettingsView,
 )
-from portal.views.user_views import UserListView, UserCreateView, UserDetailView
+from portal.views.user_views import (
+    UserListView,
+    UserCreateView,
+    UserEditView,
+    UserDeleteView,
+    UserDetailView,
+)
 from portal.views.kyc_views import KYCListView, KYCSubmitView
 from portal.views.wallet_views import WalletView, WalletTransactionView
 from portal.views.permission_views import (

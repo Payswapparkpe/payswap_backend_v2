@@ -2,7 +2,8 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ConnectService, ConnectVehicleCreate, ConnectVehiclesMeta } from '../services/connect.service';
+import { ConnectService, ConnectVehicle, ConnectVehicleCreate, ConnectVehiclesMeta } from '../services/connect.service';
+import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
 import {
   VEHICLE_TYPES,
   getBrandsForType,
@@ -27,6 +28,7 @@ export class ConnectVehicleFormComponent implements OnInit {
   private connect = inject(ConnectService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private mobilityStore = inject(MobilityStateStore);
 
   readonly vehicleTypes = VEHICLE_TYPES;
   readonly declarationText = VEHICLE_OWNERSHIP_DECLARATION;
@@ -171,8 +173,10 @@ export class ConnectVehicleFormComponent implements OnInit {
     const id = this.vehicleId();
     if (this.isEdit() && id != null) {
       this.connect.updateVehicle(id, payload).subscribe({
-        next: () => {
+        next: (updated) => {
           this.loading.set(false);
+          this.mergeVehicleIntoStore(updated);
+          this.mobilityStore.notifyConnectVehicleListChanged();
           this.router.navigate(['/connect/vehicles']);
         },
         error: (err) => {
@@ -184,6 +188,8 @@ export class ConnectVehicleFormComponent implements OnInit {
       this.connect.createVehicle(payload).subscribe({
         next: (v) => {
           this.loading.set(false);
+          this.mergeVehicleIntoStore(v);
+          this.mobilityStore.notifyConnectVehicleListChanged();
           this.router.navigate(['/connect/vehicles', v.id]);
         },
         error: (err) => {
@@ -193,5 +199,15 @@ export class ConnectVehicleFormComponent implements OnInit {
         },
       });
     }
+  }
+
+  /** Keep MobilityStateStore in sync so dashboard / cached views update without a full reload. */
+  private mergeVehicleIntoStore(v: ConnectVehicle): void {
+    const normalized: ConnectVehicle = { ...v, rc_data: v.vehicle_rc ?? v.rc_data };
+    const cur = this.mobilityStore.connectVehicles();
+    const idx = cur.findIndex((x) => x.id === v.id);
+    const next =
+      idx >= 0 ? cur.map((x, i) => (i === idx ? normalized : x)) : [...cur, normalized];
+    this.mobilityStore.setConnectVehicles(next);
   }
 }

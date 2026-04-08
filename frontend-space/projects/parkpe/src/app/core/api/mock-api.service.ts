@@ -163,12 +163,22 @@ export class MockApiService implements ApiBackend {
       currency: 'INR',
       status: 'ACTIVE',
       issuedAt: null,
+      parkpeLinked: true,
+      linkedUserPhone: '+91 98765 43210',
       transactions: [],
     }).pipe(delay(this.mockDelay));
   }
 
   revealVoucherPin(_id: number): Observable<{ pin: string }> {
     return of({ pin: '****' }).pipe(delay(this.mockDelay));
+  }
+
+  claimVoucher(_body: { voucherCode: string; pin: string }): Observable<import('../models/voucher.model').VoucherClaimResponse> {
+    return of({
+      success: true,
+      message: 'Voucher linked to your account.',
+      voucherId: 1,
+    }).pipe(delay(this.mockDelay));
   }
 
   getPaymentOrders(_params?: { page?: number; limit?: number; status?: string }): Observable<{ orders: PaymentOrder[]; total: number }> {

@@ -24,14 +24,60 @@
     {% endif %}
 </div>
 
+<div class="card-enterprise mb-4">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-wrap gap-2">
+            <a href="?tab=all&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'all' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                All ({{ tab_counts.all }})
+            </a>
+            <a href="?tab=admin&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'admin' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                Admin Panel ({{ tab_counts.admin }})
+            </a>
+            <a href="?tab=payswap&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'payswap' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                Payswap ({{ tab_counts.payswap }})
+            </a>
+            <a href="?tab=parkpe&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'parkpe' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                ParkPe ({{ tab_counts.parkpe }})
+            </a>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="tab" value="{{ active_tab }}">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Search</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Name, username, email, mobile"
+                       class="form-input-enterprise min-w-[220px]">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">From</label>
+                <input type="date" name="from_date" value="{{ from_date }}" class="form-input-enterprise">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">To</label>
+                <input type="date" name="to_date" value="{{ to_date }}" class="form-input-enterprise">
+            </div>
+            <button type="submit" class="btn-enterprise-primary">
+                <i class="ti ti-search mr-1"></i> Filter
+            </button>
+            <a href="?tab={{ active_tab }}" class="btn-enterprise-outline">
+                <i class="ti ti-x mr-1"></i> Clear
+            </a>
+        </form>
+    </div>
+</div>
+
 <!-- Enterprise Data Table -->
 <div class="table-enterprise">
     <table class="w-full">
-        <thead>
+        <thead class="bg-gray-50 text-gray-700">
             <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Role</th>
+                <th>User Details</th>
+                <th>Mobile / Email</th>
+                <th>User Type</th>
+                <th>Registration Date</th>
                 <th>Status</th>
                 <th class="text-right">Actions</th>
             </tr>
@@ -39,32 +85,95 @@
         <tbody>
             {% for user_item in users %}
             <tr>
-                <td class="font-semibold text-gray-900">{{ user_item.username }}</td>
-                <td class="text-gray-600">{{ user_item.email|default:"-" }}</td>
                 <td>
-                    <span class="badge-enterprise badge-enterprise-gray">{{ user_item.get_role_code_display }}</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold text-sm">
+                            {{ user_item.username|slice:":1"|upper }}
+                        </div>
+                        <div>
+                            <p class="font-semibold text-gray-900">
+                                {% if user_item.profile.first_name or user_item.profile.last_name %}
+                                    {{ user_item.profile.first_name }} {{ user_item.profile.last_name }}
+                                {% else %}
+                                    {{ user_item.username }}
+                                {% endif %}
+                            </p>
+                            <p class="text-xs text-gray-500">@{{ user_item.username }}</p>
+                        </div>
+                    </div>
                 </td>
                 <td>
+                    <p class="font-medium text-gray-900">{{ user_item.phone|default:"-" }}</p>
+                    <p class="text-xs text-gray-500">{{ user_item.email|default:"-" }}</p>
+                </td>
+                <td>
+                    {% with role=user_item.role_code %}
+                        {% if role == 'super_admin' or role == 'admin' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'super_distributor' or role == 'distributor' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'retailer' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'customer' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'employee' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{{ user_item.get_role_code_display }}</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{{ user_item.get_role_code_display }}</span>
+                        {% endif %}
+                    {% endwith %}
+                    <p class="text-xs text-gray-500 mt-1">{{ user_item.platform_label }}</p>
+                </td>
+                <td class="text-gray-700">{{ user_item.date_joined|date:"d M, Y" }}</td>
+                <td>
                     {% if user_item.is_active %}
-                    <span class="badge-enterprise badge-enterprise-success">Active</span>
+                    <span class="inline-flex items-center gap-2 text-sm font-medium text-green-700">
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span> Active
+                    </span>
                     {% else %}
-                    <span class="badge-enterprise badge-enterprise-danger">Inactive</span>
+                    <span class="inline-flex items-center gap-2 text-sm font-medium text-red-700">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span> Inactive
+                    </span>
                     {% endif %}
                 </td>
                 <td class="text-right">
-                    <a href="/users/{{ user_item.id }}/" class="btn-action">
-                        <i class="ti ti-eye"></i>
-                        View
-                    </a>
+                    <div class="inline-flex items-center gap-2">
+                        <a href="/users/{{ user_item.id }}/" class="btn-action" title="View">
+                            <i class="ti ti-eye"></i>
+                        </a>
+                        {% if has_hub_assignment_create_route %}
+                        <a href="{% url 'hub_rbac_assignment_create' %}?user_id={{ user_item.id }}" class="btn-action" title="Assign Hub RBAC">
+                            <i class="ti ti-shield-lock"></i>
+                        </a>
+                        {% endif %}
+                        {% if user|has_permission:'portal.change_user' and has_user_edit_route %}
+                        <a href="/users/{{ user_item.id }}/edit/" class="btn-action" title="Edit">
+                            <i class="ti ti-edit"></i>
+                        </a>
+                        {% else %}
+                        <span class="btn-action opacity-40 cursor-not-allowed" title="No edit permission">
+                            <i class="ti ti-edit"></i>
+                        </span>
+                        {% endif %}
+                        {% if user|has_permission:'portal.delete_user' and has_user_delete_route %}
+                        <a href="/users/{{ user_item.id }}/delete/" class="btn-action text-red-600" title="Delete">
+                            <i class="ti ti-trash"></i>
+                        </a>
+                        {% else %}
+                        <span class="btn-action opacity-40 cursor-not-allowed" title="No delete permission">
+                            <i class="ti ti-trash"></i>
+                        </span>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" class="text-center py-16">
+                <td colspan="6" class="text-center py-16">
                     <div class="flex flex-col items-center justify-center">
                         <i class="ti ti-users-off text-5xl text-gray-300 mb-4"></i>
                         <p class="text-gray-900 font-semibold mb-1">No users found</p>
-                        <p class="text-sm text-gray-500">Get started by creating your first user account</p>
+                        <p class="text-sm text-gray-500">Try changing tab/filter or create a new user</p>
                     </div>
                 </td>
             </tr>
@@ -72,4 +181,22 @@
         </tbody>
     </table>
 </div>
+
+{% if is_paginated %}
+<div class="card-enterprise mt-4">
+    <div class="flex items-center justify-between text-sm">
+        <p class="text-gray-600">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </p>
+        <div class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn-enterprise-outline">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn-enterprise-outline">Next</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

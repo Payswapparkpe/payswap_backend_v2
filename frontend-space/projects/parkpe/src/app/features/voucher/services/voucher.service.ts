@@ -6,6 +6,7 @@ import type {
   VoucherDetail,
   VoucherListResponse,
   VoucherRevealPinResponse,
+  VoucherClaimResponse,
 } from '../../../core/models/voucher.model';
 
 /**
@@ -28,5 +29,9 @@ export class VoucherService {
 
   revealPin(id: number): Observable<VoucherRevealPinResponse> {
     return this.api.revealVoucherPin(id);
+  }
+
+  claimVoucher(voucherCode: string, pin: string): Observable<VoucherClaimResponse> {
+    return this.api.claimVoucher({ voucherCode, pin });
   }
 }

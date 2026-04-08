@@ -9,6 +9,10 @@ export interface VoucherListItem {
   currency: string;
   status: string;
   issuedAt: string | null;
+  /** True when metadata.parkpe_user_id is set (ParkPe account linked). */
+  parkpeLinked?: boolean;
+  /** Formatted linked profile phone when linked; else null. */
+  linkedUserPhone?: string | null;
 }
 
 export interface VoucherTransaction {
@@ -34,6 +38,8 @@ export interface VoucherDetail {
   currency: string;
   status: string;
   issuedAt: string | null;
+  parkpeLinked?: boolean;
+  linkedUserPhone?: string | null;
   transactions: VoucherTransaction[];
 }
 
@@ -44,4 +50,10 @@ export interface VoucherListResponse {
 
 export interface VoucherRevealPinResponse {
   pin: string;
+}
+
+export interface VoucherClaimResponse {
+  success: boolean;
+  message: string;
+  voucherId: number;
 }

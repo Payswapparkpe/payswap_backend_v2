@@ -224,6 +224,15 @@ export class RealApiService implements ApiBackend {
     );
   }
 
+  claimVoucher(body: { voucherCode: string; pin: string }): Observable<import('../models/voucher.model').VoucherClaimResponse> {
+    return this.http
+      .post<import('../models/voucher.model').VoucherClaimResponse>(
+        `${this.apiUrl}/voucher/vouchers/claim`,
+        { voucherCode: body.voucherCode, pin: body.pin }
+      )
+      .pipe(tap(() => this.invalidateCache('vouchers:list:')));
+  }
+
   getPaymentOrders(params?: {
     page?: number;
     limit?: number;

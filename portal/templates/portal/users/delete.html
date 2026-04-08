@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Deactivate / Delete User{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="card-enterprise">
+        <div class="flex items-start gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <i class="ti ti-alert-triangle text-red-600"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-semibold text-gray-900">Deactivate / Delete User</h1>
+                <p class="text-sm text-gray-600 mt-1">
+                    This action will set user <span class="font-semibold">@{{ user_obj.username }}</span> as inactive.
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-700 mb-5">
+            Login access will be blocked for this user until re-activated.
+        </div>
+        {% if can_permanent_delete %}
+        <div class="bg-red-100 border border-red-200 rounded-lg p-3 text-sm text-red-800 mb-5">
+            Super Admin: You can also permanently delete this user.
+        </div>
+        {% endif %}
+
+        <form method="post" class="flex items-center justify-end gap-3">
+            {% csrf_token %}
+            <a href="{% url 'user_detail' user_obj.id %}" class="btn-enterprise-outline">Cancel</a>
+            <button type="submit" name="action" value="deactivate" class="btn-enterprise-primary bg-red-600 hover:bg-red-700">
+                <i class="ti ti-user-off mr-2"></i> Deactivate User
+            </button>
+            {% if can_permanent_delete %}
+            <button type="submit" name="action" value="permanent" class="btn-enterprise-primary bg-red-800 hover:bg-red-900">
+                <i class="ti ti-trash mr-2"></i> Permanent Delete
+            </button>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

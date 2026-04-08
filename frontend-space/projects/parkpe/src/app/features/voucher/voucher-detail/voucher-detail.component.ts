@@ -60,6 +60,17 @@ import type { VoucherDetail } from '../../../core/models/voucher.model';
             <span class="status-badge" [class]="voucher()!.status.toLowerCase()">{{ voucher()!.status | titlecase }}</span>
             <span class="date">Issued {{ voucher()!.issuedAt | date:'medium' }}</span>
           </div>
+
+          <div class="link-row">
+            <span class="link-label">Linked account (mobile)</span>
+            @if (voucher()!.linkedUserPhone) {
+              <span class="link-value">{{ voucher()!.linkedUserPhone }}</span>
+            } @else if (voucher()!.parkpeLinked === false) {
+              <span class="link-value muted">Not linked</span>
+            } @else {
+              <span class="link-value muted">—</span>
+            }
+          </div>
         </div>
 
         <div class="transactions-section card">
@@ -145,6 +156,14 @@ import type { VoucherDetail } from '../../../core/models/voucher.model';
     .amount-label { display: block; font-size: 0.75rem; color: var(--text-secondary); }
     .amount-value { font-size: 1.5rem; font-weight: 700; color: var(--primary-700); }
     .meta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; font-size: 0.875rem; color: var(--text-secondary); }
+    .link-row {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem;
+      margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-light);
+      font-size: 0.875rem;
+    }
+    .link-label { font-weight: 600; color: var(--text-secondary); }
+    .link-value { color: var(--text-primary); }
+    .link-value.muted { color: var(--text-muted); }
     .status-badge { padding: 0.25rem 0.75rem; border-radius: var(--radius-full); font-size: 0.75rem; font-weight: 600; }
     .status-badge.active { background: var(--success); color: white; }
     .status-badge.partially_redeemed { background: var(--warning); color: #1a1a1a; }

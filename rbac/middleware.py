@@ -16,8 +16,8 @@ class HubContextMiddleware:
     def __call__(self, request):
         request.hub_project_code = (
             request.META.get("HTTP_X_PROJECT_CODE") or ""
-        ).strip() or None
+        ).strip().lower() or None
         request.hub_department_code = (
             request.META.get("HTTP_X_DEPARTMENT_CODE") or ""
-        ).strip() or None
+        ).strip().lower() or None
         return self.get_response(request)

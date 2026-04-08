@@ -4,6 +4,7 @@ Custom permission classes for portal app
 from rest_framework import permissions
 from portal.utils.permission_utils import user_has_permission, user_has_any_permission, user_has_all_permissions
 from portal.utils.user_utils import is_mfa_required_role
+from portal.utils.staff_utils import is_super_admin
 
 
 class HasPermission(permissions.BasePermission):
@@ -108,11 +109,12 @@ class CanCreateUser(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        if hasattr(request.user, 'role') and request.user.role:
-            # Admin and Super can create users
-            allowed_roles = ['admin', 'super']
-            return request.user.role_code.lower() in allowed_roles
-        return False
+        if is_super_admin(request.user):
+            return True
+        if user_has_permission(request.user, 'portal.add_user'):
+            return True
+        role_code = (getattr(request.user, 'role_code', '') or '').lower()
+        return role_code in {'admin'}
 
 
 class CanManageKYC(permissions.BasePermission):

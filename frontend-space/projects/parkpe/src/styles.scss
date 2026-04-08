@@ -1,6 +1,5 @@
-/* Global Styles - PARKPE */
-@import 'tailwindcss';
-@import 'app/shared/styles/service-layout';
+/* Global Styles - PARKPE — Tailwind loaded via tailwind.css in angular.json (before this file) */
+@use 'app/shared/styles/service-layout' as *;
 
 /* Reset & Base */
 *,

@@ -18,7 +18,7 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
         <span class="material-icons">arrow_back</span> Back to Dashboard
       </a>
       <h1 class="page-title">Vouchers</h1>
-      <p class="page-subtitle">Buy a new voucher or view and manage your existing vouchers.</p>
+      <p class="page-subtitle">Buy a new voucher, link one you received, or view your vouchers.</p>
 
       <div class="two-column">
         <!-- Left: Buy new voucher -->
@@ -63,6 +63,39 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
               }
             </button>
           </form>
+
+          @if (!needsLogin()) {
+            <div class="link-voucher-block">
+              <h3 class="link-title">
+                <span class="material-icons">link</span>
+                Link existing voucher
+              </h3>
+              <p class="section-desc">If you received a voucher from us (e.g. bulk issue) without buying here, enter the code and PIN to add it to your account.</p>
+              <form [formGroup]="claimForm" (ngSubmit)="submitClaim()" class="claim-form">
+                <div class="form-group">
+                  <label>Voucher code</label>
+                  <input type="text" class="form-control" formControlName="voucherCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label>PIN</label>
+                  <input type="password" class="form-control" formControlName="pin" placeholder="4-digit PIN" maxlength="12" autocomplete="off" />
+                </div>
+                @if (claimError()) {
+                  <p class="error">{{ claimError() }}</p>
+                }
+                @if (claimMessage()) {
+                  <p class="success-msg">{{ claimMessage() }}</p>
+                }
+                <button type="submit" class="btn btn-outline btn-block" [disabled]="claimForm.invalid || claimProcessing()">
+                  @if (claimProcessing()) {
+                    <span class="spinner-sm"></span> Linking…
+                  } @else {
+                    Link to my account
+                  }
+                </button>
+              </form>
+            </div>
+          }
         </section>
 
         <!-- Right: My vouchers (max 3) + View All -->
@@ -95,6 +128,11 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
                     <span class="balance">₹{{ v.currentBalance }}</span>
                     <span class="meta">of ₹{{ v.originalAmount }} · {{ v.issuedAt | date:'shortDate' }}</span>
                   </div>
+                  @if (v.linkedUserPhone) {
+                    <p class="card-linked">Linked: {{ v.linkedUserPhone }}</p>
+                  } @else if (v.parkpeLinked === false) {
+                    <p class="card-linked not-linked">Not linked</p>
+                  }
                   <span class="material-icons chevron">chevron_right</span>
                 </a>
               }
@@ -194,8 +232,25 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
     .card-amounts { display: flex; flex-direction: column; gap: 0.25rem; }
     .card-amounts .balance { font-weight: 700; color: var(--primary-700); font-size: 1.125rem; }
     .card-amounts .meta { font-size: 0.75rem; color: var(--text-muted); }
+    .card-linked { font-size: 0.7rem; color: var(--text-secondary); margin: 0.35rem 0 0; padding-right: 1.5rem; }
+    .card-linked.not-linked { color: var(--text-muted); }
     .voucher-card .chevron { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 20px; }
     .pagination-hint { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.75rem; }
+
+    .link-voucher-block {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-light);
+    }
+    .link-title {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;
+    }
+    .link-title .material-icons { font-size: 20px; color: var(--primary-600); }
+    .claim-form .form-group { margin-bottom: 1rem; }
+    .success-msg { color: var(--success); font-size: 0.875rem; margin: 0 0 0.5rem; }
+    .btn-outline { border: 1px solid var(--primary-500); background: transparent; color: var(--primary-700); }
+    .btn-outline:disabled { opacity: 0.6; }
   `],
 })
 export class VouchersPageComponent implements OnInit {
@@ -209,9 +264,16 @@ export class VouchersPageComponent implements OnInit {
     amount: [500, [Validators.required, Validators.min(1)]],
     gateway: [null as PaymentGateway | null, Validators.required],
   });
+  claimForm: FormGroup = this.fb.group({
+    voucherCode: ['', Validators.required],
+    pin: ['', Validators.required],
+  });
   gateways = signal<GatewayConfig[]>([]);
   loadingGateways = signal(true);
   processing = signal(false);
+  claimProcessing = signal(false);
+  claimError = signal<string | null>(null);
+  claimMessage = signal<string | null>(null);
   needsLogin = signal(false);
 
   vouchers = signal<VoucherListItem[]>([]);
@@ -273,6 +335,34 @@ export class VouchersPageComponent implements OnInit {
         });
       },
       error: () => this.processing.set(false),
+    });
+  }
+
+  submitClaim() {
+    if (!this.authService.getToken()) return;
+    if (this.claimForm.invalid || this.claimProcessing()) return;
+    this.claimProcessing.set(true);
+    this.claimError.set(null);
+    this.claimMessage.set(null);
+    const voucherCode = (this.claimForm.get('voucherCode')?.value ?? '').toString().trim();
+    const pin = (this.claimForm.get('pin')?.value ?? '').toString().trim();
+    this.voucherService.claimVoucher(voucherCode, pin).subscribe({
+      next: (res) => {
+        this.claimProcessing.set(false);
+        this.claimMessage.set(res.message);
+        this.claimForm.reset({ voucherCode: '', pin: '' });
+        this.loadVouchers();
+      },
+      error: (err: { error?: { detail?: string | string[] } }) => {
+        this.claimProcessing.set(false);
+        const d = err?.error?.detail;
+        const msg = Array.isArray(d) ? d[0] : d;
+        this.claimError.set(
+          typeof msg === 'string' && msg.trim()
+            ? msg
+            : 'Could not link voucher. Check the code and PIN.'
+        );
+      },
     });
   }
 }

@@ -11,10 +11,12 @@ import { RealApiService } from './core/api/real-api.service';
 import { AuthService } from './core/services/auth.service';
 import { SessionLockService } from './core/services/session-lock.service';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { ngrokDevInterceptor } from './core/interceptors/ngrok-dev.interceptor';
 import { apiBaseInterceptor } from './core/interceptors/api-base.interceptor';
 import { loggingInterceptor } from './core/interceptors/logging.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
+import { catchError, timeout } from 'rxjs/operators';
 import { PriorityPreloadingStrategy } from './core/routing/priority-preloading.strategy';
 
 /**
@@ -26,7 +28,13 @@ import { PriorityPreloadingStrategy } from './core/routing/priority-preloading.s
 /** On app load/reload: refresh access token if we have refresh token so user stays logged in. */
 function initAuthRefresh(): () => Promise<void> {
   const auth = inject(AuthService);
-  return () => firstValueFrom(auth.refreshTokenIfStored()).then(() => undefined);
+  return () =>
+    firstValueFrom(
+      auth.refreshTokenIfStored().pipe(
+        timeout(15000),
+        catchError(() => of(false)),
+      ),
+    ).then(() => undefined);
 }
 
 function initSessionLock(): () => void {
@@ -38,7 +46,13 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes, withPreloading(PriorityPreloadingStrategy)),
     provideHttpClient(
-      withInterceptors([apiBaseInterceptor, authInterceptor, loggingInterceptor, errorInterceptor])
+      withInterceptors([
+        ngrokDevInterceptor,
+        apiBaseInterceptor,
+        authInterceptor,
+        loggingInterceptor,
+        errorInterceptor,
+      ])
     ),
     provideCharts(withDefaultRegisterables()),
     {

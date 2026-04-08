@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Edit User{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="page-header-enterprise">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
+                <i class="ti ti-user-edit text-xl text-amber-600"></i>
+            </div>
+            <div>
+                <h1 class="page-title-enterprise">Edit User</h1>
+                <p class="page-description-enterprise">@{{ user_obj.username }}</p>
+            </div>
+        </div>
+        <a href="{% url 'user_detail' user_obj.id %}" class="btn-enterprise-outline">
+            <i class="ti ti-arrow-left mr-2"></i> Back
+        </a>
+    </div>
+
+    <div class="card-enterprise">
+        <form method="post" class="space-y-5">
+            {% csrf_token %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Username</label>
+                    <input type="text" name="username" value="{{ form.username.value|default:'' }}" class="input-enterprise" required>
+                    {% if form.username.errors %}<p class="mt-1 text-xs text-red-600">{{ form.username.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Role</label>
+                    <select name="role_code" class="input-enterprise" required>
+                        {% for value, label in form.fields.role_code.choices %}
+                        <option value="{{ value }}" {% if form.role_code.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.role_code.errors %}<p class="mt-1 text-xs text-red-600">{{ form.role_code.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">First Name</label>
+                    <input type="text" name="first_name" value="{{ form.first_name.value|default:'' }}" class="input-enterprise">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Last Name</label>
+                    <input type="text" name="last_name" value="{{ form.last_name.value|default:'' }}" class="input-enterprise">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Email</label>
+                    <input type="email" name="email" value="{{ form.email.value|default:'' }}" class="input-enterprise">
+                    {% if form.email.errors %}<p class="mt-1 text-xs text-red-600">{{ form.email.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 mb-2">Mobile</label>
+                    <input type="text" name="phone" value="{{ form.phone.value|default:'' }}" class="input-enterprise">
+                    {% if form.phone.errors %}<p class="mt-1 text-xs text-red-600">{{ form.phone.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="is_active" value="1" {% if form.is_active.value %}checked{% endif %}>
+                    Active user
+                </label>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <a href="{% url 'user_list' %}" class="btn-enterprise-outline">Cancel</a>
+                <button type="submit" class="btn-enterprise-primary">
+                    <i class="ti ti-device-floppy mr-2"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

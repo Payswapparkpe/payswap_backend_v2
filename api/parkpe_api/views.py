@@ -15,10 +15,12 @@ from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
 from django.urls import reverse
 
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils.decorators import method_decorator
@@ -33,6 +35,7 @@ from portal.models import (
     ParkPePaymentOrder,
     ParkPeServiceConfig,
     ParkPeVoucherTransaction,
+    Profile,
 )
 from portal.services.parkpe_voucherx_bridge import (
     get_parkpe_brand_id,
@@ -44,6 +47,9 @@ from portal.services.pincode_service import fetch_by_pincode
 from portal.utils.transaction_id import generate_transaction_id
 from portal.utils.encryption import decrypt_data
 from portal.utils.logging_helper import get_logger
+from portal.utils.phone_utils import format_phone_display
+from portal.utils.voucher_utils import unformat_voucher_code
+from portal.services.voucher_service import VoucherService
 
 from api.parkpe_logging import log_parkpe
 
@@ -1302,6 +1308,198 @@ def _mask_voucher_code(code):
     return "****-****-****-" + raw[-4:]
 
 
+def _phone_display_map_for_user_ids(user_ids):
+    """user_id -> formatted phone for display. Skips invalid ids."""
+    if not user_ids:
+        return {}
+    uid_set = set()
+    for raw in user_ids:
+        try:
+            uid_set.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not uid_set:
+        return {}
+    out = {}
+    for prof in Profile.objects.filter(user_id__in=uid_set).only("user_id", "phone"):
+        if prof.phone:
+            disp = format_phone_display(prof.phone) or prof.phone
+            if disp:
+                out[prof.user_id] = disp
+    return out
+
+
+def _parkpe_linked_fields(metadata, phone_by_user_id=None):
+    """
+    ParkPe link row for API: metadata.parkpe_user_id -> linked user's profile phone.
+    Returns (parkpe_linked: bool, linked_user_phone: str | None).
+    """
+    meta = metadata or {}
+    raw = meta.get("parkpe_user_id")
+    if raw is None:
+        return False, None
+    try:
+        uid = int(raw)
+    except (TypeError, ValueError):
+        return True, None
+    if phone_by_user_id is not None:
+        return True, phone_by_user_id.get(uid)
+    prof = Profile.objects.filter(user_id=uid).only("phone").first()
+    if prof and prof.phone:
+        disp = format_phone_display(prof.phone) or prof.phone
+        return True, disp or None
+    return True, None
+
+
+class VoucherClaimView(APIView):
+    """
+    POST /api/voucher/vouchers/claim
+    Link an unlinked ParkPe gift voucher to the logged-in user (voucherCode + PIN).
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        body = request.data if isinstance(request.data, dict) else {}
+        code_raw = (body.get("voucherCode") or body.get("voucher_code") or "").strip()
+        pin_raw = body.get("pin")
+        pin = str(pin_raw).strip() if pin_raw is not None else ""
+        if not code_raw or not pin:
+            return Response(
+                {"detail": "voucherCode and pin are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        brand_id = get_parkpe_brand_id()
+        if not brand_id:
+            return Response(
+                {"detail": "Voucher service not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        code = unformat_voucher_code(code_raw)
+        if len(code) != 16:
+            return Response(
+                {"detail": "Invalid voucher code format."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            v = GiftVoucher.objects.get(voucher_code=code, brand_id=brand_id)
+        except GiftVoucher.DoesNotExist:
+            log_parkpe(
+                "parkpe_voucher",
+                "Claim voucher not found",
+                False,
+                request,
+                {"code_masked": _mask_voucher_code(code)},
+            )
+            return Response({"detail": "Voucher not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        meta_pre = v.metadata or {}
+        stored = meta_pre.get("parkpe_user_id")
+        if stored is not None:
+            try:
+                if int(stored) == request.user.pk:
+                    log_parkpe(
+                        "parkpe_voucher",
+                        "Claim voucher already linked same user",
+                        True,
+                        request,
+                        {"voucher_id": v.id},
+                    )
+                    return Response(
+                        {
+                            "success": True,
+                            "message": "Voucher already linked to your account.",
+                            "voucherId": v.id,
+                        }
+                    )
+            except (TypeError, ValueError):
+                pass
+            log_parkpe(
+                "parkpe_voucher",
+                "Claim voucher already linked other user",
+                False,
+                request,
+                {"voucher_id": v.id},
+            )
+            return Response(
+                {"detail": "This voucher is already linked to another account."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        voucher_service = VoucherService()
+        is_valid, err = voucher_service.verify_pin(v, pin, increment_retry=True)
+        if not is_valid:
+            log_parkpe(
+                "parkpe_voucher",
+                "Claim voucher PIN failed",
+                False,
+                request,
+                {"voucher_id": v.id},
+            )
+            return Response(
+                {"detail": err or "Invalid PIN."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        v.refresh_from_db()
+
+        with transaction.atomic():
+            locked = GiftVoucher.objects.select_for_update().get(pk=v.pk)
+            m = dict(locked.metadata or {})
+            existing = m.get("parkpe_user_id")
+            if existing is not None:
+                try:
+                    ex_uid = int(existing)
+                except (TypeError, ValueError):
+                    return Response(
+                        {"detail": "This voucher is already linked to another account."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                if ex_uid != request.user.pk:
+                    return Response(
+                        {"detail": "This voucher is already linked to another account."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                log_parkpe(
+                    "parkpe_voucher",
+                    "Claim voucher race already linked",
+                    True,
+                    request,
+                    {"voucher_id": locked.id},
+                )
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Voucher already linked to your account.",
+                        "voucherId": locked.id,
+                    }
+                )
+
+            m["parkpe_user_id"] = request.user.pk
+            locked.metadata = m
+            locked.save(update_fields=["metadata"])
+
+        log_parkpe(
+            "parkpe_voucher",
+            "Claim voucher success",
+            True,
+            request,
+            {"voucher_id": v.id},
+        )
+        return Response(
+            {
+                "success": True,
+                "message": "Voucher linked to your account.",
+                "voucherId": v.id,
+            }
+        )
+
+
 class VoucherListView(APIView):
     """GET /api/voucher/vouchers – List customer's ParkPe vouchers (Gift Vouchers with metadata.parkpe_user_id)."""
     authentication_classes = [JWTAuthentication]
@@ -1324,19 +1522,29 @@ class VoucherListView(APIView):
         page = max(1, int(request.GET.get("page", 1)))
         start = (page - 1) * limit
         vouchers = list(qs[start : start + limit])
-        items = [
-            {
-                "id": v.id,
-                "voucherCodeMasked": _mask_voucher_code(v.voucher_code),
-                "referenceNumber": v.reference_number,
-                "originalAmount": float(v.original_amount),
-                "currentBalance": float(v.current_balance),
-                "currency": v.currency or "INR",
-                "status": v.status,
-                "issuedAt": v.issued_at.isoformat() if v.issued_at else None,
-            }
-            for v in vouchers
-        ]
+        uid_list = []
+        for v in vouchers:
+            raw = (v.metadata or {}).get("parkpe_user_id")
+            if raw is not None:
+                uid_list.append(raw)
+        phone_map = _phone_display_map_for_user_ids(uid_list)
+        items = []
+        for v in vouchers:
+            plinked, lphone = _parkpe_linked_fields(v.metadata, phone_map)
+            items.append(
+                {
+                    "id": v.id,
+                    "voucherCodeMasked": _mask_voucher_code(v.voucher_code),
+                    "referenceNumber": v.reference_number,
+                    "originalAmount": float(v.original_amount),
+                    "currentBalance": float(v.current_balance),
+                    "currency": v.currency or "INR",
+                    "status": v.status,
+                    "issuedAt": v.issued_at.isoformat() if v.issued_at else None,
+                    "parkpeLinked": plinked,
+                    "linkedUserPhone": lphone,
+                }
+            )
         log_parkpe("parkpe_voucher", "Voucher list", True, request, {"total": total})
         return Response({"vouchers": items, "total": total})
 
@@ -1405,6 +1613,7 @@ class VoucherDetailView(APIView):
             }
             for t in txns
         ]
+        plinked, lphone = _parkpe_linked_fields(v.metadata)
         log_parkpe("parkpe_voucher", "Voucher detail", True, request, {"voucher_id": voucher_id})
         return Response({
             "id": v.id,
@@ -1415,6 +1624,8 @@ class VoucherDetailView(APIView):
             "currency": v.currency or "INR",
             "status": v.status,
             "issuedAt": v.issued_at.isoformat() if v.issued_at else None,
+            "parkpeLinked": plinked,
+            "linkedUserPhone": lphone,
             "transactions": txn_list,
         })
 

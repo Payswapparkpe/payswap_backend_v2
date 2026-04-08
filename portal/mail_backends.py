@@ -1,6 +1,7 @@
 """
 Custom email backends for Payswap.
-ParkpeSMTPBackend uses certifi CA bundle so TLS to Zoho/smtppro.zoho.in works on macOS
+PayswapSMTPBackend / ParkpeSMTPBackend use certifi's CA bundle for STARTTLS so connections
+to smtp.office365.com / Zoho work on macOS and some Python builds
 (avoids [SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer certificate).
 """
 import logging
@@ -9,6 +10,30 @@ from django.core.mail.backends.smtp import EmailBackend
 from django.utils.functional import cached_property
 
 logger = logging.getLogger(__name__)
+
+
+class PayswapSMTPBackend(EmailBackend):
+    """
+    Default app SMTP (e.g. Microsoft 365). Uses certifi for TLS verify instead of relying
+    only on the OS store (fixes common macOS + python.org Python SSL issues).
+    """
+
+    @cached_property
+    def ssl_context(self):
+        if self.ssl_certfile or self.ssl_keyfile:
+            return super().ssl_context
+        try:
+            import certifi
+
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.load_verify_locations(cafile=certifi.where())
+            return ctx
+        except Exception as e:
+            logger.warning(
+                "PayswapSMTPBackend: certifi failed (%s), using ssl.create_default_context().",
+                e,
+            )
+            return ssl.create_default_context()
 
 
 def _parkpe_ssl_verify():

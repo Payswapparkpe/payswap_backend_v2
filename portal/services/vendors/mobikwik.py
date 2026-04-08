@@ -531,11 +531,44 @@ class MobikwikBBPSClient:
             "clientId": self.client_id,
             "clientSecret": self.client_secret,
         }
+        # B2B (rapi-b2b) needs encrypted token body; UAT alpha3 uses plain JSON. Auto-enable for rapi-b2b so a stale
+        # get_settings() lru_cache (old process before MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION existed) still encrypts.
+        plain_override = bool(getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_PLAIN_JSON", False))
+        explicit_enc = bool(getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION", False))
+        is_b2b_host = "rapi-b2b.mobikwik.com" in (self.base_url or "").lower()
+        if plain_override:
+            token_encrypt = False
+        elif explicit_enc or is_b2b_host:
+            token_encrypt = True
+        else:
+            token_encrypt = False
+        if token_encrypt:
+            if not self.public_key_pem:
+                self._last_token_error = (
+                    "Encrypted Mobikwik token body requires a public key. Set MOBIKWIK_BBPS_PUBLIC_KEY_PATH "
+                    "(PEM from onboarding email) or MOBIKWIK_BBPS_PUBLIC_KEY. "
+                    "Only for Mobikwik-approved plain-token tests: MOBIKWIK_BBPS_TOKEN_PLAIN_JSON=True."
+                )
+                return {
+                    "success": False,
+                    "error": self._last_token_error,
+                    "error_code": "CONFIG_MISSING",
+                }
+            body = self._encrypt_payload(payload, for_token_api=True)
+            if "encryptedSessionKey" not in body:
+                self._last_token_error = "Token request encryption failed (check public key PEM and pycryptodome)"
+                return {
+                    "success": False,
+                    "error": self._last_token_error,
+                    "error_code": "ENCRYPT_FAILED",
+                }
+        else:
+            body = payload
         try:
             with httpx.Client(timeout=30.0) as client:
                 resp = client.post(
                     url,
-                    json=payload,
+                    json=body,
                     headers={"Content-Type": "application/json", "Accept": "application/json"},
                 )
             # Parse JSON safely; server may return HTML or empty body
@@ -604,6 +637,20 @@ class MobikwikBBPSClient:
                         break
                 if vendor_msg:
                     self._last_token_error = vendor_msg
+                    if isinstance(data, dict):
+                        m = data.get("message")
+                        if isinstance(m, dict) and str(m.get("code", "")) == "1308":
+                            if not token_encrypt:
+                                self._last_token_error = (
+                                    f"{vendor_msg} — B2B host needs encrypted token body + PEM; "
+                                    "restart Django after .env changes (cached settings). "
+                                    "Or set MOBIKWIK_BBPS_PUBLIC_KEY_PATH and ensure base URL is rapi-b2b.mobikwik.com."
+                                )
+                            else:
+                                self._last_token_error = (
+                                    f"{vendor_msg} — Already using encrypted token body: confirm clientId/secret with Mobikwik, "
+                                    "PEM matches the B2B bundle, MOBIKWIK_BBPS_KEY_VERSION matches README; ask Mobikwik if token path differs."
+                                )
                 else:
                     keys_hint = ", ".join(str(k) for k in (data.keys() if isinstance(data, dict) else []))[:180]
                     self._last_token_error = "Token not found in response" + (f"; top-level keys: {keys_hint}" if keys_hint else "")
@@ -790,13 +837,19 @@ class MobikwikBBPSClient:
     # Request encryption (encryptedSessionKey, encryptedPayload, keyVersion, iv)
     # -------------------------------------------------------------------------
 
-    def _encrypt_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _encrypt_payload(
+        self, payload: Dict[str, Any], *, for_token_api: bool = False
+    ) -> Dict[str, Any]:
         """
         Build encrypted request body per Mobikwik RT-Recharge doc: encryptedSessionKey, encryptedPayload, keyVersion, iv.
         - Session key: 256-bit AES random. Payload: AES-256-GCM, 16-byte IV, 128-bit GCM tag (ciphertext+tag then Base64).
         - Session key encrypted with RSA-2048 PKCS1Padding (Mobikwik public key). keyVersion from readme (e.g. "1.0").
+        for_token_api: when True, encrypt token request (MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION) even if other APIs use plain UAT override.
         """
-        if not self.use_encryption or not self.public_key_pem:
+        if for_token_api:
+            if not self.public_key_pem:
+                return payload
+        elif not self.use_encryption or not self.public_key_pem:
             return payload
         try:
             from Crypto.Cipher import AES

@@ -20,7 +20,7 @@
     
     <!-- Enterprise Form Card -->
     <div class="card-enterprise">
-        <form method="post" action="/users/create/" hx-post="/users/create/" hx-target="#user-form" hx-swap="innerHTML">
+        <form method="post" action="/users/create/">
             {% csrf_token %}
             <div id="user-form">
                 <div class="space-y-6">

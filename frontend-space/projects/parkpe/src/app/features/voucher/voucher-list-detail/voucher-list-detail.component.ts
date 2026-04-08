@@ -42,6 +42,11 @@ import type { VoucherDetail, VoucherListItem } from '../../../core/models/vouche
                       <span class="balance">₹{{ v.currentBalance }}</span>
                       <span class="of">of ₹{{ v.originalAmount }} · {{ v.issuedAt | date:'shortDate' }}</span>
                     </div>
+                    @if (v.linkedUserPhone) {
+                      <span class="row-linked">Linked: {{ v.linkedUserPhone }}</span>
+                    } @else if (v.parkpeLinked === false) {
+                      <span class="row-linked not-linked">Not linked</span>
+                    }
                     <span class="material-icons chevron">chevron_right</span>
                   </a>
                 }
@@ -105,6 +110,17 @@ import type { VoucherDetail, VoucherListItem } from '../../../core/models/vouche
                 <span class="ref">Ref: {{ detail()!.referenceNumber }}</span>
                 <span class="status-badge" [class]="detail()!.status.toLowerCase()">{{ detail()!.status | titlecase }}</span>
                 <span class="date">Issued {{ detail()!.issuedAt | date:'medium' }}</span>
+              </div>
+
+              <div class="link-row">
+                <span class="link-label">Linked account (mobile)</span>
+                @if (detail()!.linkedUserPhone) {
+                  <span class="link-value">{{ detail()!.linkedUserPhone }}</span>
+                } @else if (detail()!.parkpeLinked === false) {
+                  <span class="link-value muted">Not linked</span>
+                } @else {
+                  <span class="link-value muted">—</span>
+                }
               </div>
             </div>
 
@@ -213,6 +229,8 @@ import type { VoucherDetail, VoucherListItem } from '../../../core/models/vouche
     .row-meta { display: flex; flex-direction: column; gap: 0.15rem; }
     .row-meta .balance { font-weight: 700; color: var(--primary-700); font-size: 1rem; }
     .row-meta .of { font-size: 0.7rem; color: var(--text-muted); }
+    .row-linked { display: block; font-size: 0.65rem; color: var(--text-secondary); margin-top: 0.25rem; padding-right: 1.25rem; }
+    .row-linked.not-linked { color: var(--text-muted); }
     .voucher-row .chevron { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 18px; }
 
     .loading-state { display: flex; justify-content: center; padding: 2rem; }
@@ -239,6 +257,14 @@ import type { VoucherDetail, VoucherListItem } from '../../../core/models/vouche
     .amount-label { display: block; font-size: 0.75rem; color: var(--text-secondary); }
     .amount-value { font-size: 1.25rem; font-weight: 700; color: var(--primary-700); }
     .meta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; font-size: 0.8125rem; color: var(--text-secondary); }
+    .link-row {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem;
+      margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px solid var(--border-light);
+      font-size: 0.8125rem;
+    }
+    .link-label { font-weight: 600; color: var(--text-secondary); }
+    .link-value { color: var(--text-primary); }
+    .link-value.muted { color: var(--text-muted); }
     .transactions-section { flex: 1; min-height: 0; }
     .transactions-section .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; }
     .empty-txn { color: var(--text-muted); font-size: 0.875rem; margin: 0; }

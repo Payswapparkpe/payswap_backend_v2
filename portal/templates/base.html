@@ -1,4 +1,5 @@
 {% load static %}
+{% load portal_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -136,6 +137,12 @@
                         <i class="ti ti-menu-2 text-2xl"></i>
                     </button>
                     <div class="flex items-center gap-3">
+                        {% if request.path != '/dashboard/' %}
+                        {% smart_back_url as back_url %}
+                        <a href="{{ back_url }}" class="p-2 rounded-lg border border-gray-200 text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all" title="Go back">
+                            <i class="ti ti-arrow-left text-lg"></i>
+                        </a>
+                        {% endif %}
                         <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
                             <i class="ti ti-layout-dashboard text-xl text-indigo-600"></i>
                         </div>

@@ -6923,6 +6923,19 @@ class VoucherDetailView(LoginRequiredMixin, DetailView):
             getattr(user, 'role_code', None) in ('super_admin', 'admin') or
             user.has_perm('portal.view_voucher_sensitive')
         )
+        # ParkPe mapping info: voucher.metadata.parkpe_user_id -> Profile.phone
+        context['is_voucher_mapped'] = False
+        context['mapped_user_mobile'] = None
+        mapped_user_id = (voucher.metadata or {}).get('parkpe_user_id')
+        if mapped_user_id is not None:
+            try:
+                mapped_user_id = int(mapped_user_id)
+                mapped_profile = Profile.objects.filter(user_id=mapped_user_id).only('phone').first()
+                if mapped_profile and mapped_profile.phone:
+                    context['is_voucher_mapped'] = True
+                    context['mapped_user_mobile'] = mapped_profile.phone
+            except (TypeError, ValueError):
+                pass
         return context
 
 
