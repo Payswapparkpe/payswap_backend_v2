@@ -1,0 +1,334 @@
+<div class="connect-vehicle-detail">
+  @if (loading()) {
+    <div class="detail-loading" aria-busy="true" aria-label="Loading vehicle">
+      <div class="skeleton-hero">
+        <div class="skeleton skeleton-eyebrow"></div>
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-meta"></div>
+      </div>
+      <div class="skeleton-qr-card">
+        <div class="skeleton skeleton-qr-block"></div>
+      </div>
+      <div class="skeleton-panels">
+        <div class="skeleton skeleton-panel"></div>
+        <div class="skeleton skeleton-panel short"></div>
+      </div>
+    </div>
+  } @else if (error()) {
+    <div class="detail-error-card" role="alert">
+      <span class="material-icons detail-error-icon" aria-hidden="true">error_outline</span>
+      <p class="detail-error-msg">{{ error() }}</p>
+      <a routerLink="/connect/vehicles" class="btn btn-outline btn-sm">Back to vehicles</a>
+    </div>
+  } @else if (vehicle(); as v) {
+
+    <div class="vd-page">
+
+      <!-- ── HERO CARD ── -->
+      <div class="vd-hero">
+        <div class="vd-hero__inner">
+          <div class="vd-hero__left">
+            <div class="vd-hero__icon-wrap" aria-hidden="true">
+              <span class="material-icons vd-hero__icon">directions_car</span>
+            </div>
+            <div class="vd-hero__identity">
+              <div class="vd-hero__reg-row">
+                <h1 class="vd-hero__reg">{{ v.registration_number }}</h1>
+                <button type="button" class="vd-hero__copy"
+                  (click)="copyRegistration(v.registration_number)"
+                  [attr.aria-label]="copyFeedback() === 'copied' ? 'Copied!' : 'Copy registration'">
+                  <span class="material-icons" aria-hidden="true">{{ copyFeedback() === 'copied' ? 'check' : 'content_copy' }}</span>
+                </button>
+                @if (copyFeedback() === 'copied') {
+                  <span class="vd-hero__copy-toast" role="status">Copied</span>
+                }
+              </div>
+              <p class="vd-hero__model">
+                @if (v.vehicle_type) { {{ getVehicleTypeLabel(v.vehicle_type) }} · }
+                {{ v.brand }} {{ v.model }}
+                @if (v.year) { · {{ v.year }} }
+              </p>
+              <div class="vd-hero__badges">
+                @if (v.vehicle_rc) {
+                  <span class="vd-badge vd-badge--verified">
+                    <span class="material-icons" aria-hidden="true">verified</span> RC Verified
+                  </span>
+                }
+                @if (v.is_primary) {
+                  <span class="vd-badge vd-badge--primary">Primary</span>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="vd-hero__actions">
+            <a [routerLink]="['/connect/vehicles', v.id, 'edit']" class="vd-hero__btn-edit">
+              <span class="material-icons" aria-hidden="true">edit</span> Edit
+            </a>
+            <button type="button" class="vd-hero__btn-delete" (click)="openDeleteModal()"
+              title="Delete vehicle" aria-label="Delete vehicle">
+              <span class="material-icons" aria-hidden="true">delete_outline</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COMPLIANCE ALERTS ── -->
+      @if (complianceAlerts().length > 0) {
+        <div class="compliance-alerts">
+          @for (alert of complianceAlerts(); track alert.title) {
+            <div class="compliance-alert compliance-alert--{{ alert.type }}" role="alert">
+              <span class="material-icons compliance-alert__icon" aria-hidden="true">{{ alert.icon }}</span>
+              <div class="compliance-alert__body">
+                <p class="compliance-alert__title">{{ alert.title }}</p>
+                <p class="compliance-alert__msg">{{ alert.message }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ── QR + QUICK ACTIONS ── -->
+      <div class="vd-qr-actions-row">
+
+        <div class="vd-qr-panel">
+          <div class="vd-qr-panel__head">
+            <div>
+              <h2 class="vd-qr-panel__title">Connect QR</h2>
+              <p class="vd-qr-panel__desc">People scan to chat or call — your number stays private.</p>
+            </div>
+            @if (qrImageUrl()) {
+              <button type="button" class="vd-qr-panel__save" (click)="downloadConnectQr()">
+                <span class="material-icons" aria-hidden="true">download</span> Save
+              </button>
+            }
+          </div>
+          <section class="qr-sticker-card" aria-label="Your Connect QR sticker">
+            <div class="qr-sticker-inner">
+              <div class="qr-sticker-left">
+                <div class="qr-sticker-brand">
+                  <img class="parkpe-logo" src="assets/parkpe-logo-dark-bg.svg" alt="Park Pe" />
+                </div>
+                <p class="qr-sticker-cta">Scan to contact owner</p>
+                <div class="qr-sticker-icons">
+                  <span class="material-icons" aria-hidden="true">local_parking</span>
+                  <span class="material-icons" aria-hidden="true">local_shipping</span>
+                  <span class="material-icons" aria-hidden="true">block</span>
+                </div>
+                <p class="qr-sticker-privacy">Privacy Protected • No Number Sharing</p>
+              </div>
+              <div class="qr-sticker-right">
+                @if (qrImageUrl(); as src) {
+                  <img [src]="src" alt="Connect QR code" class="qr-sticker-img" width="200" height="200" />
+                  <p class="qr-sticker-reg">{{ v.registration_number }}</p>
+                } @else {
+                  <div class="qr-sticker-loading" role="status" aria-live="polite">
+                    <div class="qr-loading-box" aria-hidden="true">
+                      <span class="qr-loading-corner tl"></span>
+                      <span class="qr-loading-corner tr"></span>
+                      <span class="qr-loading-corner bl"></span>
+                      <span class="qr-loading-shimmer"></span>
+                    </div>
+                    <span class="qr-loading-text">Building your QR…</span>
+                  </div>
+                }
+              </div>
+            </div>
+            <div class="qr-sticker-footer"></div>
+          </section>
+          <p class="qr-sticker-hint">
+            <span class="material-icons qr-sticker-hint-icon" aria-hidden="true">tips_and_updates</span>
+            <span>Save or screenshot this card for your windshield.</span>
+          </p>
+        </div>
+
+        <div class="vd-qa-panel">
+          <h3 class="vd-qa-panel__title">Quick Actions</h3>
+          <div class="detail-qa-grid">
+            <button type="button" class="detail-qa-tile detail-qa-tile--primary" (click)="openChat()">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">chat</span>
+              <span class="detail-qa-tile__label">Chat</span>
+            </button>
+            <a [routerLink]="['/connect/chats']" class="detail-qa-tile">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">forum</span>
+              <span class="detail-qa-tile__label">Chats</span>
+            </a>
+            <a [routerLink]="['/connect/scan']" class="detail-qa-tile">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">qr_code_scanner</span>
+              <span class="detail-qa-tile__label">Scan</span>
+            </a>
+            <a [routerLink]="['/fastag']" [queryParams]="{ registration_number: v.registration_number }" class="detail-qa-tile">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">toll</span>
+              <span class="detail-qa-tile__label">FASTag</span>
+            </a>
+            <a [routerLink]="['/challan']" [queryParams]="{ vehicleNumber: v.registration_number }" class="detail-qa-tile">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">gavel</span>
+              <span class="detail-qa-tile__label">Challan</span>
+            </a>
+            <a [routerLink]="['/connect/vehicles', v.id, 'edit']" class="detail-qa-tile">
+              <span class="material-icons detail-qa-tile__icon" aria-hidden="true">edit</span>
+              <span class="detail-qa-tile__label">Edit</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── RC INFORMATION (full width grid) ── -->
+      @if (v.vehicle_rc; as rc) {
+        <section class="vd-rc-section">
+          <h2 class="vd-rc-section__title">RC Information</h2>
+          <p class="vd-rc-section__sub">Verified data from government API</p>
+          <div class="vd-rc-grid">
+            @for (group of getRcCardGroups(rc); track group.title) {
+              @if (group.rows.length > 0) {
+                <div class="vd-rc-card">
+                  <h3 class="vd-rc-card__title">{{ group.title }}</h3>
+                  <dl class="vd-rc-card__list">
+                    @for (row of group.rows; track row.label) {
+                      <div class="vd-rc-card__row">
+                        <dt class="vd-rc-card__label">{{ row.label }}</dt>
+                        <dd class="vd-rc-card__value"
+                          [class.mono]="row.value.length > 24">{{ row.value }}</dd>
+                      </div>
+                    }
+                  </dl>
+                </div>
+              }
+            }
+          </div>
+        </section>
+      } @else if (v.rc_locked) {
+        <section class="rc-paywall card">
+          <div class="rc-paywall-icon"><span class="material-icons">lock</span></div>
+          <h2 class="rc-paywall-title">View full RC information</h2>
+          <p class="rc-paywall-text">Pay ₹50 from your voucher or verify ownership to see full RC details.</p>
+          @if (payRcError(); as err) { <p class="rc-paywall-error">{{ err }}</p> }
+          <button type="button" class="btn btn-primary rc-paywall-btn" (click)="openPayModal()">Pay ₹50 from voucher</button>
+          <details class="rc-verify-details">
+            <summary>Verify ownership instead (free)</summary>
+            <form [formGroup]="verifyOwnershipForm" (ngSubmit)="verifyOwnership()" class="rc-verify-form">
+              <div class="field">
+                <label for="verify-owner-name">Owner name (as on RC)</label>
+                <input id="verify-owner-name" type="text" formControlName="owner_name" placeholder="e.g. JOHN DOE" />
+              </div>
+              <div class="field">
+                <label for="verify-chassis">Chassis number</label>
+                <input id="verify-chassis" type="text" formControlName="chassis_number" placeholder="Chassis number" />
+              </div>
+              <div class="field">
+                <label for="verify-engine">Engine number</label>
+                <input id="verify-engine" type="text" formControlName="engine_number" placeholder="Engine number" />
+              </div>
+              @if (verifyError(); as err) { <p class="rc-verify-error">{{ err }}</p> }
+              <button type="submit" class="btn btn-outline btn-sm" [disabled]="verifyOwnershipForm.invalid || verifyInProgress()">
+                {{ verifyInProgress() ? 'Verifying…' : 'Verify' }}
+              </button>
+            </form>
+          </details>
+        </section>
+      } @else {
+        <section class="rc-get-more card">
+          <h2 class="rc-get-more-title">Get your vehicle information</h2>
+          <p class="rc-get-more-text">Pay ₹50 to fetch verified RC data (1st vehicle free). After payment we fetch and show details on your dashboard.</p>
+          @if (rcError(); as err) {
+            <p class="rc-get-more-error">{{ err }}</p>
+            <p class="rc-get-more-hint">You can try again after some time.</p>
+          }
+          <button type="button" class="btn btn-primary" (click)="getMoreData()" [disabled]="fetchRcInProgress()">
+            {{ fetchRcInProgress() ? 'Fetching…' : 'Get your vehicle information' }}
+          </button>
+        </section>
+      }
+
+      <nav class="vd-footer-nav" aria-label="Page">
+        <a routerLink="/connect/vehicles" class="back-link">
+          <span class="material-icons" aria-hidden="true">arrow_back</span> All vehicles
+        </a>
+      </nav>
+
+    </div>
+
+    <!-- Delete vehicle OTP modal -->
+    @if (deleteModalOpen()) {
+      <div class="modal-overlay" (click)="cancelDelete()" role="presentation"></div>
+      <div class="modal delete-modal" role="dialog" aria-labelledby="delete-modal-title">
+        <h2 id="delete-modal-title" class="modal-title">Delete vehicle</h2>
+        @if (!deleteOtpSent()) {
+          <p class="modal-text">OTP will be sent to your registered mobile to confirm deletion.</p>
+          @if (deleteError(); as err) { <p class="modal-error">{{ err }}</p> }
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="cancelDelete()">Cancel</button>
+            <button type="button" class="btn btn-danger" (click)="requestDeleteOtp()" [disabled]="deleteRequestInProgress()">
+              {{ deleteRequestInProgress() ? 'Sending…' : 'Send OTP' }}
+            </button>
+          </div>
+        } @else {
+          <p class="modal-text">Enter the OTP sent to your mobile to confirm deletion of {{ v.registration_number }}.</p>
+          @if (deleteError(); as err) { <p class="modal-error">{{ err }}</p> }
+          <div class="modal-form">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+              placeholder="Enter OTP" [value]="deleteOtp()" (input)="onDeleteOtpInput($event)"
+              class="otp-input" autocomplete="one-time-code" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" (click)="cancelDelete()">Cancel</button>
+            <button type="button" class="btn btn-danger" (click)="confirmDelete()"
+              [disabled]="deleteInProgress() || !deleteOtp().trim()">
+              {{ deleteInProgress() ? 'Deleting…' : 'Confirm delete' }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Pay ₹50 RC view modal -->
+    @if (payRcModalOpen()) {
+      <div class="modal-overlay" (click)="closePayModal()" role="presentation">
+        <div class="modal rc-pay-modal" (click)="$event.stopPropagation()" role="dialog" aria-labelledby="rc-pay-modal-title">
+          <h2 id="rc-pay-modal-title" class="modal-title">Pay ₹50 from voucher</h2>
+          <p class="modal-desc">Select a voucher with balance ≥ ₹50 and enter its PIN to unlock full RC details.</p>
+          @if (payRcModalVouchersLoading()) {
+            <p class="modal-loading">Loading vouchers…</p>
+          } @else if (payRcModalVouchers().length === 0) {
+            <p class="modal-no-vouchers">No voucher with balance ≥ ₹50. <a routerLink="/vouchers">Buy or view vouchers</a>.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-outline" (click)="closePayModal()">Close</button>
+            </div>
+          } @else if (payRcConfirmStep()) {
+            <p class="modal-desc">Do you want to redeem this voucher for RC view (₹50)?</p>
+            @if (payRcError(); as err) { <p class="rc-paywall-error">{{ err }}</p> }
+            <div class="modal-actions">
+              <button type="button" class="btn btn-outline" (click)="payRcConfirmStep.set(false)">Back</button>
+              <button type="button" class="btn btn-primary" (click)="submitPayRc()" [disabled]="payRcInProgress()">
+                {{ payRcInProgress() ? 'Processing…' : 'Confirm & Pay ₹50' }}
+              </button>
+            </div>
+          } @else {
+            <form [formGroup]="payRcForm" class="rc-pay-form">
+              <div class="field">
+                <label for="rc-pay-voucher">Voucher</label>
+                <select id="rc-pay-voucher" formControlName="voucher_id" class="field-select">
+                  <option [value]="0">Select voucher</option>
+                  @for (voucher of payRcModalVouchers(); track voucher.id) {
+                    <option [value]="voucher.id">{{ voucher.voucherCodeMasked }} – ₹{{ voucher.currentBalance }} balance</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label for="rc-pay-pin">PIN</label>
+                <input id="rc-pay-pin" type="password" formControlName="pin" placeholder="Enter voucher PIN"
+                  class="field-input" autocomplete="off" inputmode="numeric" maxlength="6" />
+              </div>
+              @if (payRcError(); as err) { <p class="rc-paywall-error">{{ err }}</p> }
+              <div class="modal-actions">
+                <button type="button" class="btn btn-outline" (click)="closePayModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" (click)="proceedToRcPayConfirm()" [disabled]="payRcForm.invalid">Proceed</button>
+              </div>
+            </form>
+          }
+        </div>
+      </div>
+    }
+
+  }
+</div>

@@ -4,7 +4,7 @@
 # Ensure MOBIKWIK_BBPS_UAT_VERBOSE_LOG=True and credentials in .env
 
 set -e
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../backend"
 
 echo "=== Mobikwik BBPS UAT Tests ==="
 echo ""

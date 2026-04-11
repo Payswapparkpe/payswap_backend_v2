@@ -1,0 +1,173 @@
+<div class="feature-container" [class.embedded]="embedded()">
+  @if (!embedded()) {
+    <div class="feature-header">
+      <a routerLink="/dashboard" class="back-link">
+        <span class="material-icons">arrow_back</span> Back to Dashboard
+      </a>
+      <a routerLink="/payment/reports" class="reports-link">Reports</a>
+    </div>
+    <h1 class="feature-title">Transaction History</h1>
+    <p class="feature-subtitle">All your payments and transactions. Use filters to narrow down.</p>
+  }
+
+  <div class="filters-bar card">
+    <div class="filter-group">
+      <label for="filterType">Type</label>
+      <select id="filterType" [ngModel]="filterType" (ngModelChange)="onFilterChange('type', $event)">
+        <option value="">All</option>
+        <option value="bbps">BBPS (Bills)</option>
+        <option value="voucher_purchase">Voucher Purchase</option>
+        <option value="rc_view">RC Data (Connect)</option>
+        <option value="fastag">FASTag</option>
+        <option value="parking">Parking</option>
+        <option value="challan">Challan</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterStatus">Status</label>
+      <select id="filterStatus" [ngModel]="filterStatus" (ngModelChange)="onFilterChange('status', $event)">
+        <option value="">All</option>
+        <option value="success">Success</option>
+        <option value="pending">Pending</option>
+        <option value="failed">Failed</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filterDateFrom">Date from</label>
+      <input id="filterDateFrom" type="date" [ngModel]="filterDateFrom" (ngModelChange)="filterDateFrom = $event; onDateChange()" />
+    </div>
+    <div class="filter-group">
+      <label for="filterDateTo">Date to</label>
+      <input id="filterDateTo" type="date" [ngModel]="filterDateTo" (ngModelChange)="filterDateTo = $event; onDateChange()" />
+    </div>
+    @if (filterDateFrom || filterDateTo) {
+      <div class="filter-actions">
+        <button type="button" class="btn btn-outline" (click)="clearDates()">Clear dates</button>
+      </div>
+    }
+  </div>
+
+  @if (loading) {
+    <div class="loading-state"><div class="spinner"></div></div>
+  } @else if (loadError) {
+    <div class="empty-state card load-error-state">
+      <span class="material-icons">error_outline</span>
+      <h3>Unable to load transactions</h3>
+      <p>There was a problem loading your payment history. Please check your connection and try again.</p>
+      <button type="button" class="btn btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else if (transactions.length === 0) {
+    <div class="empty-state card">
+      <span class="material-icons">receipt_long</span>
+      <h3>No Transactions</h3>
+      <p>You haven't made any payments yet, or no results match your filters.</p>
+      <a routerLink="/payment/reports" class="btn btn-outline">View Reports</a>
+    </div>
+  } @else {
+    <p class="summary-line">Showing {{ startRow }}–{{ endRow }} of {{ total }} transactions</p>
+
+    <!-- Desktop: table -->
+    <div class="txn-table-wrap">
+      <table class="txn-table">
+        <thead>
+          <tr>
+            <th>Date & time</th>
+            <th>Transaction ID</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Credit/Debit</th>
+            <th>Status</th>
+            <th>Gateway</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (txn of transactions; track txn.id) {
+            <tr>
+              <td>{{ txn.timestamp | date:'short' }}</td>
+              <td class="txn-id-cell">{{ txn.transactionId || '—' }}</td>
+              <td><span class="pill pill-type">{{ txnTypeLabel(txn.transactionType) }}</span></td>
+              <td>{{ txn.description || '—' }}</td>
+              <td class="txn-amount-cell" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">
+                ₹{{ txn.amount | number:'1.2-2' }}
+              </td>
+              <td>
+                @if (txn.transactionTypeDirection) {
+                  <span class="pill pill-direction" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">
+                    {{ txn.transactionTypeDirection | titlecase }}
+                  </span>
+                } @else {
+                  —
+                }
+              </td>
+              <td><span class="pill pill-status" [class.success]="txn.status === 'success'" [class.pending]="txn.status === 'pending'" [class.failed]="txn.status === 'failed'">{{ txn.status | titlecase }}</span></td>
+              <td><span class="pill pill-gateway">{{ txn.gateway }}</span></td>
+              <td><a [routerLink]="receiptLink(txn)" class="txn-receipt-link">View receipt</a></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile: cards -->
+    <div class="transactions-cards">
+      @for (txn of transactions; track txn.id) {
+        <div class="txn-card card">
+          <div class="txn-card-row">
+            <span class="txn-card-label">Date</span>
+            <span class="txn-card-value">{{ txn.timestamp | date:'medium' }}</span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Transaction ID</span>
+            <span class="txn-card-value txn-id-cell">{{ txn.transactionId || '—' }}</span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Type</span>
+            <span class="txn-card-value"><span class="pill pill-type">{{ txnTypeLabel(txn.transactionType) }}</span></span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Description</span>
+            <span class="txn-card-value">{{ txn.description || '—' }}</span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Amount</span>
+            <span class="txn-card-value txn-card-amount" [class.credit]="txn.transactionTypeDirection === 'credit'">₹{{ txn.amount | number:'1.2-2' }}</span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Credit/Debit</span>
+            <span class="txn-card-value">
+              @if (txn.transactionTypeDirection) {
+                <span class="pill pill-direction" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">{{ txn.transactionTypeDirection | titlecase }}</span>
+              } @else {
+                —
+              }
+            </span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Status</span>
+            <span class="txn-card-value"><span class="pill pill-status" [class.success]="txn.status === 'success'" [class.pending]="txn.status === 'pending'" [class.failed]="txn.status === 'failed'">{{ txn.status | titlecase }}</span></span>
+          </div>
+          <div class="txn-card-row">
+            <span class="txn-card-label">Gateway</span>
+            <span class="txn-card-value"><span class="pill pill-gateway">{{ txn.gateway }}</span></span>
+          </div>
+          <div class="txn-card-receipt">
+            <a [routerLink]="receiptLink(txn)" class="txn-receipt-link">View receipt</a>
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (total > pageSize) {
+      <div class="pagination card">
+        <span class="pagination-info">Showing {{ startRow }}–{{ endRow }} of {{ total }}</span>
+        <div class="pagination-btns">
+          <button type="button" class="btn btn-outline" [disabled]="page <= 1" (click)="goPage(-1)">Previous</button>
+          <button type="button" class="btn btn-outline" [disabled]="page * pageSize >= total" (click)="goPage(1)">Next</button>
+        </div>
+      </div>
+    }
+  }
+</div>

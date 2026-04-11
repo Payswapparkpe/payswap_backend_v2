@@ -10,11 +10,12 @@ case "${1:-}" in
   backend)
     echo "Starting Django on http://0.0.0.0:8000 (LAN: http://<your-IP>:8000) ..."
     source .venv/bin/activate
+    cd backend
     exec python manage.py runserver 0.0.0.0:8000
     ;;
   frontend)
     echo "Starting ParkPe on http://0.0.0.0:4201 (LAN: http://<your-IP>:4201) ..."
-    cd frontend-space
+    cd frontend
     exec npm run start -- --project=parkpe --host 0.0.0.0
     ;;
   *)

@@ -28,15 +28,14 @@ The backend is designed to be **secure, scalable, compliant, and API-first**, al
 
 | Path | Purpose |
 |------|--------|
-| **core/** | Django settings, config, CSRF middleware |
-| **api/** | REST API: v1, v2, auth_parkpe, parkpe_api, bbps, connect, etc. |
-| **portal/** | Django app: models, admin, views, templates, services, tasks, management commands |
+| **backend/** | Django project root: `manage.py`, **core/**, **api/**, **portal/**, **rbac/**, vendor refs (**Cashfree/**, **Mobikwik/**, **DLT/**), `requirements.txt` |
+| **frontend/** | Angular workspace (ParkPe, Payswap, shared — see `frontend/projects/`) |
 | **docs/** | Documentation (auth, MFA, API, vendor integration). Start at `docs/README.md` |
 | **deploy/** | Deployment (e.g. systemd units). See `deploy/README.md` |
-| **scripts/** | Standalone scripts (e.g. fetch images). Prefer `manage.py` commands when using Django. See `scripts/README.md` |
-| **Cashfree/, Mobikwik/, Euronet BBPS/** | Vendor reference/keys; paths referenced in `.env` — do not move without updating env and code |
+| **scripts/** | Standalone scripts (often invoke `backend/manage.py`). |
+| **parkpe_app/** | Flutter (native ParkPe) |
+| **app ui/** | Flutter (other app) |
 | **Image Files/** | Asset storage; referenced by scripts |
-| **frontend-space/** | Angular workspace (ParkPe app under `projects/parkpe/`) |
 
 ---
 
@@ -77,13 +76,13 @@ source .venv/bin/activate
 
 #### Step 3: Install Dependencies
 
-Run from the project root (where `requirements.txt` lives):
+With the virtual environment activated, install Python dependencies from **`backend/requirements.txt`**:
 
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-> **Tip:** If you see `ModuleNotFoundError: No module named 'simple_history'` when running `manage.py`, install deps again: `pip install -r requirements.txt`, then run migrations.
+> **Tip:** If you see `ModuleNotFoundError: No module named 'simple_history'` when running `manage.py`, install deps again: `pip install -r backend/requirements.txt`, then run migrations from `backend/`.
 
 #### Step 4: Environment Configuration
 
@@ -126,14 +125,15 @@ SIGNING_SECRET=your-signing-secret-change-in-production
 # Create PostgreSQL database
 createdb payswap_db
 
-# Run migrations (from project root)
+# Run migrations (from backend/)
+cd backend
 python manage.py migrate
 
 # Create superuser (optional)
 python manage.py createsuperuser
 ```
 
-**Troubleshooting:** `Could not open requirements file: ... 'requirements.txt...'` usually means the command was run from the wrong directory or a typo in the filename. Use `pip install -r requirements.txt` (no extra text) from the project root.
+**Troubleshooting:** `Could not open requirements file` for `requirements.txt` usually means the path is wrong. Use `pip install -r backend/requirements.txt` from the repo root, or `pip install -r requirements.txt` after `cd backend`.
 
 #### Step 6: Redis Setup
 
@@ -170,8 +170,11 @@ python tests/test_configuration.py
 #### Step 8: Start Development Server
 
 ```bash
+cd backend
 python manage.py runserver
 ```
+
+Or from the repo root: `make hub` (see `Makefile`). For ParkPe Angular: `make parkpe` (from `frontend/`).
 
 Server will be available at `http://127.0.0.1:8000/`
 
@@ -180,14 +183,12 @@ Server will be available at `http://127.0.0.1:8000/`
 ```bash
 # Activate virtual environment
 source .venv/bin/activate
+cd backend
 
-# Option 1: Use the provided script (recommended - auto-detects platform)
-./run_celery.sh
-
-# Option 2: Manual command for macOS (if you encounter SIGSEGV errors)
+# Manual command for macOS (if you encounter SIGSEGV errors)
 celery -A core worker --loglevel=info --pool=solo
 
-# Option 3: Manual command for Linux (default prefork)
+# Manual command for Linux (default prefork)
 celery -A core worker --loglevel=info --pool=prefork --concurrency=8
 
 # Start Celery Beat (for scheduled tasks)
@@ -342,7 +343,7 @@ celery -A core beat --loglevel=info
 - Commission & fee calculation
 - Provider failover support
 
-**Vendor reference (Euronet BBPS, Cashfree, Mobikwik, PayPoint AEPS/DMT):** See **`docs/VENDOR_INTEGRATION_REFERENCE.md`** for correct understanding, required parameters, `.env` keys, and test commands. Use project folders `Euronet BBPS/`, `Cashfree/`, `Mobikwik/`, and PayPoint online docs; all keys from env. Test CLI: `python manage.py test_euronet_bbps`, `test_mobikwik_bbps`, `test_paypoint_aeps`, `test_all_cashfree_apis`.
+**Vendor reference (Euronet BBPS, Cashfree, Mobikwik, PayPoint AEPS/DMT):** See **`docs/VENDOR_INTEGRATION_REFERENCE.md`**. Vendor key folders for Cashfree/Mobikwik live under **`backend/`**. Run management commands from **`backend/`** (e.g. `cd backend && python manage.py test_mobikwik_bbps`).
 
 ---
 
@@ -440,19 +441,15 @@ celery -A core beat --loglevel=info
 
 ```
 payswap/
-├── api/                 # API application
-├── core/                # Core settings
-├── portal/              # Portal application
-├── templates/           # Django templates
-├── static/              # Static files
-├── tests/               # Test suite
-├── logs/                # Log Related Data
-├── utils/               # Utility Functions
-├── tasks/               # Celery Tasks
+├── backend/             # Django: manage.py, core, api, portal, rbac, vendor keys (Cashfree, …)
+├── frontend/            # Angular workspace (projects: parkpe, payswap, shared, …)
 ├── docs/                # Documentation
-├── manage.py            # Django management
-├── requirements.txt     # Dependencies
-└── .env                 # Environment variables (git-ignored)
+├── deploy/              # systemd & deployment notes
+├── scripts/             # Shell helpers (often `cd backend` + manage.py)
+├── parkpe_app/          # Flutter (ParkPe native)
+├── app ui/              # Flutter (other)
+├── Procfile             # Process types (web/worker/beat → run inside backend/)
+└── .env                 # Environment (repo root; optional copy under backend/)
 ```
 
 ---
@@ -461,8 +458,8 @@ payswap/
 
 ### Database Issues
 ```bash
-python manage.py dbshell
-python manage.py check --database default
+cd backend && python manage.py dbshell
+cd backend && python manage.py check --database default
 ```
 
 ### Redis Issues
@@ -473,8 +470,8 @@ redis-cli monitor
 
 ### Celery Issues
 ```bash
-celery -A core inspect active
-celery -A core worker --loglevel=debug
+cd backend && celery -A core inspect active
+cd backend && celery -A core worker --loglevel=debug
 ```
 
 ---

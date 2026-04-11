@@ -11,9 +11,9 @@ Celery must auto-start and auto-restart so email delivery never depends on manua
    sudo cp deploy/systemd/celery-beat.service /etc/systemd/system/
    ```
 
-2. If your app is not at `/var/www/payswap` with a venv at `/var/www/payswap/venv`, edit both files:
+2. If your app is not at `/var/www/payswap` with Django under `backend/` and a venv at `/var/www/payswap/venv`, edit both files:
 
-   - `WorkingDirectory=/path/to/payswap`
+   - `WorkingDirectory=/path/to/payswap/backend`
    - `ExecStart=/path/to/payswap/venv/bin/celery -A core worker -l info` (and beat equivalent)
    - Optionally set `User=` and `Group=` to your app user.
 
@@ -40,7 +40,7 @@ Celery must auto-start and auto-restart so email delivery never depends on manua
 If Celery is down, pending emails are not lost. Run:
 
 ```bash
-python manage.py resend_pending_emails
+cd /path/to/payswap/backend && python manage.py resend_pending_emails
 ```
 
 This works without Celery and is safe to run multiple times (e.g. from cron).

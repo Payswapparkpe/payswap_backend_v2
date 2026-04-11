@@ -6,18 +6,18 @@ Internal handoff and **ClickUp-style** reference. High level only—not a full p
 
 ## 1. Payswap Django backend
 
-Paths: `portal/`, `api/`, `core/`.
+Paths: `backend/portal/`, `backend/api/`, `backend/core/` (see repo root `PROJECT_STRUCTURE.md`).
 
 ### Completed
 
-- **VoucherX bulk issuance → ParkPe user link by mobile** — For ParkPe brand rows with a `mobile_number` column, bulk task resolves a unique `Profile` by normalized phone and sets `metadata.parkpe_user_id` on create. See [`portal/tasks/voucher_tasks.py`](../portal/tasks/voucher_tasks.py).
-- **ParkPe API: claim voucher** — `POST /api/voucher/vouchers/claim` (JWT): voucher code + PIN, PIN verification, transactional update of `parkpe_user_id`, audit logging. See [`api/parkpe_api/views.py`](../api/parkpe_api/views.py), [`api/parkpe_api/voucher_urls.py`](../api/parkpe_api/voucher_urls.py).
+- **VoucherX bulk issuance → ParkPe user link by mobile** — For ParkPe brand rows with a `mobile_number` column, bulk task resolves a unique `Profile` by normalized phone and sets `metadata.parkpe_user_id` on create. See [`backend/portal/tasks/voucher_tasks.py`](../backend/portal/tasks/voucher_tasks.py).
+- **ParkPe API: claim voucher** — `POST /api/voucher/vouchers/claim` (JWT): voucher code + PIN, PIN verification, transactional update of `parkpe_user_id`, audit logging. See [`backend/api/parkpe_api/views.py`](../backend/api/parkpe_api/views.py), [`backend/api/parkpe_api/voucher_urls.py`](../backend/api/parkpe_api/voucher_urls.py).
 - **ParkPe API: list/detail enrichment** — Responses include `parkpeLinked` and `linkedUserPhone` where applicable. Same views module as above.
-- **Tests** — Claim flow and mobile resolver helpers: [`api/tests/test_parkpe_voucher_claim.py`](../api/tests/test_parkpe_voucher_claim.py).
-- **Portal: voucher detail — mapped user** — Shows mapped user mobile or “Not mapped” on voucher view. [`portal/views/legacy.py`](../portal/views/legacy.py) (VoucherDetailView context), [`portal/templates/portal/vouchers/vouchers/detail.html`](../portal/templates/portal/vouchers/vouchers/detail.html).
-- **Portal: users** — Dashboard-style list (tabs, search, date range, badges, actions); **edit** and **delete** routes/views; soft deactivate; **permanent delete** for super-admin role. [`portal/views/user_views.py`](../portal/views/user_views.py), [`portal/urls.py`](../portal/urls.py), templates under `portal/templates/portal/users/` (`list.html`, `edit.html`, `delete.html`).
-- **Email: default SMTP TLS** — [`portal/mail_backends.py`](../portal/mail_backends.py) (`PayswapSMTPBackend` uses certifi CA for STARTTLS); [`core/settings.py`](../core/settings.py) sets `EMAIL_BACKEND` to that backend.
-- **Email provider** — Brevo removed from config narrative; default SMTP is Microsoft 365–style (`smtp.office365.com`, TLS). Settings in [`core/config.py`](../core/config.py); values only in `.env` (not documented here).
+- **Tests** — Claim flow and mobile resolver helpers: [`backend/api/tests/test_parkpe_voucher_claim.py`](../backend/api/tests/test_parkpe_voucher_claim.py).
+- **Portal: voucher detail — mapped user** — Shows mapped user mobile or “Not mapped” on voucher view. [`backend/portal/views/legacy.py`](../backend/portal/views/legacy.py) (VoucherDetailView context), [`backend/portal/templates/portal/vouchers/vouchers/detail.html`](../backend/portal/templates/portal/vouchers/vouchers/detail.html).
+- **Portal: users** — Dashboard-style list (tabs, search, date range, badges, actions); **edit** and **delete** routes/views; soft deactivate; **permanent delete** for super-admin role. [`backend/portal/views/user_views.py`](../backend/portal/views/user_views.py), [`backend/portal/urls.py`](../backend/portal/urls.py), templates under `backend/portal/templates/portal/users/` (`list.html`, `edit.html`, `delete.html`).
+- **Email: default SMTP TLS** — [`backend/portal/mail_backends.py`](../backend/portal/mail_backends.py) (`PayswapSMTPBackend` uses certifi CA for STARTTLS); [`backend/core/settings.py`](../backend/core/settings.py) sets `EMAIL_BACKEND` to that backend.
+- **Email provider** — Brevo removed from config narrative; default SMTP is Microsoft 365–style (`smtp.office365.com`, TLS). Settings in [`backend/core/config.py`](../backend/core/config.py); values only in `.env` (not documented here).
 
 ### Backlog / blocked
 
@@ -31,7 +31,7 @@ Paths: `portal/`, `api/`, `core/`.
 
 ## 2. ParkPe Angular
 
-Path: [`frontend-space/projects/parkpe`](../frontend-space/projects/parkpe).
+Path: [`frontend/projects/parkpe`](../frontend/projects/parkpe).
 
 ### Completed
 
@@ -48,7 +48,7 @@ Path: [`frontend-space/projects/parkpe`](../frontend-space/projects/parkpe).
 
 ## 3. Payswap Angular
 
-Path: [`frontend-space/projects/payswap`](../frontend-space/projects/payswap).
+Path: [`frontend/projects/payswap`](../frontend/projects/payswap).
 
 ### Completed
 

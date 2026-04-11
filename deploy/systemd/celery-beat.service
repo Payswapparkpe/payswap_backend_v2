@@ -12,7 +12,7 @@ After=network.target redis.service
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/payswap
+WorkingDirectory=/var/www/payswap/backend
 Environment="PATH=/var/www/payswap/venv/bin"
 ExecStart=/var/www/payswap/venv/bin/celery -A core beat -l info
 Restart=always
