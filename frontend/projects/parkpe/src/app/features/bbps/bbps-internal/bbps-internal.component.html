@@ -466,7 +466,7 @@
               <select class="form-control" [value]="voucherPayVoucherId()" (change)="voucherPayVoucherId.set(+$any($event.target).value)">
                 <option [value]="0">Select voucher</option>
                 @for (v of voucherModalVouchers(); track v.id) {
-                  <option [value]="v.id">{{ v.voucherCodeMasked }} – ₹{{ v.currentBalance }} balance</option>
+                  <option [value]="v.id">{{ v.voucherCode }} – ₹{{ v.currentBalance | number:'1.2-2' }} balance</option>
                 }
               </select>
             </div>

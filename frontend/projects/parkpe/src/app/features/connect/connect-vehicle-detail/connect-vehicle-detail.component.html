@@ -357,7 +357,7 @@
                 <select id="rc-pay-voucher" formControlName="voucher_id" class="field-select">
                   <option [value]="0">Select voucher</option>
                   @for (voucher of payRcModalVouchers(); track voucher.id) {
-                    <option [value]="voucher.id">{{ voucher.voucherCodeMasked }} – ₹{{ voucher.currentBalance }} balance</option>
+                    <option [value]="voucher.id">{{ voucher.voucherCode }} – ₹{{ voucher.currentBalance | number:'1.2-2' }} balance</option>
                   }
                 </select>
               </div>

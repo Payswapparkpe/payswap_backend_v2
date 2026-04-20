@@ -2,7 +2,8 @@
 
 export interface VoucherListItem {
   id: number;
-  voucherCodeMasked: string;
+  /** Display code from API (`voucherCode`); hyphenated for 16-char codes. */
+  voucherCode: string;
   referenceNumber: string;
   originalAmount: number;
   currentBalance: number;

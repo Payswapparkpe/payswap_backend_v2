@@ -815,11 +815,12 @@ class BBPSPayBillView(APIView):
             if not payment_account_info:
                 # Mobikwik rejects empty paymentAccountInfo; fallback to customer mobile for voucher/UPI flow.
                 payment_account_info = customer_mobile
+            # Mobikwik retailer payment: always UPI from our side (funds already secured via ParkPe voucher/PG).
             pay_extra = {
                 "remitterName": str(body.get("customerName") or body.get("remitterName") or "").strip(),
                 "customerMobile": customer_mobile,
                 "paymentAccountInfo": payment_account_info,
-                "paymentMode": str(body.get("paymentMode") or "UPI").strip() or "UPI",
+                "paymentMode": "UPI",
                 "paymentRefID": str(body.get("paymentRefID") or ref_id).strip() or ref_id,
             }
             # remove empty optional keys (Mobikwik rejects mandatory remitterName; keep that key as-is)

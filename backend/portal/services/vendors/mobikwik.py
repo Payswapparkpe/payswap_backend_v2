@@ -7,15 +7,16 @@ New integration uses:
 - APIs: Token, Balance Check, Validation, View Bill, Recharge, Transaction Status Check.
 
 Credentials and base URL from .env (MOBIKWIK_BBPS_*).
-Exact endpoint paths and encryption algorithm must be confirmed from Mobikwik API Kit.
+Aligned with Mobikwik UAT Postman: Token = plain JSON; Balance/Bill/Pay = AES-GCM + RSA encrypted body;
+Client ID flow requests omit X-Merchant-Id / X-API-Key (same headers as collection).
 
 Token policy (backend-only; never exposed to frontend):
-- Doc: token valid 24 hours; max 100 tokens per day. Prefer one token until Mobikwik expiryTime.
-- We parse expiryTime (or similar) from the token API and store mobikwik_expires_at + refresh_before
-  (refresh_before = mobikwik expiry minus MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER seconds).
-- _ensure_token uses the token only while time.time() < refresh_before; before that moment we call
-  get_token() again to fetch a new token from Mobikwik.
-- On API "token expired" responses we invalidate cache and call get_token(force_refresh=True).
+- Doc: token valid ~24 hours; Mobikwik caps new tokens (~100/calendar day). We count successful Token API mints
+  (see MOBIKWIK_BBPS_TOKEN_MAX_MINTS_PER_DAY) and stop calling Token API once the budget is hit for that IST day.
+- We parse expiryTime from the token API and set refresh_before = mobikwik_expiry minus
+  MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_SECONDS (default 1800s = 30 min proactive renew).
+- _ensure_token prefers shared Django cache over process memory so all workers share the same token.
+- On API "Token is expired" (HTTP 200, message.code 401) we invalidate cache, get_token(force_refresh=True), retry once.
 - Token is stored only on backend (Django cache / Redis). All workers share the same token.
 - Frontend never receives or manages Mobikwik token; it only calls our backend APIs
   (categories, operators, fetch-bill, pay-bill). Backend handles token internally.
@@ -25,7 +26,7 @@ import hashlib
 import json
 import time
 from base64 import b64encode
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import httpx
 from cryptography.hazmat.primitives import serialization
@@ -52,9 +53,8 @@ def _mask_value(val: str, show_last: int = 0) -> str:
 
 # Cache key for Mobikwik BBPS token (shared across workers; 100 tokens/day limit)
 MOBIKWIK_BBPS_TOKEN_CACHE_KEY = "mobikwik_bbps_token"
-# Refresh this many seconds before Mobikwik expiryTime (doc: 24h validity; avoid using token until last second)
-# 600 = 10 min buffer — reduces "Token is expired" when server invalidates slightly before our parsed expiry
-MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER = 600
+# Default refresh buffer if config not loaded on class (instance uses payswap_config).
+MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_DEFAULT = 600
 
 # Default API paths from Mobikwik RT-Recharge & Bill Payment API Documentation
 # Base URL (testing): https://alpha3.mobikwik.com
@@ -68,6 +68,9 @@ DEFAULT_PATHS = {
     "operators": "/recharge/v1/rechargePlansAPI",
 }
 
+# __init__ default for member_id: re-read MOBIKWIK_BBPS_MEMBER_ID from .env on each balance_check (get_settings() is lru_cached).
+_MISSING_BALANCE_MEMBER_ID = object()
+
 
 def _secret_value(val) -> Optional[str]:
     """Get secret string value (SecretStr or plain str)."""
@@ -76,6 +79,14 @@ def _secret_value(val) -> Optional[str]:
     if hasattr(val, "get_secret_value"):
         return val.get_secret_value()
     return str(val)
+
+
+def _optional_env_string(val) -> Optional[str]:
+    """Normalize env/config optional strings: strip whitespace; empty → None (never send accidental blanks)."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
 
 
 class MobikwikBBPSClient:
@@ -91,6 +102,7 @@ class MobikwikBBPSClient:
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
         merchant_id: Optional[str] = None,
+        member_id: Any = _MISSING_BALANCE_MEMBER_ID,
         api_key: Optional[str] = None,
         secret_key: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -103,7 +115,9 @@ class MobikwikBBPSClient:
         cfg = payswap_config
         self.client_id = client_id or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_CLIENT_ID", None))
         self.client_secret = client_secret or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_CLIENT_SECRET", None))
-        self.merchant_id = merchant_id or getattr(cfg, "MOBIKWIK_BBPS_MERCHANT_ID", None)
+        self.merchant_id = _optional_env_string(merchant_id) or _optional_env_string(
+            getattr(cfg, "MOBIKWIK_BBPS_MERCHANT_ID", None)
+        )
         self.api_key = api_key or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_API_KEY", None))
         self.secret_key = secret_key or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_SECRET_KEY", None))
         self.base_url = (
@@ -119,8 +133,17 @@ class MobikwikBBPSClient:
         env_name = getattr(cfg, "MOBIKWIK_BBPS_ENVIRONMENT", "UAT") or "UAT"
         if (str(env_name).upper() == "UAT" and getattr(cfg, "MOBIKWIK_BBPS_PLAIN_JSON_UAT", False)):
             self.use_encryption = False
-        self.member_id = getattr(cfg, "MOBIKWIK_BBPS_MEMBER_ID", None)
-        self.agent_id = getattr(cfg, "MOBIKWIK_BBPS_AGENT_ID", None)
+        # Balance memberId: from MOBIKWIK_BBPS_MEMBER_ID in .env. If member_id kwarg omitted, balance_check re-reads .env each time
+        # (payswap_config / get_settings is lru_cached — editing .env alone would otherwise keep a stale email until process restart).
+        if member_id is _MISSING_BALANCE_MEMBER_ID:
+            self._balance_member_id_re_read_env = True
+            self.member_id = _optional_env_string(getattr(cfg, "MOBIKWIK_BBPS_MEMBER_ID", None))
+        else:
+            self._balance_member_id_re_read_env = False
+            self.member_id = _optional_env_string(member_id) or _optional_env_string(
+                getattr(cfg, "MOBIKWIK_BBPS_MEMBER_ID", None)
+            )
+        self.agent_id = _optional_env_string(getattr(cfg, "MOBIKWIK_BBPS_AGENT_ID", None))
         pk = public_key_pem or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY", None))
         if pk is not None and not str(pk).strip():
             pk = None
@@ -166,6 +189,10 @@ class MobikwikBBPSClient:
         self._log_sanitize = getattr(cfg, "MOBIKWIK_BBPS_LOG_SANITIZE", True)
         self._retry_on_failure = getattr(cfg, "MOBIKWIK_BBPS_RETRY_ON_FAILURE", True)
         self._request_timeout = float(getattr(cfg, "MOBIKWIK_BBPS_REQUEST_TIMEOUT", 60) or 60)
+        _buf = int(getattr(cfg, "MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_SECONDS", MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_DEFAULT) or MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_DEFAULT)
+        self._token_refresh_buffer = max(120, min(_buf, 86400))
+        _max_m = int(getattr(cfg, "MOBIKWIK_BBPS_TOKEN_MAX_MINTS_PER_DAY", 100) or 100)
+        self._token_max_mints_per_day = max(1, min(_max_m, 500))
 
     def is_configured(self) -> bool:
         """Return True if credentials are set and integration is enabled."""
@@ -486,18 +513,79 @@ class MobikwikBBPSClient:
         self._last_token_error = None
         return True
 
+    def _token_mint_day_cache_key(self) -> str:
+        """Cache key for counting Token API successes per calendar day (IST by default)."""
+        from datetime import datetime
+
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:  # Python < 3.9
+            ZoneInfo = None  # type: ignore
+        from core.config import payswap_config
+
+        tz_name = getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE", None) or "Asia/Kolkata"
+        if ZoneInfo is None:
+            day = datetime.utcnow().date().isoformat()
+        else:
+            try:
+                tz = ZoneInfo(str(tz_name))
+            except Exception:
+                tz = ZoneInfo("Asia/Kolkata")
+            day = datetime.now(tz).date().isoformat()
+        return f"mobikwik_bbps_token_mints:{day}"
+
+    def _check_token_mint_daily_budget(self) -> Optional[Dict[str, Any]]:
+        """Block Token HTTP call if today's mint count >= MOBIKWIK_BBPS_TOKEN_MAX_MINTS_PER_DAY (~100)."""
+        try:
+            from django.core.cache import cache
+
+            key = self._token_mint_day_cache_key()
+            day = key.split(":")[-1]
+            n = cache.get(key)
+            if n is not None and int(n) >= self._token_max_mints_per_day:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Daily Mobikwik token mint budget reached ({self._token_max_mints_per_day} for {day}). "
+                        "Vendor policy ~100 new tokens/day — reuse the shared cached token or continue after midnight IST."
+                    ),
+                    "error_code": "TOKEN_DAILY_BUDGET",
+                }
+        except Exception:
+            return None
+        return None
+
+    def _record_token_mint_success(self) -> None:
+        """Increment today's mint counter after a successful response from Mobikwik Token API."""
+        try:
+            from django.core.cache import cache
+
+            key = self._token_mint_day_cache_key()
+            cur = cache.get(key)
+            cur_i = int(cur) if cur is not None else 0
+            cache.set(key, cur_i + 1, timeout=172800)
+        except Exception:
+            pass
+
     # -------------------------------------------------------------------------
     # Token (new API)
     # -------------------------------------------------------------------------
 
-    def get_token(self, force_refresh: bool = False) -> Dict[str, Any]:
+    def get_token(
+        self,
+        force_refresh: bool = False,
+        log_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Token Generation API – get access token using Client ID + Client Secret.
         Required before Balance Check, Validation, View Bill, Recharge, Transaction Status.
         Parses Mobikwik expiryTime (and variants), stores mobikwik_expires_at and refresh_before
-        (refresh MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER seconds before that). Uses shared cache until
+        (refresh self._token_refresh_buffer seconds before that). Uses shared cache until
         refresh_before. force_refresh=True skips cache (use after invalidate / token-expired API response).
+        log_context: optional ParkPe request_id / source so Hub LogEntry rows link to the same trace.
         """
+        _ctx = log_context or {}
+        _trace_request_id = _ctx.get("request_id")
         if not self.client_id or not self.client_secret:
             return {
                 "success": False,
@@ -558,6 +646,10 @@ class MobikwikBBPSClient:
                 }
         else:
             body = payload
+        budget_err = self._check_token_mint_daily_budget()
+        if budget_err:
+            self._last_token_error = budget_err.get("error")
+            return budget_err
         try:
             with httpx.Client(timeout=30.0) as client:
                 resp = client.post(
@@ -657,18 +749,26 @@ class MobikwikBBPSClient:
                 )
                 try:
                     from portal.models import LogEntry
+                    _extra_token = {
+                        "action": "token",
+                        "response_status_code": resp.status_code,
+                        "response_body_sanitized": sanitized_body,
+                        "top_level_keys": list(data.keys()) if isinstance(data, dict) else None,
+                    }
+                    if _ctx.get("source"):
+                        _extra_token["source"] = _ctx["source"]
+                    if _ctx.get("api_name") or _ctx.get("upstream_api_name"):
+                        _extra_token["upstream_api_name"] = _ctx.get("api_name") or _ctx.get("upstream_api_name")
+                    if _trace_request_id:
+                        _extra_token["request_id"] = _trace_request_id
                     LogEntry.objects.create(
                         log_level="WARNING",
                         category="mobikwik_bbps",
                         message="Token not found in response",
                         module_name="portal.services.vendors.mobikwik",
                         url=url[:500] if url else None,
-                        extra_data={
-                            "action": "token",
-                            "response_status_code": resp.status_code,
-                            "response_body_sanitized": sanitized_body,
-                            "top_level_keys": list(data.keys()) if isinstance(data, dict) else None,
-                        },
+                        request_id=_trace_request_id,
+                        extra_data=_extra_token,
                     )
                 except Exception:
                     pass
@@ -700,8 +800,8 @@ class MobikwikBBPSClient:
                     extra_data={"url": url, "parsed_expiry_ts": mobikwik_expires_at},
                 )
                 mobikwik_expires_at = now + 86400.0
-            # Stop using this token this many seconds before Mobikwik's real expiry
-            refresh_before = mobikwik_expires_at - MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER
+            # Stop using this token this many seconds before Mobikwik's real expiry (proactive renew)
+            refresh_before = mobikwik_expires_at - float(self._token_refresh_buffer)
             if refresh_before <= now:
                 refresh_before = now + 120.0
                 logger.warning(
@@ -715,7 +815,7 @@ class MobikwikBBPSClient:
                 extra_data={
                     "mobikwik_expires_at": mobikwik_expires_at,
                     "refresh_before": refresh_before,
-                    "buffer_sec": MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER,
+                    "buffer_sec": self._token_refresh_buffer,
                 },
             )
             # Store in cache so all workers reuse same token (100 tokens/day limit)
@@ -735,6 +835,7 @@ class MobikwikBBPSClient:
                 )
             except Exception:
                 pass
+            self._record_token_mint_success()
             if self._uat_verbose:
                 req_sanitized = self._sanitize_for_log(payload)
                 curl_tpl = f"curl -X POST '{url}' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{json.dumps(req_sanitized)}'"
@@ -796,15 +897,12 @@ class MobikwikBBPSClient:
             return True
         return False
 
-    def _ensure_token(self) -> bool:
+    def _ensure_token(self, log_context: Optional[Dict[str, Any]] = None) -> bool:
         """
         Ensure we have a valid token. Returns True if token is available.
-        Uses in-memory token until refresh_before, then shared cache, then get_token() which
-        calls Mobikwik only when cache says token is past refresh_before.
+        Prefer Django cache (shared across workers) before process-local memory so one worker
+        refreshing the token is picked up by others; avoids stale in-memory JWT after cache updates.
         """
-        if self._token and time.time() < self._token_expires_at:
-            return True
-        # Try cache first (shared across workers)
         try:
             from django.core.cache import cache
 
@@ -813,14 +911,25 @@ class MobikwikBBPSClient:
                 return True
         except Exception:
             pass
-        result = self.get_token()
+        if self._token and time.time() < self._token_expires_at:
+            return True
+        result = self.get_token(log_context=log_context)
         return result.get("success") is True
+
+    def _uses_new_token_api(self) -> bool:
+        """True when Client ID + Secret flow (Mobikwik UAT Postman): requests use only Content-Type + Authorization."""
+        return bool(self.client_id and self.client_secret)
 
     def _headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         base = {"Content-Type": "application/json", "Accept": "application/json"}
         if self._token:
             # PDF: "Authorization: <token>" (token only, no Bearer prefix)
             base["Authorization"] = self._token
+        # Postman UAT: Balance / View Bill / Pay / Status — only these headers (no X-Merchant-Id / X-API-Key).
+        if self._uses_new_token_api():
+            if extra:
+                base.update(extra)
+            return base
         if self.api_key:
             base["X-API-Key"] = self.api_key
         if self.merchant_id:
@@ -914,7 +1023,7 @@ class MobikwikBBPSClient:
             }
         if require_token and (self.client_id and self.client_secret):
             try:
-                if not self._ensure_token():
+                if not self._ensure_token(log_context=log_context):
                     detail = f": {self._last_token_error}" if self._last_token_error else ""
                     return {
                         "success": False,
@@ -1057,7 +1166,7 @@ class MobikwikBBPSClient:
                     extra_data={"url": url, "action": action},
                 )
                 self._invalidate_cached_token()
-                refresh = self.get_token(force_refresh=True)
+                refresh = self.get_token(force_refresh=True, log_context=log_context)
                 if refresh.get("success"):
                     retry_body = plain_copy if plain_copy is not None else json_data
                     return self._request(
@@ -1071,6 +1180,18 @@ class MobikwikBBPSClient:
                         log_context,
                         _token_retry=_token_retry + 1,
                     )
+                re_err = refresh.get("error") or "Token API failed"
+                logger.error(
+                    "Mobikwik BBPS: token was expired; force refresh failed — check daily token limit (e.g. 1308), credentials, base URL",
+                    extra_data={"refresh_error": str(re_err)[:500], "action": action},
+                )
+                last_result = {
+                    "success": False,
+                    "error": f"Token expired; renew failed: {re_err}",
+                    "status_code": last_result.get("status_code"),
+                    "response": last_result.get("response"),
+                    "token_refresh_error": re_err,
+                }
 
         # Always log vendor API call so Hub shows Parkpe log vs Mobikwik call (dono ka diff)
         try:
@@ -1158,12 +1279,28 @@ class MobikwikBBPSClient:
     # New APIs (per UAT: Balance Check, Validation, View Bill, Recharge, Transaction Status)
     # -------------------------------------------------------------------------
 
+    def _balance_member_id_live(self) -> Optional[str]:
+        """Current MOBIKWIK_BBPS_MEMBER_ID for Balance API (fresh .env read when constructor did not pin member_id)."""
+        if getattr(self, "_balance_member_id_re_read_env", False):
+            try:
+                from core.config import PayswapConfig
+
+                return _optional_env_string(PayswapConfig().MOBIKWIK_BBPS_MEMBER_ID)
+            except Exception:
+                pass
+        return _optional_env_string(self.member_id)
+
     def balance_check(self, log_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Balance Check API – get wallet/account balance. Per doc: use memberId (onboarded email) when set, else merchantId."""
+        """
+        Balance Check — POST /recharge/v3/retailerBalance.
+        UAT Postman: encrypt plain body {"memberId": MEMBER_ID} only; no X-Merchant-Id on the request.
+        If only merchantId is configured (no member email), send {"merchantId": ...}.
+        """
         path = self._get_path("balance")
         payload = {}
-        if self.member_id:
-            payload["memberId"] = self.member_id
+        balance_member = self._balance_member_id_live()
+        if balance_member:
+            payload["memberId"] = balance_member
         elif self.merchant_id:
             payload["merchantId"] = self.merchant_id
         # Mobikwik production sometimes rejects specific memberId values with 1308, while accepting blank memberId.
@@ -1173,27 +1310,55 @@ class MobikwikBBPSClient:
         if result.get("success"):
             return result
 
-        msg = ((result.get("response") or {}).get("message") or {})
-        code = str(msg.get("code", "")).strip()
+        def _body(res: Dict[str, Any]) -> Dict[str, Any]:
+            b = res.get("response") or res.get("data") or {}
+            return b if isinstance(b, dict) else {}
+
+        def _msg_code(res: Dict[str, Any]) -> str:
+            m = _body(res).get("message")
+            if isinstance(m, dict):
+                return str(m.get("code", "")).strip()
+            return ""
+
+        code = _msg_code(result)
+        last_result = result
+
+        # 1308 + non-empty memberId → blank memberId (token-scoped retailer)
         should_retry_blank_member = (
             code == "1308"
             and bool(payload.get("memberId"))
-            and payload.get("memberId") != ""
+            and str(payload.get("memberId", "")).strip() != ""
         )
         if should_retry_blank_member:
             logger.warning("Mobikwik balance_check got 1308 for configured memberId; retrying with blank memberId.")
-            retry_payload = {"memberId": ""}
             retry_result = self._request(
                 "POST",
                 path,
-                json_data=retry_payload,
+                json_data={"memberId": ""},
                 action="balance_check",
                 log_context=log_context,
             )
+            last_result = retry_result
             if retry_result.get("success"):
                 return retry_result
+            # Still 1308 and merchantId configured (B2B often keys balance on merchantId, not email)
+            if self.merchant_id and _msg_code(retry_result) == "1308":
+                logger.warning(
+                    "Mobikwik balance_check still 1308 after blank memberId; retrying with merchantId.",
+                    extra_data={"merchant_id_set": True},
+                )
+                mid_result = self._request(
+                    "POST",
+                    path,
+                    json_data={"merchantId": self.merchant_id},
+                    action="balance_check",
+                    log_context=log_context,
+                )
+                last_result = mid_result
+                if mid_result.get("success"):
+                    return mid_result
 
-        return result
+        return last_result
 
     def validation(
         self,

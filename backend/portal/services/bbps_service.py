@@ -34,6 +34,7 @@ class BBPSService:
                 ("client_id", "client_id"),
                 ("client_secret", "client_secret"),
                 ("merchant_id", "merchant_id"),
+                ("member_id", "member_id"),
                 ("api_key", "api_key"),
                 ("secret_key", "secret_key"),
             )

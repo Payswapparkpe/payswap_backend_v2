@@ -35,7 +35,7 @@ import type { VoucherDetail, VoucherListItem } from '../../../core/models/vouche
                     [class.selected]="selectedId() === v.id"
                   >
                     <div class="row-header">
-                      <span class="voucher-code">{{ v.voucherCodeMasked }}</span>
+                      <span class="voucher-code">{{ v.voucherCode }}</span>
                       <span class="status-badge" [class]="v.status.toLowerCase()">{{ v.status | titlecase }}</span>
                     </div>
                     <div class="row-meta">

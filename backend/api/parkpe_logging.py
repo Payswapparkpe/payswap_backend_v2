@@ -51,6 +51,9 @@ def _sanitize_body_for_log(data: Any, max_len: int = MAX_LOG_BODY_LEN, *, mask_s
                     k = key.lower() if isinstance(key, str) else ""
                     if "pin" in k or "password" in k or "secret" in k or "token" in k:
                         copy[key] = "***"
+                    elif key in ("voucher_id", "voucherId"):
+                        # ParkPe-only; never needed in Hub forensics for Mobikwik
+                        copy[key] = "***"
                     elif key in ("consumerId", "customer_id", "consumer_id", "connectionId"):
                         v = copy[key]
                         if isinstance(v, str) and len(v) > 4:
@@ -123,8 +126,9 @@ def log_parkpe(
             extra["api_url"] = request.path
         if request_method:
             extra["request_method"] = request_method
-        # BBPS / FASTag debugging requires raw values in logs (no masking).
-        mask_sensitive = category not in ("parkpe_bbps", "parkpe_fastag")
+        # Always mask PIN, voucher_id, tokens, etc. Mobikwik never receives voucher data;
+        # Hub logs must not store voucher PIN or internal voucher ids in plain text.
+        mask_sensitive = True
         if request_body is not None:
             extra["request_body"] = _sanitize_body_for_log(request_body, mask_sensitive=mask_sensitive)
         if response_status is not None:

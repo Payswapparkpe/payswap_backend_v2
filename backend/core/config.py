@@ -162,7 +162,7 @@ class PayswapConfig(BaseSettings):
     )
     MOBIKWIK_BBPS_MEMBER_ID: Optional[str] = Field(
         default=None,
-        description='Balance Check API: onboarded email (memberId). If set, Balance Check sends memberId instead of merchantId per Mobikwik doc.'
+        description='Env-only (MOBIKWIK_BBPS_MEMBER_ID): Balance Check encrypted body memberId (onboarded email). Set in .env; do not hardcode in application code.'
     )
     MOBIKWIK_BBPS_AGENT_ID: Optional[str] = Field(
         default=None,
@@ -192,6 +192,14 @@ class PayswapConfig(BaseSettings):
     MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE: str = Field(
         default='Asia/Kolkata',
         description='IANA timezone for naive Mobikwik token expiryTime (YYYY-MM-DD HH:mm:ss) from token API',
+    )
+    MOBIKWIK_BBPS_TOKEN_REFRESH_BUFFER_SECONDS: int = Field(
+        default=600,
+        description='Refresh Mobikwik token this many seconds before parsed expiryTime. Default 600 (10m): balances early server-side expiry vs Mobikwik ~100 token generations per calendar day — smaller buffer = fewer mints per day.',
+    )
+    MOBIKWIK_BBPS_TOKEN_MAX_MINTS_PER_DAY: int = Field(
+        default=100,
+        description='Max Mobikwik Token API calls to count per calendar day (IST via MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE). Blocks new mints once reached; reuse cache until next day.',
     )
     MOBIKWIK_BBPS_UAT_VERBOSE_LOG: bool = Field(
         default=False,
@@ -627,7 +635,7 @@ class PayswapConfig(BaseSettings):
 
 @lru_cache()
 def get_settings() -> PayswapConfig:
-    """Get cached settings instance."""
+    """Get cached settings instance. Restart the process after changing .env so this cache refreshes (Mobikwik Balance re-reads MOBIKWIK_BBPS_MEMBER_ID per call — see MobikwikBBPSClient._balance_member_id_live)."""
     return PayswapConfig()
 
 

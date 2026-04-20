@@ -30,7 +30,7 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
           @for (v of vouchers; track v.id) {
             <a [routerLink]="['/vouchers', v.id]" class="voucher-card card">
               <div class="voucher-header">
-                <span class="voucher-code">{{ v.voucherCodeMasked }}</span>
+                <span class="voucher-code">{{ v.voucherCode }}</span>
                 <span class="status-badge" [class]="v.status.toLowerCase()">{{ v.status | titlecase }}</span>
               </div>
               <div class="voucher-amounts">
