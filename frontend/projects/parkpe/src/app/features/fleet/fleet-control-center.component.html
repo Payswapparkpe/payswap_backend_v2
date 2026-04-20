@@ -1,0 +1,87 @@
+<div class="fleet-control">
+  <header class="fleet-control__hero">
+    <div class="fleet-control__hero-top">
+      <div>
+        <p class="fleet-control__eyebrow">MISSION CONTROL</p>
+        <h1>Fleet Control Center</h1>
+        <p>Unified workspace for high-volume transport operations and command center workflows.</p>
+      </div>
+      <div class="fleet-control__sync">
+        <button type="button" (click)="refreshNow()" [disabled]="loading">
+          <span class="material-icons">sync</span>
+          {{ loading ? 'Syncing...' : 'Refresh' }}
+        </button>
+        <small>
+          Last sync:
+          {{ lastSyncedAt ? (lastSyncedAt | date:'mediumTime') : 'Pending' }}
+        </small>
+      </div>
+    </div>
+    <div class="fleet-control__hero-strip">
+      <span><i></i> Dispatch AI</span>
+      <span><i></i> Driver Risk Engine</span>
+      <span><i></i> Compliance Radar</span>
+      <span><i></i> Incident Watch</span>
+    </div>
+    <div class="fleet-control__hero-actions">
+      <a routerLink="/fleet/vehicles">Vehicles</a>
+      <a routerLink="/fleet/drivers">Drivers</a>
+      <a routerLink="/fleet/trips">Trips</a>
+      <a routerLink="/fleet/compliance">Compliance</a>
+    </div>
+  </header>
+
+  @if (loading) {
+    <section class="fleet-state-card">Syncing fleet dashboard...</section>
+  }
+
+  @if (error) {
+    <section class="fleet-state-card fleet-state-card--error">
+      <p>{{ error }}</p>
+      <button type="button" (click)="loadFleetData()">Retry</button>
+    </section>
+  }
+
+  <section class="fleet-kpi-grid">
+    @for (item of kpis; track item.label) {
+      <article class="fleet-kpi-card">
+        <div class="fleet-kpi-head">
+          <span class="material-icons">{{ getKpiIcon(item.label) }}</span>
+          <p class="fleet-kpi-label">{{ item.label }}</p>
+        </div>
+        <p class="fleet-kpi-value">{{ item.value }}</p>
+        <p class="fleet-kpi-trend">{{ item.trend || 'live' }}</p>
+      </article>
+    }
+  </section>
+
+  <section class="fleet-layout-grid">
+    <section class="fleet-alerts">
+      <h2>Priority Alerts</h2>
+      <ul>
+        @for (alert of priorityAlerts; track alert; let i = $index) {
+          <li>
+            <span class="material-icons">{{ i === 0 ? 'priority_high' : 'notifications' }}</span>
+            <span>{{ alert }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="fleet-control__grid">
+      @for (card of modules; track card.title) {
+        <article class="fleet-card">
+          <div class="fleet-card-head">
+            <span class="material-icons">{{ getModuleIcon(card.title) }}</span>
+            <h2>{{ card.title }}</h2>
+          </div>
+          <p>{{ card.description }}</p>
+          <a [routerLink]="card.route">
+            {{ card.cta }}
+            <span class="material-icons">arrow_forward</span>
+          </a>
+        </article>
+      }
+    </section>
+  </section>
+</div>

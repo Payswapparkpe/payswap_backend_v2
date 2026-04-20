@@ -7,7 +7,10 @@
       <a routerLink="/dashboard" class="bbps-categories-back" aria-label="Back">
         <span class="material-icons">arrow_back</span>
       </a>
-      <h1 class="bbps-categories-title">Bill Payment Categories</h1>
+      <div class="bbps-categories-title-wrap">
+        <h1 class="bbps-categories-title">Bill Payment Categories</h1>
+        <p class="bbps-categories-subtitle">Fast, secure and neatly organized bill payments.</p>
+      </div>
       <div class="bbps-billpay-logo" role="img" aria-label="Bharat Billpay">
         <img class="bbps-billpay-logo-img" ngSrc="assets/bbps/bharat-connect-logo.png" alt="" width="116" height="56" sizes="30vw" priority />
         <span class="bbps-billpay-logo-text">BHARAT BILLPAY</span>
@@ -30,6 +33,18 @@
 
   <!-- Step 1: Category (grouped) + Favorite biller & Saved bill on right -->
   @if (step() === 'category') {
+    <section class="bbps-command-center">
+      <div class="command-main">
+        <p class="command-kicker">ParkPe Smart BBPS</p>
+        <h2 class="command-title">Pay regular bills in one smooth flow</h2>
+        <p class="command-subtitle">Shortcuts + saved billers + voucher cart = fastest checkout experience.</p>
+      </div>
+      <div class="command-score">
+        <p class="command-score-label">Quick setup score</p>
+        <p class="command-score-value">{{ commandCenterScore() }}%</p>
+      </div>
+    </section>
+
     <section class="bbps-section bbps-category-layout">
       @if (loadingCategories()) {
         <div class="loading-wrap">
@@ -38,6 +53,37 @@
         </div>
       } @else {
         <div class="bbps-category-main">
+          <div class="bbps-quick-strip">
+            <div class="quick-stat-card">
+              <span class="material-icons">star</span>
+              <div>
+                <p class="quick-stat-title">Favorite biller</p>
+                <p class="quick-stat-value">{{ favoriteBillersList().length }}</p>
+              </div>
+            </div>
+            <div class="quick-stat-card">
+              <span class="material-icons">bookmark</span>
+              <div>
+                <p class="quick-stat-title">Saved bill</p>
+                <p class="quick-stat-value">{{ savedBillsList().length }}</p>
+              </div>
+            </div>
+            <div class="quick-stat-card">
+              <span class="material-icons">shopping_bag</span>
+              <div>
+                <p class="quick-stat-title">Voucher cart</p>
+                <p class="quick-stat-value">₹{{ cartTotal() | number:'1.0-0' }}</p>
+              </div>
+            </div>
+            <div class="quick-stat-card quick-stat-card--highlight">
+              <span class="material-icons">flash_on</span>
+              <div>
+                <p class="quick-stat-title">Quick access</p>
+                <p class="quick-stat-value">{{ quickAccessCount() }}</p>
+              </div>
+            </div>
+          </div>
+
           @for (group of categoriesByGroup(); track group.groupKey) {
             <div class="category-group">
               <h3 class="category-group-heading">{{ group.groupLabel }}</h3>
@@ -53,8 +99,11 @@
           }
         </div>
         <aside class="bbps-side-panel">
-          <div class="side-panel-block">
-            <h4 class="side-panel-title">Favorite biller</h4>
+          <div class="side-panel-block favorite-block">
+            <div class="side-panel-head">
+              <h4 class="side-panel-title"><span class="material-icons">star</span>Favorite biller</h4>
+              <span class="side-panel-badge">{{ favoriteBillersList().length }}</span>
+            </div>
             @if (favoriteBillersList().length === 0) {
               <p class="side-panel-hint">Star billers from the list to see them here for quick access.</p>
             } @else {
@@ -71,10 +120,14 @@
                   </div>
                 }
               </div>
+              <p class="side-panel-footnote">Tap any favorite to open it directly with one click.</p>
             }
           </div>
-          <div class="side-panel-block">
-            <h4 class="side-panel-title">Saved bill</h4>
+          <div class="side-panel-block saved-block">
+            <div class="side-panel-head">
+              <h4 class="side-panel-title"><span class="material-icons">bookmark</span>Saved bill</h4>
+              <span class="side-panel-badge">{{ savedBillsList().length }}</span>
+            </div>
             @if (savedBillsList().length === 0) {
               <p class="side-panel-hint">Save bills with a nickname after fetching to pay quickly later.</p>
             } @else {
@@ -100,15 +153,23 @@
                   </div>
                 }
               </div>
+              <p class="side-panel-footnote">Saved bills auto-fill consumer details and reduce payment time.</p>
             }
           </div>
           <div class="side-panel-block cart-panel">
-            <h4 class="side-panel-title">Cart (voucher only, max ₹10,000)</h4>
+            <div class="side-panel-head">
+              <h4 class="side-panel-title"><span class="material-icons">shopping_bag</span>Cart (voucher only)</h4>
+              <span class="side-panel-badge">Max ₹{{ CART_MAX_TOTAL | number:'1.0-0' }}</span>
+            </div>
             @if (cartCount() === 0) {
               <p class="side-panel-hint">Add bills from the pay step to pay multiple together with one voucher.</p>
             } @else {
               <div class="cart-summary">
                 <p class="cart-total">{{ cartCount() }} item(s) — ₹{{ cartTotal() | number:'1.2-2' }}</p>
+                <div class="cart-progress">
+                  <div class="cart-progress-bar" [style.width.%]="cartUsagePercent()"></div>
+                </div>
+                <p class="cart-progress-meta">Remaining limit: ₹{{ cartRemaining() | number:'1.0-0' }}</p>
                 <div class="cart-list">
                   @for (item of cart(); track item.billId + item.consumerId; let i = $index) {
                     <div class="cart-item">
@@ -126,6 +187,13 @@
             }
           </div>
         </aside>
+        <app-notification-banner-rail
+          [slot]="'bbps_right_rail'"
+          [screen]="'bbps_category'"
+          [service]="'bbps'"
+          [emptyTitle]="'Promotions & news space'"
+          [emptySubtitle]="'Targeted banners from Notification Center appear here.'"
+        />
       }
     </section>
   }
@@ -138,7 +206,10 @@
         <button type="button" class="btn btn-primary btn-sm" (click)="openVoucherPayModalForCart()">Pay cart</button>
       </div>
     }
-    <section class="bbps-section service-layout">
+    <section
+      class="bbps-section service-layout"
+      [class.service-layout--has-selection]="!!selectedOperator()"
+    >
       <div class="service-col-left">
         <button type="button" class="btn btn-outline back-btn" (click)="goBackToCategory()">
           <span class="material-icons">arrow_back</span> Change category
@@ -172,10 +243,9 @@
                 <button type="button" class="operator-star" (click)="toggleFavorite(op.id, $event)" [attr.aria-label]="isFavorite(op.id) ? 'Remove from favorites' : 'Add to favorites'">
                   <span class="material-icons">{{ isFavorite(op.id) ? 'star' : 'star_border' }}</span>
                 </button>
-                <img class="biller-icon-md" [src]="getOperatorIconUrl(op, op.id)" [alt]="op.name" [title]="'op ' + (op.mobikwikOpId || 'n/a')" loading="lazy" />
+                <img class="biller-icon-md" [src]="getOperatorIconUrl(op, op.id)" [alt]="op.name" loading="lazy" />
                 <div class="operator-info">
                   <span class="operator-name">{{ op.name }}</span>
-                  <span class="operator-code">{{ op.code }}</span>
                 </div>
                 <span class="material-icons operator-chevron">chevron_right</span>
               </div>
@@ -198,6 +268,15 @@
                 <span>{{ op.name }}</span>
               </h3>
               <p class="right-panel-category">{{ getCategoryLabel(selectedCategory()!) }}</p>
+              @if (getFormParams().length === 0) {
+                <div class="bbps-inline-alert bbps-inline-alert--warning card" role="alert">
+                  <span class="material-icons" aria-hidden="true">info</span>
+                  <div>
+                    <strong>No bill fields for this biller</strong>
+                    <p>This biller did not return consumer fields. Try another biller or refresh the biller list.</p>
+                  </div>
+                </div>
+              }
               <form [formGroup]="billForm" (ngSubmit)="fetchBill()" class="bill-form card">
                 @for (p of getFormParams(); track p.name) {
                   <div class="form-group">
@@ -228,7 +307,11 @@
                   </div>
                 }
                 <span class="form-link" role="button" tabindex="0">View sample bill to find account or customer number</span>
-                <button type="submit" class="btn btn-primary btn-block" [disabled]="loadingBill()">
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-block"
+                  [disabled]="loadingBill() || getFormParams().length === 0"
+                >
                   @if (loadingBill()) {
                     <span class="spinner"></span>
                     Fetching...
@@ -294,7 +377,7 @@
                       step="0.01"
                       placeholder="Enter amount"
                     />
-                    <span class="payable-amount-hint">Partial payment allowed. Min ₹{{ (b.minBillAmount ?? 0) | number:'1.0-0' }}, max ₹{{ b.amount | number:'1.2-2' }}</span>
+                    <span class="payable-amount-hint">Partial payment: min ₹{{ (b.minBillAmount ?? 0) | number:'1.0-0' }}, max ₹{{ b.amount | number:'1.2-2' }}</span>
                   </div>
                 } @else {
                   <span>₹{{ b.amount | number:'1.2-2' }}</span>
@@ -302,13 +385,19 @@
               </div>
               <div class="payment-method-section">
                 <div class="payment-method-options">
-                  <label class="payment-method-option">
+                  <label class="payment-method-option" [class.active]="paymentMethod() === 'voucher'">
                     <input type="radio" name="bbpsPayMethod" [checked]="paymentMethod() === 'voucher'" (change)="paymentMethod.set('voucher')" />
-                    <span>Pay with Voucher</span>
+                    <span>
+                      Pay with Voucher
+                      <small class="option-detail">Recommended for instant confirmation</small>
+                    </span>
                   </label>
-                  <label class="payment-method-option">
+                  <label class="payment-method-option" [class.active]="paymentMethod() === 'pg'">
                     <input type="radio" name="bbpsPayMethod" [checked]="paymentMethod() === 'pg'" (change)="paymentMethod.set('pg')" />
-                    <span>Pay with Card / UPI</span>
+                    <span>
+                      Pay with Card / UPI
+                      <small class="option-detail">Use payment gateway checkout</small>
+                    </span>
                   </label>
                 </div>
               </div>
@@ -324,7 +413,7 @@
                 Add to cart
               </button>
               @if (bill() && (cartTotal() + currentPayableAmount()) > CART_MAX_TOTAL) {
-                <p class="cart-limit-hint">Cart total (₹{{ (cartTotal() + currentPayableAmount()) | number:'1.0-0' }}) cannot exceed ₹{{ CART_MAX_TOTAL | number:'1.0-0' }}. Remove items or pay cart first.</p>
+                <p class="cart-limit-hint">Cart total (₹{{ (cartTotal() + currentPayableAmount()) | number:'1.0-0' }}) exceeds ₹{{ CART_MAX_TOTAL | number:'1.0-0' }}. Remove items or pay the cart first.</p>
               }
               <button type="button" class="btn btn-outline btn-block" (click)="goBackToForm()">Edit details</button>
             </div>
@@ -341,7 +430,7 @@
         <h2 class="modal-title">Pay with voucher</h2>
         @if (voucherPayConfirmStep()) {
           @if (voucherPayForCart()) {
-            <p class="modal-desc">Do you want to redeem this voucher against cart total ({{ cartCount() }} bill(s)) for ₹{{ cartTotal() | number:'1.2-2' }}?</p>
+            <p class="modal-desc">Redeem this voucher for cart total ({{ cartCount() }} bill(s), ₹{{ cartTotal() | number:'1.2-2' }})?</p>
           } @else {
             <p class="modal-desc">Do you want to redeem this voucher against this bill for ₹{{ currentPayableAmount() | number:'1.2-2' }}?</p>
           }

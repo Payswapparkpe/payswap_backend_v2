@@ -20,6 +20,19 @@
         </div>
     </div>
 
+    <form method="get" class="card-enterprise">
+        <div class="flex gap-2">
+            <input
+                type="text"
+                name="q"
+                value="{{ request.GET.q|default:'' }}"
+                placeholder="Search by role name or code"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <button type="submit" class="btn-enterprise-primary">Search</button>
+        </div>
+    </form>
+
     <div class="table-enterprise">
         <table class="w-full">
             <thead class="bg-gray-50">
@@ -28,6 +41,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name (code)</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Permissions</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                 </tr>
             </thead>
@@ -38,13 +52,32 @@
                     <td class="px-4 py-3 text-sm">{{ r.project.name }}</td>
                     <td class="px-4 py-3 font-medium text-gray-900">{{ r.name }} <span class="text-gray-500 font-mono text-xs">({{ r.code }})</span></td>
                     <td class="px-4 py-3 text-sm text-gray-600">{{ r.permissions.count }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium {% if r.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {% if r.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </td>
                     <td class="px-4 py-3"><a href="{% url 'hub_rbac_hubrole_edit' r.pk %}" class="text-indigo-600 hover:underline font-medium">Edit</a></td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No hub roles. Add departments and projects first, then create roles.</td></tr>
+                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No hub roles. Add departments and projects first, then create roles.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    {% if is_paginated %}
+    <div class="card-enterprise flex items-center justify-between text-sm">
+        <p class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        <div class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

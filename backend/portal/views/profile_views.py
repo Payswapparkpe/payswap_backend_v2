@@ -9,6 +9,8 @@ from django.views.generic import DetailView, CreateView, UpdateView, TemplateVie
 
 from portal.models import Profile
 from portal.forms import ProfileCreateForm, ProfileUpdateForm
+from portal.services.settings_service import get_settings_payload, update_user_settings
+from portal.models import UserSettingsAuditLog
 
 
 class ProfileCreateView(CreateView):
@@ -77,3 +79,48 @@ class SettingsView(TemplateView):
     @method_decorator(login_required)
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        profile = getattr(self.request.user, "profile", None)
+        ctx["profile"] = profile
+        ctx["settings_payload"] = get_settings_payload(self.request.user)
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        profile = getattr(request.user, "profile", None)
+        if not profile:
+            messages.error(request, "Profile not found.")
+            return redirect("/profile/create/")
+
+        updates = {
+            "preferences": {
+                "language": request.POST.get("language_preference", profile.language_preference),
+                "timezone": request.POST.get("timezone", profile.timezone),
+                "currency": request.POST.get("currency_preference", profile.currency_preference),
+            },
+            "notificationPreferences": {
+                "push": request.POST.get("notif_push") == "on",
+                "email": request.POST.get("notif_email") == "on",
+                "sms": request.POST.get("notif_sms") == "on",
+                "in_app": request.POST.get("notif_in_app") == "on",
+                "quiet_hours_enabled": request.POST.get("quiet_hours_enabled") == "on",
+                "quiet_hours_start": request.POST.get("quiet_hours_start") or "22:00",
+                "quiet_hours_end": request.POST.get("quiet_hours_end") or "07:00",
+                "critical_alert_override": request.POST.get("critical_alert_override") == "on",
+            },
+            "privacy": {
+                "marketingConsent": request.POST.get("privacy_marketing") == "on",
+                "productTips": request.POST.get("privacy_product_tips") == "on",
+                "securityAlerts": request.POST.get("privacy_security_alerts") == "on",
+            },
+        }
+        update_user_settings(
+            user=request.user,
+            updates=updates,
+            actor_user=request.user,
+            source=UserSettingsAuditLog.SOURCE_HUB,
+            request=request,
+        )
+        messages.success(request, "Settings updated successfully.")
+        return redirect("/settings/")

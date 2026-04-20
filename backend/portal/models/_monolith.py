@@ -518,6 +518,10 @@ class User(AbstractUser):
         ('distributor', 'Distributor'),
         ('retailer', 'Retailer'),
         ('customer', 'Customer'),
+        ('fleet_admin', 'Fleet Admin'),
+        ('fleet_manager', 'Fleet Manager'),
+        ('fleet_operator', 'Fleet Operator'),
+        ('fleet_dispatcher', 'Fleet Dispatcher'),
     ]
     
     KYC_STATUS_CHOICES = [
@@ -1159,6 +1163,231 @@ class ParkPeVoucherTransaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_type} {self.amount} – user {self.user_id}"
+
+
+class ServiceVoucherRefundCase(models.Model):
+    """
+    When a voucher debit succeeded but the downstream service did not complete (e.g. RC API error),
+    queue a case for admin review. Refund credits the same GiftVoucher balance and records:
+    - ParkPeVoucherTransaction CREDIT with reference_id = original debit reference (reconciliation).
+    - GiftVoucherTransaction with a new unique transaction_ref (DB constraint) and metadata linking
+      to the original debit ref (voucher ledger cannot reuse the same transaction_ref row).
+    """
+
+    STATUS_OPEN = "open"
+    STATUS_REFUNDED = "refunded"
+    STATUS_DISMISSED = "dismissed"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, "Open"),
+        (STATUS_REFUNDED, "Refunded"),
+        (STATUS_DISMISSED, "Dismissed"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="service_voucher_refund_cases",
+    )
+    vehicle = models.ForeignKey(
+        "Vehicle",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_voucher_refund_cases",
+    )
+    debit_reference_id = models.CharField(
+        max_length=100,
+        db_index=True,
+        help_text="Original transaction ref used for voucher redemption and ParkPe DEBIT row",
+    )
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    service_code = models.CharField(max_length=50, default="RC_VIEW", db_index=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    rc_reason_code = models.CharField(max_length=64, blank=True, default="")
+    failure_detail = models.TextField(blank=True, default="")
+    source = models.CharField(
+        max_length=32,
+        default="auto_fetch_failed",
+        help_text="auto_fetch_failed | manual (future)",
+    )
+    admin_narration = models.TextField(blank=True, default="")
+    credit_transaction_ref = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="GiftVoucherTransaction.transaction_ref for the refund credit line (unique)",
+    )
+    refunded_at = models.DateTimeField(null=True, blank=True)
+    refunded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_voucher_refunds_processed",
+    )
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+    dismissed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="service_voucher_refund_cases_dismissed",
+    )
+    dismiss_note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_service_voucher_refund_case"
+        verbose_name = "Service voucher refund case"
+        verbose_name_plural = "Service voucher refund cases"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"]),
+            models.Index(fields=["service_code", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.service_code} {self.debit_reference_id} ({self.status})"
+
+
+class TaxServiceProfile(models.Model):
+    """
+    GST/TDS configuration per service_code and document subtype (B2C receipt vs B2B commission).
+    Amounts on BillingDocument are snapshotted; changing this row does not alter past documents.
+    """
+
+    DOC_B2C = "b2c_receipt"
+    DOC_B2B = "b2b_commission"
+    DOCUMENT_SUBTYPE_CHOICES = [
+        (DOC_B2C, "B2C receipt"),
+        (DOC_B2B, "B2B commission"),
+    ]
+
+    service_code = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="Lowercase logical code e.g. bbps, rc_view, voucher_purchase, partner_commission",
+    )
+    document_subtype = models.CharField(
+        max_length=32,
+        choices=DOCUMENT_SUBTYPE_CHOICES,
+        default=DOC_B2C,
+        db_index=True,
+    )
+    sac_or_hsn = models.CharField(max_length=32, blank=True, default="", help_text="SAC or HSN label for receipts")
+    gst_rate = models.DecimalField(
+        max_digits=7,
+        decimal_places=4,
+        default=0,
+        help_text="Combined GST % (intra-state CGST+SGST derived as half each)",
+    )
+    gst_inclusive = models.BooleanField(
+        default=True,
+        help_text="If true, input amount is tax-inclusive (typical B2C)",
+    )
+    is_gst_exempt = models.BooleanField(default=True)
+    is_pass_through = models.BooleanField(
+        default=False,
+        help_text="If true: no GST on Payswap share; receipt still shows customer amount",
+    )
+    tds_rate = models.DecimalField(
+        max_digits=7,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="TDS % on taxable base (mainly B2B commission)",
+    )
+    effective_from = models.DateField(default=timezone.now)
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_tax_service_profile"
+        verbose_name = "Tax service profile"
+        verbose_name_plural = "Tax service profiles"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_code", "document_subtype"],
+                name="portal_tax_profile_service_subtype_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.service_code}/{self.document_subtype} GST={self.gst_rate}%"
+
+
+class BillingDocument(models.Model):
+    """
+    Immutable tax/receipt document for a commercial event (B2C, credit note, or B2B commission stub).
+    """
+
+    DOC_B2C_RECEIPT = "b2c_receipt"
+    DOC_CREDIT_NOTE = "credit_note"
+    DOC_B2B_COMMISSION = "b2b_commission_invoice"
+    DOCUMENT_TYPE_CHOICES = [
+        (DOC_B2C_RECEIPT, "B2C receipt"),
+        (DOC_CREDIT_NOTE, "Credit note"),
+        (DOC_B2B_COMMISSION, "B2B commission invoice"),
+    ]
+
+    document_type = models.CharField(max_length=40, choices=DOCUMENT_TYPE_CHOICES, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="billing_documents",
+    )
+    partner = models.ForeignKey(
+        "ResellerPartner",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="billing_documents",
+    )
+    idempotency_key = models.CharField(max_length=64, unique=True, db_index=True)
+    reference_id = models.CharField(max_length=255, db_index=True)
+    service_code = models.CharField(max_length=50, db_index=True)
+    transaction_direction = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="credit or debit when tied to ParkPe voucher ledger",
+    )
+    taxable_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    gst_total = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    tds_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    snapshot = models.JSONField(default=dict, blank=True)
+    currency = models.CharField(max_length=3, default="INR")
+    parkpe_voucher_transaction = models.ForeignKey(
+        "ParkPeVoucherTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="billing_documents",
+    )
+    issued_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_billing_document"
+        verbose_name = "Billing document"
+        verbose_name_plural = "Billing documents"
+        ordering = ["-issued_at"]
+        indexes = [
+            models.Index(fields=["user", "-issued_at"]),
+            models.Index(fields=["partner", "-issued_at"]),
+            models.Index(fields=["service_code", "-issued_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.document_type} {self.reference_id} ₹{self.grand_total}"
 
 
 class ParkPeServiceConfig(models.Model):
@@ -2683,7 +2912,16 @@ class Vehicle(models.Model):
     """
     Vehicle registered by a user for ParkPe Connect.
     One QR per vehicle; owner can be contacted via masked call/chat/ticket.
+
+    connect_scope splits **personal Connect** (consumer app) from **fleet workspace**:
+    same User may have separate rows per scope — they never appear in the other product surface.
     """
+    SCOPE_CONSUMER = "consumer"
+    SCOPE_FLEET = "fleet"
+    CONNECT_SCOPE_CHOICES = [
+        (SCOPE_CONSUMER, "Consumer Connect (personal)"),
+        (SCOPE_FLEET, "Fleet workspace"),
+    ]
     VEHICLE_TYPE_CHOICES = [
         ('', ''),
         ('two_wheeler', 'Bike/Scooty'),
@@ -2695,6 +2933,13 @@ class Vehicle(models.Model):
         on_delete=models.CASCADE,
         related_name='connect_vehicles',
         help_text='Owner of the vehicle',
+    )
+    connect_scope = models.CharField(
+        max_length=16,
+        choices=CONNECT_SCOPE_CHOICES,
+        default=SCOPE_CONSUMER,
+        db_index=True,
+        help_text='consumer = personal Connect app; fleet = fleet ops only (no mixing in APIs)',
     )
     vehicle_type = models.CharField(
         max_length=20,
@@ -2729,6 +2974,25 @@ class Vehicle(models.Model):
         default=False,
         help_text='Primary vehicle for this user',
     )
+    fastag_biller_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text='BBPS FASTag biller id (from Mobikwik/BBPSOperator); user-selected issuer',
+    )
+    fastag_balance_last_value = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Last FASTag balance from BBPS View Bill (fetch_bill)',
+    )
+    fastag_balance_fetched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When fastag_balance_last_value was last refreshed',
+    )
     ownership_declaration_accepted_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -2738,6 +3002,13 @@ class Vehicle(models.Model):
         null=True,
         blank=True,
         help_text='When owner paid from voucher (Rs 50) to view full RC; once set, RC is shown without verify',
+    )
+    rc_view_debit_reference_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Voucher redemption / ParkPe DEBIT reference_id for RC_VIEW payment (for refunds and audit)',
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2749,8 +3020,8 @@ class Vehicle(models.Model):
         ordering = ['-is_primary', '-created_at']
         constraints = [
             models.UniqueConstraint(
-                fields=['user', 'registration_number'],
-                name='portal_connect_vehicle_user_reg_unique',
+                fields=['user', 'registration_number', 'connect_scope'],
+                name='portal_connect_vehicle_user_reg_scope_unique',
             ),
         ]
         indexes = [
@@ -2763,7 +3034,9 @@ class Vehicle(models.Model):
     def save(self, *args, **kwargs):
         self.registration_number_normalized = "".join((self.registration_number or "").strip().upper().split())
         if self.is_primary:
-            Vehicle.objects.filter(user=self.user).exclude(pk=self.pk).update(is_primary=False)
+            Vehicle.objects.filter(user=self.user, connect_scope=self.connect_scope).exclude(pk=self.pk).update(
+                is_primary=False
+            )
         super().save(*args, **kwargs)
 
 
@@ -2887,6 +3160,16 @@ class ConnectThread(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
+    owner_last_read_message_id = models.PositiveBigIntegerField(default=0, db_index=True)
+    scanner_last_read_message_id = models.PositiveBigIntegerField(default=0, db_index=True)
+    owner_pinned = models.BooleanField(default=False, db_index=True)
+    scanner_pinned = models.BooleanField(default=False, db_index=True)
+    owner_muted = models.BooleanField(default=False, db_index=True)
+    scanner_muted = models.BooleanField(default=False, db_index=True)
+    owner_archived = models.BooleanField(default=False, db_index=True)
+    scanner_archived = models.BooleanField(default=False, db_index=True)
+    owner_last_seen_at = models.DateTimeField(null=True, blank=True)
+    scanner_last_seen_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'portal_connect_thread'
@@ -2909,6 +3192,14 @@ class ConnectMessage(models.Model):
     MESSAGE_TYPE_CHOICES = [
         ('text', 'Text'),
         ('predefined', 'Predefined'),
+        ('attachment', 'Attachment'),
+        ('voice', 'Voice'),
+    ]
+    DELIVERY_STATUS_CHOICES = [
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('seen', 'Seen'),
+        ('failed', 'Failed'),
     ]
     thread = models.ForeignKey(
         ConnectThread,
@@ -2922,6 +3213,11 @@ class ConnectMessage(models.Model):
     )
     message_type = models.CharField(max_length=20, choices=MESSAGE_TYPE_CHOICES, default='text', db_index=True)
     body = models.TextField(help_text='Message content (for predefined, stored resolved body)')
+    metadata = models.JSONField(default=dict, blank=True)
+    client_id = models.CharField(max_length=80, blank=True, default='', db_index=True)
+    delivery_status = models.CharField(max_length=16, choices=DELIVERY_STATUS_CHOICES, default='sent', db_index=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
     predefined_message = models.ForeignKey(
         ConnectPredefinedMessage,
         on_delete=models.SET_NULL,
@@ -3003,6 +3299,39 @@ class ConnectScanLog(models.Model):
         return f"Scan {self.id} on {self.created_at}"
 
 
+class ConnectQrOnboardLog(models.Model):
+    """Log when a user completes Connect QR onboarding (new user flag + vehicle link)."""
+
+    qr_code = models.CharField(max_length=128, db_index=True)
+    is_new_user = models.BooleanField(default=False, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="connect_qr_onboard_logs",
+    )
+    vehicle = models.ForeignKey(
+        "Vehicle",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="connect_qr_onboard_logs",
+    )
+
+    class Meta:
+        db_table = "portal_connect_qr_onboard_log"
+        verbose_name = "Connect QR Onboard Log"
+        verbose_name_plural = "Connect QR Onboard Logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at", "qr_code"], name="portal_conn_created_2c353c_idx"),
+        ]
+
+    def __str__(self):
+        return f"QR onboard {self.id} {self.qr_code[:16]}… user={self.user_id}"
+
+
 class ConnectReport(models.Model):
     """User report (e.g. from chat) – can be linked to a Ticket."""
     STATUS_CHOICES = [
@@ -3046,6 +3375,92 @@ class ConnectReport(models.Model):
 
     def __str__(self):
         return f"Report {self.id} by {self.reporter_user_id} vs {self.reported_user_id} ({self.status})"
+
+
+class ConnectModerationAction(models.Model):
+    """Hub-side moderation audit trail for Connect users and incidents."""
+    ACTION_WARN = "warn"
+    ACTION_TEMP_BLOCK = "temp_block"
+    ACTION_PERM_BLOCK = "perm_block"
+    ACTION_UNBLOCK = "unblock"
+    ACTION_CHOICES = [
+        (ACTION_WARN, "Warn"),
+        (ACTION_TEMP_BLOCK, "Temporary Block"),
+        (ACTION_PERM_BLOCK, "Permanent Block"),
+        (ACTION_UNBLOCK, "Unblock"),
+    ]
+
+    actor_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="connect_moderation_actions_taken",
+    )
+    target_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="connect_moderation_actions_received",
+    )
+    action = models.CharField(max_length=24, choices=ACTION_CHOICES, db_index=True)
+    reason = models.TextField(blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_connect_moderation_action"
+        verbose_name = "Connect Moderation Action"
+        verbose_name_plural = "Connect Moderation Actions"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["target_user", "created_at"]),
+            models.Index(fields=["action", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"ConnectModerationAction {self.action} target={self.target_user_id}"
+
+
+class UserSettingsAuditLog(models.Model):
+    SOURCE_HUB = "hub"
+    SOURCE_PARKPE = "parkpe"
+    SOURCE_SYSTEM = "system"
+    SOURCE_CHOICES = [
+        (SOURCE_HUB, "Hub"),
+        (SOURCE_PARKPE, "ParkPe"),
+        (SOURCE_SYSTEM, "System"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="settings_audit_logs",
+    )
+    actor_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="settings_audit_logs_actor",
+    )
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default=SOURCE_SYSTEM, db_index=True)
+    action = models.CharField(max_length=80, db_index=True)
+    change_summary = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_user_settings_audit_log"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["source", "created_at"]),
+            models.Index(fields=["action", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"UserSettingsAuditLog user={self.user_id} source={self.source} action={self.action}"
 
 
 class TicketNote(models.Model):
@@ -5409,6 +5824,164 @@ class IdempotencyRecord(models.Model):
 
 
 # ============================================================================
+# INSTANTPAY TRANSACTIONS (Hub reconciliation store)
+# ============================================================================
+
+class InstantpayTransaction(models.Model):
+    STATUS_INITIATED = "initiated"
+    STATUS_PENDING = "pending"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_REVERSED = "reversed"
+    STATUS_CHOICES = [
+        (STATUS_INITIATED, "Initiated"),
+        (STATUS_PENDING, "Pending"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_REVERSED, "Reversed"),
+    ]
+
+    partner = models.ForeignKey(
+        'ResellerPartner',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="instantpay_transactions",
+    )
+    vendor = models.ForeignKey(
+        ApiVendor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="instantpay_transactions",
+    )
+    service_name = models.CharField(max_length=64, db_index=True)
+    action = models.CharField(max_length=64, db_index=True)
+    partner_txn_id = models.CharField(max_length=128, db_index=True)
+    vendor_reference = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+    idempotency_key = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_INITIATED, db_index=True)
+    request_payload = models.JSONField(default=dict, blank=True)
+    response_payload = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_instantpay_transaction"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["partner_txn_id"]),
+            models.Index(fields=["service_name", "action"]),
+            models.Index(fields=["status", "-created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["partner", "partner_txn_id"],
+                name="portal_instantpay_partner_txn_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.partner_txn_id} ({self.status})"
+
+
+# ============================================================================
+# FLEET WORKSPACE — user interest before admin assigns fleet role
+# ============================================================================
+
+class FleetWorkspaceInterest(models.Model):
+    """
+    Consumer taps Fleet in ParkPe → submits interest. Ops approves in Django admin
+    and we assign a fleet role (default fleet_operator) on the User.
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="fleet_workspace_interests",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    company_name = models.CharField(max_length=200, blank=True, default="")
+    message = models.TextField(blank=True, default="")
+    assigned_role_code = models.CharField(
+        max_length=40,
+        default="fleet_operator",
+        help_text="Role code applied to the user when this request is approved in admin.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fleet_interests_reviewed",
+    )
+    rejection_reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "portal_fleet_workspace_interest"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self):
+        return f"FleetInterest({self.user_id}, {self.status})"
+
+
+class FleetDriverRoster(models.Model):
+    """
+    Fleet admin/manager → drivers they may register vehicles for.
+    Operators/dispatchers manage only their own vehicles unless promoted.
+    """
+
+    manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="fleet_roster_managed",
+        db_index=True,
+    )
+    driver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="fleet_roster_memberships",
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_fleet_driver_roster"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manager", "driver"],
+                name="uniq_portal_fleet_roster_manager_driver",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["manager", "driver"]),
+        ]
+
+    def __str__(self):
+        return f"FleetRoster(m={self.manager_id}, d={self.driver_id})"
+
+
+# ============================================================================
 # APPROVAL WORKFLOW (4-eye / maker-checker for high-risk admin actions)
 # ============================================================================
 
@@ -5527,3 +6100,366 @@ class ApprovalRequest(models.Model):
 
     def __str__(self):
         return f"{self.action_type} #{self.id} ({self.status})"
+
+
+# ============================================================================
+# NOTIFICATION BANNERS (Hub-managed communication slots for ParkPe/Payswap)
+# ============================================================================
+
+class NotificationBanner(models.Model):
+    PLATFORM_BOTH = "both"
+    PLATFORM_PARKPE = "parkpe"
+    PLATFORM_PAYSWAP = "payswap"
+    PLATFORM_CHOICES = [
+        (PLATFORM_BOTH, "Both"),
+        (PLATFORM_PARKPE, "ParkPe"),
+        (PLATFORM_PAYSWAP, "Payswap"),
+    ]
+
+    SLOT_BBPS_RIGHT_RAIL = "bbps_right_rail"
+    SLOT_DASHBOARD_TOP = "dashboard_top"
+    SLOT_SERVICE_INLINE = "service_inline"
+    SLOT_CHOICES = [
+        (SLOT_BBPS_RIGHT_RAIL, "BBPS Right Rail"),
+        (SLOT_DASHBOARD_TOP, "Dashboard Top"),
+        (SLOT_SERVICE_INLINE, "Service Inline"),
+    ]
+
+    name = models.CharField(max_length=120, db_index=True)
+    title = models.CharField(max_length=120)
+    message = models.CharField(max_length=320)
+    cta_text = models.CharField(max_length=48, blank=True, default="")
+    cta_url = models.CharField(max_length=255, blank=True, default="")
+    image_url = models.CharField(max_length=255, blank=True, default="")
+    bg_color = models.CharField(max_length=16, blank=True, default="#1f4f94")
+    text_color = models.CharField(max_length=16, blank=True, default="#ffffff")
+    platform = models.CharField(max_length=16, choices=PLATFORM_CHOICES, default=PLATFORM_BOTH, db_index=True)
+    slot = models.CharField(max_length=32, choices=SLOT_CHOICES, default=SLOT_BBPS_RIGHT_RAIL, db_index=True)
+    service_code = models.CharField(max_length=48, blank=True, default="", db_index=True)
+    screen_code = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    priority = models.IntegerField(default=100, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    starts_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    ends_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    campaign = models.ForeignKey(
+        "NotificationCampaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="banners",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_banners_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_notification_banner"
+        ordering = ["priority", "-created_at"]
+        indexes = [
+            models.Index(fields=["platform", "slot", "is_active"]),
+            models.Index(fields=["service_code", "screen_code"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} [{self.platform}]"
+
+
+class NotificationCampaign(models.Model):
+    TYPE_MANUAL = "manual"
+    TYPE_EVENT = "event"
+    TYPE_CHOICES = [
+        (TYPE_MANUAL, "Manual"),
+        (TYPE_EVENT, "Event"),
+    ]
+
+    STATUS_DRAFT = "draft"
+    STATUS_SCHEDULED = "scheduled"
+    STATUS_RUNNING = "running"
+    STATUS_PAUSED = "paused"
+    STATUS_COMPLETED = "completed"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_SCHEDULED, "Scheduled"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_PAUSED, "Paused"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    name = models.CharField(max_length=140, db_index=True)
+    campaign_type = models.CharField(max_length=16, choices=TYPE_CHOICES, default=TYPE_MANUAL, db_index=True)
+    event_key = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    description = models.CharField(max_length=320, blank=True, default="")
+    channels = models.JSONField(default=list, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    quiet_hours_start = models.TimeField(null=True, blank=True)
+    quiet_hours_end = models.TimeField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
+    starts_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    ends_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_campaigns_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_notification_campaign"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["campaign_type", "status"]),
+            models.Index(fields=["event_key", "status"]),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class NotificationAudienceRule(models.Model):
+    campaign = models.ForeignKey(
+        NotificationCampaign,
+        on_delete=models.CASCADE,
+        related_name="audience_rules",
+    )
+    platform = models.CharField(max_length=16, choices=NotificationBanner.PLATFORM_CHOICES, default=NotificationBanner.PLATFORM_BOTH, db_index=True)
+    service_code = models.CharField(max_length=48, blank=True, default="", db_index=True)
+    screen_code = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    role_code = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    user_ids = models.JSONField(default=list, blank=True)
+    filters = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_notification_audience_rule"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["platform", "service_code", "screen_code"]),
+        ]
+
+    def __str__(self):
+        return f"Audience[{self.campaign_id}] {self.platform}"
+
+
+class NotificationMessageTemplate(models.Model):
+    CHANNEL_IN_APP = "in_app"
+    CHANNEL_PUSH = "push"
+    CHANNEL_SMS = "sms"
+    CHANNEL_EMAIL = "email"
+    CHANNEL_BANNER = "banner"
+    CHANNEL_CHOICES = [
+        (CHANNEL_IN_APP, "In-App"),
+        (CHANNEL_PUSH, "Push"),
+        (CHANNEL_SMS, "SMS"),
+        (CHANNEL_EMAIL, "Email"),
+        (CHANNEL_BANNER, "Banner"),
+    ]
+
+    campaign = models.ForeignKey(
+        NotificationCampaign,
+        on_delete=models.CASCADE,
+        related_name="templates",
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, db_index=True)
+    subject = models.CharField(max_length=160, blank=True, default="")
+    title = models.CharField(max_length=160, blank=True, default="")
+    body = models.TextField(blank=True, default="")
+    cta_text = models.CharField(max_length=64, blank=True, default="")
+    cta_url = models.CharField(max_length=255, blank=True, default="")
+    image_url = models.CharField(max_length=255, blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_notification_message_template"
+        ordering = ["channel", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "channel"],
+                name="portal_notification_template_campaign_channel_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.campaign_id}:{self.channel}"
+
+
+class DevicePushToken(models.Model):
+    PLATFORM_IOS = "ios"
+    PLATFORM_ANDROID = "android"
+    PLATFORM_WEB = "web"
+    DEVICE_PLATFORM_CHOICES = [
+        (PLATFORM_IOS, "iOS"),
+        (PLATFORM_ANDROID, "Android"),
+        (PLATFORM_WEB, "Web"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="device_push_tokens",
+    )
+    token = models.CharField(max_length=512, unique=True)
+    device_platform = models.CharField(max_length=16, choices=DEVICE_PLATFORM_CHOICES, default=PLATFORM_ANDROID, db_index=True)
+    app_platform = models.CharField(max_length=16, choices=NotificationBanner.PLATFORM_CHOICES, default=NotificationBanner.PLATFORM_PARKPE, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_device_push_token"
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["app_platform", "device_platform"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.device_platform}"
+
+
+class NotificationEventRule(models.Model):
+    campaign = models.ForeignKey(
+        NotificationCampaign,
+        on_delete=models.CASCADE,
+        related_name="event_rules",
+    )
+    event_key = models.CharField(max_length=80, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    priority = models.IntegerField(default=100, db_index=True)
+    condition_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_notification_event_rule"
+        ordering = ["priority", "-created_at"]
+        indexes = [
+            models.Index(fields=["event_key", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_key}:{self.campaign_id}"
+
+
+class UserNotification(models.Model):
+    CHANNEL_CHOICES = NotificationMessageTemplate.CHANNEL_CHOICES
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="user_notifications",
+    )
+    campaign = models.ForeignKey(
+        NotificationCampaign,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="user_notifications",
+    )
+    channel = models.CharField(max_length=16, choices=CHANNEL_CHOICES, default=NotificationMessageTemplate.CHANNEL_IN_APP, db_index=True)
+    title = models.CharField(max_length=180)
+    message = models.TextField()
+    deep_link = models.CharField(max_length=255, blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_user_notification"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "is_read", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.channel}:{self.title[:24]}"
+
+
+class NotificationDeliveryLog(models.Model):
+    STATUS_QUEUED = "queued"
+    STATUS_SENT = "sent"
+    STATUS_DELIVERED = "delivered"
+    STATUS_FAILED = "failed"
+    STATUS_READ = "read"
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, "Queued"),
+        (STATUS_SENT, "Sent"),
+        (STATUS_DELIVERED, "Delivered"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_READ, "Read"),
+    ]
+
+    channel = models.CharField(max_length=16, choices=NotificationMessageTemplate.CHANNEL_CHOICES, db_index=True)
+    campaign = models.ForeignKey(
+        NotificationCampaign,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="delivery_logs",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_delivery_logs",
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED, db_index=True)
+    destination = models.CharField(max_length=255, blank=True, default="")
+    provider = models.CharField(max_length=64, blank=True, default="")
+    provider_message_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    request_payload = models.JSONField(default=dict, blank=True)
+    response_payload = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_notification_delivery_log"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["channel", "status", "-created_at"]),
+            models.Index(fields=["campaign", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.channel}:{self.status}:{self.provider_message_id or self.id}"
+
+
+class PasskeyCredential(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="passkey_credentials",
+    )
+    credential_id = models.CharField(max_length=512, unique=True, db_index=True)
+    public_key = models.BinaryField()
+    sign_count = models.BigIntegerField(default=0)
+    transports = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    label = models.CharField(max_length=80, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_used_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        db_table = "portal_passkey_credential"
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.credential_id[:18]}"

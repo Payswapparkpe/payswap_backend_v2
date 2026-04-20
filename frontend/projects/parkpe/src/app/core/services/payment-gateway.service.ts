@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { Observable, from, switchMap, tap, catchError, throwError, map, of } from 'rxjs';
 import { API_BACKEND_TOKEN } from '../constants';
 import {
@@ -10,6 +11,7 @@ import {
 import { environment } from '../../../environments/environment';
 import { EncryptionService } from './encryption.service';
 import { LoggerService } from './logger.service';
+import { NotificationService } from './notification.service';
 
 declare var Cashfree: any;
 
@@ -24,6 +26,20 @@ export class PaymentGatewayService {
   private api = inject(API_BACKEND_TOKEN);
   private encryption = inject(EncryptionService);
   private logger = inject(LoggerService);
+  private notify = inject(NotificationService);
+  private router = inject(Router);
+
+  private billingGateMessage(err: unknown): boolean {
+    const e = err as { error?: { code?: string; detail?: string } };
+    if (e?.error?.code === 'billing_address_incomplete') {
+      this.notify.showError(
+        e.error?.detail || 'Add your billing address (PIN, state, address) under Settings before paying.'
+      );
+      void this.router.navigate(['/settings']);
+      return true;
+    }
+    return false;
+  }
 
   private scriptsLoaded: Record<PaymentGateway, boolean> = {
     cashfree: false,
@@ -60,6 +76,7 @@ export class PaymentGatewayService {
         })
       ),
       catchError((err) => {
+        this.billingGateMessage(err);
         this.logger.warn('payment_failed', { service: 'payment', action: 'payment_failed', gateway, error: err?.message });
         return throwError(() => err);
       })
@@ -98,6 +115,7 @@ export class PaymentGatewayService {
       }),
       map(() => undefined as void),
       catchError((err) => {
+        this.billingGateMessage(err);
         this.logger.warn('createOrderAndOpenCheckout failed', { gateway: effectiveGateway, error: err?.message });
         return throwError(() => err);
       })
@@ -190,7 +208,7 @@ export class PaymentGatewayService {
     return this.api.requestRefund(transactionId, amount, reason);
   }
 
-  downloadReceipt(transactionId: string) {
-    return this.api.downloadReceipt(transactionId);
+  downloadReceipt(transactionId: string, options?: { attachment?: boolean; format?: 'pdf' }) {
+    return this.api.downloadReceipt(transactionId, options);
   }
 }

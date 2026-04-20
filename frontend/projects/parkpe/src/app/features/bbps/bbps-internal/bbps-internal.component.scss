@@ -5,12 +5,20 @@
 
 .bbps-internal {
   position: relative;
-  max-width: 1024px;
-  margin: 0;
-  padding: 0 0 2rem;
+  max-width: 1420px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.9rem 0.9rem 2rem;
   --bharat-blue: #3E67B1;
   --bharat-orange: #E16E3C;
   text-align: left;
+  border: 1px solid rgba(99, 115, 129, 0.16);
+  border-radius: 1.15rem;
+  background:
+    radial-gradient(80% 50% at 10% 0%, rgba(62, 103, 177, 0.08) 0%, rgba(62, 103, 177, 0) 100%),
+    radial-gradient(70% 40% at 90% 0%, rgba(225, 110, 60, 0.08) 0%, rgba(225, 110, 60, 0) 100%),
+    linear-gradient(180deg, #f7f9ff 0%, #f4f6fb 100%);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
 }
 
 /* Bill Payment Categories screen header: back (left) + title (center) + Bharat Billpay logo (right) */
@@ -21,6 +29,11 @@
   margin-bottom: 1rem;
   padding: 0.25rem 0;
   flex-wrap: wrap;
+}
+
+.bbps-categories-title-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .bbps-categories-back {
@@ -48,13 +61,17 @@
 }
 
 .bbps-categories-title {
-  flex: 1;
-  min-width: 0;
   font-size: 1.0625rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.02em;
+}
+
+.bbps-categories-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
 }
 
 .bbps-billpay-logo {
@@ -105,6 +122,72 @@
   display: block;
 }
 
+.bbps-command-center {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(125deg, #1f4f94 0%, #2f5c9c 40%, #5b7ac0 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 34px rgba(31, 79, 148, 0.28);
+  color: #fff;
+}
+
+.command-main {
+  min-width: 0;
+}
+
+.command-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.command-title {
+  margin: 0.35rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.command-subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.command-score {
+  flex-shrink: 0;
+  min-width: 7.25rem;
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  text-align: right;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.command-score-label {
+  margin: 0;
+  font-size: 0.68rem;
+  opacity: 0.88;
+}
+
+.command-score-value {
+  margin: 0.2rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 /* Category step: category cards (left) + Favorite biller & Saved bill (right) – aligned with cards */
 .bbps-category-layout {
   display: grid;
@@ -116,8 +199,12 @@
     gap: 1.75rem;
   }
   @media (min-width: 900px) {
-    grid-template-columns: 1fr 425px;
+    grid-template-columns: minmax(0, 1fr) 390px;
     gap: 2rem;
+  }
+  @media (min-width: 1280px) {
+    grid-template-columns: minmax(0, 1fr) 390px 280px;
+    gap: 1.5rem;
   }
 }
 
@@ -128,6 +215,85 @@
   overflow-x: hidden;
   padding-right: 0.25rem;
   -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(62, 103, 177, 0.35);
+    border-radius: 999px;
+  }
+}
+
+.bbps-quick-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  @media (min-width: 860px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.quick-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.68rem 0.7rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(47, 92, 156, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  box-shadow: 0 4px 12px rgba(18, 52, 86, 0.1);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(62, 103, 177, 0.3);
+    box-shadow: 0 10px 22px rgba(18, 52, 86, 0.14);
+  }
+
+  .material-icons {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(62, 103, 177, 0.1);
+    color: var(--bharat-blue);
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+}
+
+.quick-stat-card--highlight {
+  background: linear-gradient(140deg, #224b87 0%, #2f5c9c 62%, #5b7cc3 100%);
+  border-color: transparent;
+
+  .material-icons {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+
+  .quick-stat-title,
+  .quick-stat-value {
+    color: #fff;
+  }
+}
+
+.quick-stat-title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.quick-stat-value {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 
 .category-group {
@@ -151,7 +317,7 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem 0.75rem;
   padding: 0.75rem;
-  background: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   border-radius: 0.75rem;
   border: 1px solid rgba(0, 0, 0, 0.06);
   /* 3D panel */
@@ -179,7 +345,101 @@
   @media (min-width: 640px) {
     min-width: 300px;
     max-height: min(75vh, 560px);
+    position: sticky;
+    top: 0.6rem;
   }
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(62, 103, 177, 0.3);
+    border-radius: 999px;
+  }
+}
+
+.bbps-banner-rail {
+  display: none;
+
+  @media (min-width: 1280px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    position: sticky;
+    top: 0.6rem;
+    align-self: start;
+  }
+}
+
+.banner-rail-empty {
+  border: 1px dashed rgba(62, 103, 177, 0.35);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.9rem;
+}
+
+.banner-rail-empty-title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.banner-rail-empty-subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.banner-card {
+  border-radius: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.banner-card-image {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 0.7rem;
+  margin-bottom: 0.55rem;
+}
+
+.banner-card-kicker {
+  margin: 0;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.86;
+}
+
+.banner-card-title {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.banner-card-message {
+  margin: 0.4rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  opacity: 0.95;
+}
+
+.banner-card-cta {
+  display: inline-flex;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 /* Same vertical rhythm as category-group-box / operator cards – height grows with content */
@@ -188,16 +448,88 @@
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 74, 173, 0.06);
+  box-shadow: 0 8px 22px rgba(0, 74, 173, 0.08);
   min-height: 4.5rem;
   flex: 0 0 auto;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: rgba(62, 103, 177, 0.28);
+    box-shadow: 0 12px 24px rgba(0, 74, 173, 0.12);
+  }
+}
+
+.favorite-block {
+  border-left: 4px solid #f5b640;
+}
+
+.saved-block {
+  border-left: 4px solid #4d7ce0;
 }
 
 .side-panel-title {
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 0.5rem;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  .material-icons {
+    font-size: 1.05rem;
+    color: var(--bharat-blue);
+    background: rgba(62, 103, 177, 0.12);
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 760px) {
+  .bbps-command-center {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .command-title {
+    font-size: 0.95rem;
+  }
+
+  .command-subtitle {
+    font-size: 0.74rem;
+  }
+
+  .command-score {
+    min-width: 6rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .command-score-value {
+    font-size: 1.1rem;
+  }
+}
+
+.side-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.side-panel-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary-700);
+  background: rgba(0, 74, 173, 0.1);
+  border: 1px solid rgba(0, 74, 173, 0.18);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  white-space: nowrap;
 }
 
 .side-panel-hint {
@@ -205,6 +537,12 @@
   color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
+}
+
+.side-panel-footnote {
+  margin: 0.55rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
 }
 
 .saved-bills-list,
@@ -329,6 +667,24 @@
     max-height: 12rem;
     overflow-y: auto;
   }
+  .cart-progress {
+    width: 100%;
+    height: 0.44rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+  .cart-progress-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3e67b1 0%, #e16e3c 100%);
+    transition: width 0.22s ease;
+  }
+  .cart-progress-meta {
+    margin: -0.2rem 0 0.15rem;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+  }
   .cart-item {
     display: flex;
     align-items: center;
@@ -409,13 +765,13 @@
 .biller-icon-sm,
 .biller-icon-xs {
   display: inline-block;
-  border-radius: 0.4rem;
+  border-radius: 0;
   object-fit: contain;
   object-position: center;
-  background: #fff;
-  border: 1px solid var(--border-light);
+  background: transparent;
+  border: none;
   flex-shrink: 0;
-  padding: 0.1rem;
+  padding: 0;
 }
 
 .biller-icon-md {
@@ -589,6 +945,16 @@
   .option-detail {
     color: var(--text-muted);
     font-size: 0.8125rem;
+    display: block;
+    margin-top: 0.15rem;
+    font-weight: 500;
+  }
+
+  &.active {
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.65rem;
+    background: rgba(0, 74, 173, 0.08);
+    border: 1px solid rgba(0, 74, 173, 0.14);
   }
 }
 
@@ -603,6 +969,51 @@
 .bbps-section.bbps-category-layout,
 .bbps-section.service-layout {
   display: grid;
+}
+
+/**
+ * Mobile: biller list sits above the form by default — after selecting a biller users thought
+ * “nothing happened” because the consumer form was below the fold. When a biller is selected,
+ * show the details panel first (CSS grid order).
+ */
+@media (max-width: 767px) {
+  .bbps-section.service-layout.service-layout--has-selection {
+    .service-col-right {
+      order: -1;
+    }
+  }
+}
+
+.bbps-inline-alert {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md, 0.5rem);
+  font-size: 0.9rem;
+
+  .material-icons {
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+
+  strong {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  &--warning {
+    background: rgba(234, 179, 8, 0.12);
+    border: 1px solid rgba(234, 179, 8, 0.45);
+    color: var(--text-primary);
+  }
 }
 
 .bbps-header {
@@ -720,7 +1131,8 @@
     align-items: center;
     justify-content: center;
     border-radius: 0.4rem;
-    background: transparent;
+    background: linear-gradient(180deg, rgba(62, 103, 177, 0.1) 0%, rgba(62, 103, 177, 0.04) 100%);
+    border: 1px solid rgba(62, 103, 177, 0.18);
   }
 
   .category-label {
@@ -731,7 +1143,7 @@
   }
 }
 
-/* Operator list – one biller per row so names/codes show in full, no truncation */
+/* Operator list – one biller per row so names show in full, no truncation */
 .operator-list {
   display: flex;
   flex-direction: column;
@@ -762,7 +1174,7 @@
 
   &:hover {
     border-color: rgba(0, 74, 173, 0.25);
-    transform: translateY(-1px);
+    transform: translateY(-1px) scale(1.003);
     box-shadow:
       0 2px 4px rgba(0, 0, 0, 0.05),
       0 8px 20px rgba(0, 74, 173, 0.12),
@@ -791,12 +1203,6 @@
     line-height: 1.25;
     word-break: break-word;
     white-space: normal;
-  }
-
-  .operator-code {
-    font-size: 0.74rem;
-    color: var(--text-secondary);
-    word-break: break-all;
   }
 
   .operator-chevron {

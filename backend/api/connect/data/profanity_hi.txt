@@ -1,0 +1,2 @@
+# Devanagari phrases — substring match after Unicode NFC normalization. One phrase per line.
+# Ops can extend this file on disk without code changes (restart workers after edits).

@@ -82,6 +82,13 @@ class SMSSendView(StandardResponseMixin, views.APIView):
                     request=request
                 )
             else:
+                if result.get('error') == 'AD400':
+                    return self.error_response(
+                        message="AD400",
+                        errors=[{"code": "AD400", "message": "AD400"}],
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        request=request
+                    )
                 return self.error_response(
                     message=result.get('message', 'Failed to send SMS'),
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -125,27 +132,36 @@ class SMSOTPSendView(StandardResponseMixin, views.APIView):
             )
         
         try:
-            partner = request.partner
-            api_key = request.api_key
-            
             phone_number = serializer.validated_data['phone_number']
-            
-            # Send OTP
-            notification_service = NotificationServiceV2()
-            result = notification_service.send_otp(
+
+            # Use OTPService so OTP generation + delivery path remains consistent
+            # with the rest of the system and provider logging.
+            otp_service = OTPService()
+            sent, detail = otp_service.send_otp(
                 phone_number=phone_number,
-                otp_code=None,  # Will be generated
                 user_id=None,
-                async_send=True
+                async_send=True,
             )
-            
-            # Note: OTP code is not returned for security
+            if not sent:
+                if detail and ("AD400" in detail or "disabled by admin" in detail.lower()):
+                    return self.error_response(
+                        message="AD400",
+                        errors=[{"code": "AD400", "message": "AD400"}],
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        request=request
+                    )
+                return self.error_response(
+                    message=detail or "Failed to send OTP",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    request=request
+                )
+
+            # OTP code is never returned in API response for security.
             return self.success_response(
                 message="OTP sent successfully",
                 data={
                     'phone_number': phone_number[-4:].rjust(len(phone_number), '*'),  # Masked
                     'otp_sent': True,
-                    'task_id': result.get('task_id')
                 },
                 request=request
             )

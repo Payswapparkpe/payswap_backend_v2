@@ -1,0 +1,113 @@
+.fleet-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.fleet-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+input {
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #d6dce8;
+  min-width: 320px;
+}
+
+button,
+.ghost-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: #1f4f94;
+  color: #fff;
+  text-decoration: none;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.insight-grid article {
+  background: linear-gradient(160deg, #fff, #f7fbff);
+  border: 1px solid #dbe7f9;
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.insight-grid p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.insight-grid strong {
+  font-size: 1.25rem;
+}
+
+.insight-grid span {
+  color: #4e5e79;
+  font-size: 0.78rem;
+}
+
+.driver-card {
+  background: #fff;
+  border: 1px solid #e5eaf3;
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.tier {
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.elite {
+  background: #e6f8ec;
+  color: #0f7a3a;
+}
+
+.watch {
+  background: #fff6dd;
+  color: #9a6a00;
+}
+
+.risk {
+  background: #ffe7e7;
+  color: #b11f1f;
+}
+
+.blocked {
+  color: #b11f1f;
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.error {
+  color: #b11f1f;
+}

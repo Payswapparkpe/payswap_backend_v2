@@ -8,6 +8,8 @@ from .views import (
     RegisterOrderView,
     PaymentTransactionsListView,
     PaymentTransactionDetailView,
+    PaymentTransactionReceiptHtmlView,
+    PaymentStatusStreamView,
     PaymentOrdersListView,
     VoucherStatementView,
 )
@@ -20,7 +22,13 @@ urlpatterns = [
     path("webhook/relay/cashfree", CashfreeWebhookRelayView.as_view(), name="parkpe-payment-webhook-relay-cashfree"),
     path("orders/register", RegisterOrderView.as_view(), name="parkpe-payment-orders-register"),
     path("transactions", PaymentTransactionsListView.as_view(), name="parkpe-payment-transactions"),
+    path(
+        "transactions/<str:transaction_id>/receipt/",
+        PaymentTransactionReceiptHtmlView.as_view(),
+        name="parkpe-payment-transaction-receipt",
+    ),
     path("transactions/<str:transaction_id>", PaymentTransactionDetailView.as_view(), name="parkpe-payment-transaction-detail"),
+    path("stream/status/<str:order_id>", PaymentStatusStreamView.as_view(), name="parkpe-payment-stream-status"),
     path("orders", PaymentOrdersListView.as_view(), name="parkpe-payment-orders"),
     path("voucher-statement", VoucherStatementView.as_view(), name="parkpe-payment-voucher-statement"),
 ]

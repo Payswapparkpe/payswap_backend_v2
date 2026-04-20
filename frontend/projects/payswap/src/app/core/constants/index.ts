@@ -11,10 +11,10 @@ export const API_BACKEND_TOKEN = new InjectionToken<ApiBackend>('API_BACKEND');
  * Application Constants
  */
 export const APP_CONSTANTS = {
-  APP_NAME: 'PARKPE',
-  COPYRIGHT: '© 2024 PARKPE. All rights reserved.',
+  APP_NAME: 'PAYSWAP',
+  COPYRIGHT: '© 2024 PAYSWAP. All rights reserved.',
   VERSION: '1.0.0',
-  SUPPORT_EMAIL: 'support@parkpe.com',
+  SUPPORT_EMAIL: 'support@payswap.com',
   SUPPORT_PHONE: '+91-1800-123-4567',
 };
 
@@ -22,7 +22,7 @@ export const APP_CONSTANTS = {
  * Route Constants
  */
 export const ROUTES = {
-  HOME: '/home',
+  HOME: '/landing',
   LOGIN: '/auth/login',
   REGISTER: '/auth/register',
   FORGOT_PASSWORD: '/auth/forgot-password',
@@ -42,8 +42,8 @@ export const ROUTES = {
  * Use httpOnly cookies or in-memory storage
  */
 export const STORAGE_KEYS = {
-  THEME: 'parkpe_theme',
-  LANGUAGE: 'parkpe_language',
+  THEME: 'payswap_theme',
+  LANGUAGE: 'payswap_language',
 };
 
 /**

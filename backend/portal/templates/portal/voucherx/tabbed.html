@@ -32,7 +32,7 @@
             <a href="?tab=onboarding" class="tab-link {% if active_tab == 'onboarding' %}active{% endif %}">
                 <i class="ti ti-checklist mr-2"></i>
                 Onboarding
-                {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+                {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
                 {% if pending_brands %}
                 <span class="ml-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{{ pending_brands|length }}</span>
                 {% endif %}
@@ -61,7 +61,7 @@
     <div class="card-enterprise">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-gray-900">Brands</h3>
-            {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+            {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
             <a href="{% url 'voucherx_admin_onboard' %}" class="btn-enterprise-primary">
                 <i class="ti ti-plus mr-2"></i>
                 Create Brand
@@ -131,7 +131,7 @@
     {% elif active_tab == 'onboarding' %}
     <!-- Onboarding Tab -->
     <div class="space-y-6">
-        {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+        {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
         <!-- Pending Reviews -->
         <div class="card-enterprise">
             <div class="flex items-center justify-between mb-4">

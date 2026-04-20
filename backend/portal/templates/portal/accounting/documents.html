@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Billing documents | Accounting{% endblock %}
+{% block page_title %}Billing documents{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Tax &amp; billing documents</h2>
+        <p class="mt-1 text-sm text-slate-500">Each row is one issued <strong>receipt</strong>, <strong>credit note</strong>, or <strong>commission invoice</strong> snapshot. Use <strong>View</strong> to read on screen; <strong>HTML</strong> / <strong>PDF</strong> to download a file.</p>
+      </div>
+      <div class="flex flex-wrap gap-2 text-sm">
+        <a href="{% url 'accounting_dashboard' %}" class="rounded-full bg-slate-100 px-3 py-1 text-slate-700">← Accounting</a>
+        <a href="{% url 'accounting_reports' %}" class="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Reports &amp; totals</a>
+        <a href="{{ documents_csv_url }}" class="rounded-full bg-indigo-600 px-3 py-1 text-white">Export CSV (rows)</a>
+      </div>
+    </div>
+    <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+      <strong>Need all voucher / PG transactions?</strong> Open
+      <a href="/dashboard/parkpe/transactions/" class="font-medium text-indigo-700 underline">ParkPe Transactions</a>
+      (orders + ledger). This table is only <em>billing / tax documents</em>.
+    </div>
+    <form method="get" class="mt-4 flex flex-wrap items-end gap-2 text-sm">
+      <div>
+        <label class="block text-xs text-slate-500 mb-0.5">service_code</label>
+        <input type="text" name="service_code" value="{{ filters.service_code }}" placeholder="e.g. bbps" class="rounded border border-slate-300 px-2 py-1 w-36" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-0.5">Document type</label>
+        <select name="document_type" class="rounded border border-slate-300 px-2 py-1 min-w-[200px]">
+          <option value="">All types</option>
+          <option value="b2c_receipt" {% if filters.document_type == 'b2c_receipt' %}selected{% endif %}>Tax receipt (B2C)</option>
+          <option value="credit_note" {% if filters.document_type == 'credit_note' %}selected{% endif %}>Credit note</option>
+          <option value="b2b_commission_invoice" {% if filters.document_type == 'b2b_commission_invoice' %}selected{% endif %}>Commission invoice (B2B)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-0.5">From</label>
+        <input type="date" name="date_from" value="{{ filters.date_from }}" class="rounded border border-slate-300 px-2 py-1" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-0.5">To</label>
+        <input type="date" name="date_to" value="{{ filters.date_to }}" class="rounded border border-slate-300 px-2 py-1" />
+      </div>
+      <button type="submit" class="rounded-lg bg-slate-800 px-3 py-1.5 text-white">Apply filters</button>
+    </form>
+  </section>
+  <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left">ID</th>
+            <th class="px-3 py-2 text-left">Issued</th>
+            <th class="px-3 py-2 text-left">Document</th>
+            <th class="px-3 py-2 text-left">Service</th>
+            <th class="px-3 py-2 text-left">Reference</th>
+            <th class="px-3 py-2 text-left">Party</th>
+            <th class="px-3 py-2 text-right">GST</th>
+            <th class="px-3 py-2 text-right">Total</th>
+            <th class="px-3 py-2 text-left text-xs">Ledger</th>
+            <th class="px-3 py-2 text-right whitespace-nowrap">Receipt / invoice</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for d in documents %}
+          <tr>
+            <td class="px-3 py-2 font-mono text-xs">{{ d.id }}</td>
+            <td class="px-3 py-2 whitespace-nowrap">{{ d.issued_at|date:"Y-m-d H:i" }}</td>
+            <td class="px-3 py-2">
+              {% if d.document_type == 'b2c_receipt' %}
+                <span class="font-medium text-slate-900">Tax receipt</span>
+              {% elif d.document_type == 'credit_note' %}
+                <span class="font-medium text-slate-900">Credit note</span>
+              {% elif d.document_type == 'b2b_commission_invoice' %}
+                <span class="font-medium text-slate-900">Commission invoice</span>
+              {% else %}
+                <span class="font-medium text-slate-900">{{ d.document_type }}</span>
+              {% endif %}
+              <div class="text-xs text-slate-500 font-mono">{{ d.document_type }}</div>
+            </td>
+            <td class="px-3 py-2 font-mono text-xs">{{ d.service_code }}</td>
+            <td class="px-3 py-2 font-mono text-xs break-all max-w-[160px]">{{ d.reference_id }}</td>
+            <td class="px-3 py-2 text-xs max-w-[200px]">
+              {% if d.user_id %}
+                <span class="text-slate-700">User</span>
+                <span class="font-mono block truncate" title="{{ d.user.username }}">{{ d.user.username|default:d.user_id }}</span>
+              {% elif d.partner_id %}
+                <span class="text-slate-700">Partner</span>
+                <span class="block truncate" title="{{ d.partner.company_name|default:d.partner.partner_code }}">{{ d.partner.company_name|default:d.partner.partner_code }}</span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 text-right">₹{{ d.gst_total }}</td>
+            <td class="px-3 py-2 text-right font-semibold">₹{{ d.grand_total }}</td>
+            <td class="px-3 py-2 text-xs">
+              {% if request.user.is_staff and d.parkpe_voucher_transaction_id %}
+                <a href="{% url 'admin:portal_parkpevouchertransaction_change' d.parkpe_voucher_transaction_id %}" class="text-indigo-600 hover:underline" target="_blank" rel="noopener">Voucher txn #{{ d.parkpe_voucher_transaction_id }}</a>
+              {% else %}
+                <span class="text-slate-400">{% if d.parkpe_voucher_transaction_id %}#{{ d.parkpe_voucher_transaction_id }}{% else %}—{% endif %}</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 text-right text-xs whitespace-nowrap">
+              <a href="{% url 'accounting_billing_document_html' d.pk %}" class="text-indigo-600 hover:underline" target="_blank" rel="noopener">View</a>
+              <span class="text-slate-300 mx-1">|</span>
+              <a href="{% url 'accounting_billing_document_download' d.pk %}?format=html" class="text-indigo-600 hover:underline">HTML</a>
+              <span class="text-slate-300 mx-1">|</span>
+              <a href="{% url 'accounting_billing_document_download' d.pk %}?format=pdf" class="text-indigo-600 hover:underline">PDF</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" class="px-3 py-8 text-center text-slate-500">No documents match.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

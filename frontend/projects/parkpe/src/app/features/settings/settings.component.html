@@ -10,6 +10,96 @@
     (languageChange)="changeLanguage($event)"
   />
 
+  <section class="settings-section card">
+    <h2 class="section-title">Regional Preferences</h2>
+    <div class="setting-item">
+      <div class="setting-info">
+        <h3>Timezone</h3>
+        <p>Controls timestamps and reminders.</p>
+      </div>
+      <input
+        type="text"
+        class="input"
+        [value]="selectedTimezone"
+        (input)="selectedTimezone = ($any($event.target).value || 'Asia/Kolkata').trim()"
+        placeholder="Asia/Kolkata"
+      />
+    </div>
+    <div class="setting-item">
+      <div class="setting-info">
+        <h3>Currency</h3>
+        <p>Preferred display currency in app.</p>
+      </div>
+      <select class="input" [value]="selectedCurrency" (change)="selectedCurrency = $any($event.target).value">
+        <option value="INR">INR</option>
+        <option value="USD">USD</option>
+      </select>
+    </div>
+    <div class="setting-item">
+      <button type="button" class="btn btn-primary" (click)="savePreferencesManually()" [disabled]="preferencesSaving()">
+        {{ preferencesSaving() ? 'Saving…' : 'Save Preferences' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="settings-section card">
+    <h2 class="section-title">Billing address (receipts)</h2>
+    <p class="hint" style="margin-bottom: 1rem">
+      Used on tax receipts and invoices (place of supply). Needs address line, state, and a 6-digit PIN code.
+    </p>
+    <form [formGroup]="billingForm" class="billing-address-form" (ngSubmit)="saveBillingAddress()">
+      <div class="setting-item">
+        <div class="setting-info">
+          <h3>PIN code</h3>
+          <p>Lookup fills state and city when available.</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center">
+          <input type="text" class="input" formControlName="pincode" maxlength="6" inputmode="numeric" placeholder="110001" />
+          <button type="button" class="btn btn-outline" (click)="lookupPinForBilling()" [disabled]="pincodeLookupBusy()">
+            {{ pincodeLookupBusy() ? 'Looking up…' : 'Lookup' }}
+          </button>
+        </div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-info"><h3>Address line 1</h3></div>
+        <input type="text" class="input" formControlName="addressLine1" placeholder="House / street" />
+      </div>
+      <div class="setting-item">
+        <div class="setting-info"><h3>Address line 2</h3></div>
+        <input type="text" class="input" formControlName="addressLine2" placeholder="Area (optional)" />
+      </div>
+      <div class="setting-item">
+        <div class="setting-info"><h3>City</h3></div>
+        <input type="text" class="input" formControlName="city" />
+      </div>
+      <div class="setting-item">
+        <div class="setting-info"><h3>State</h3></div>
+        <input type="text" class="input" formControlName="state" placeholder="e.g. Delhi" />
+      </div>
+      <div class="setting-item">
+        <div class="setting-info"><h3>Country</h3></div>
+        <input type="text" class="input" formControlName="countryOfResidence" />
+      </div>
+      <div class="setting-item">
+        <div class="setting-info">
+          <h3>GSTIN (optional)</h3>
+          <p>For business purchases; leave blank for individuals.</p>
+        </div>
+        <input type="text" class="input" formControlName="gstNumber" maxlength="15" placeholder="15-character GSTIN" />
+      </div>
+      @if (user(); as u) {
+        @if (u.billingAddressComplete === false) {
+          <p class="error">Billing address is incomplete — save once all required fields are filled.</p>
+        }
+      }
+      <div class="setting-item">
+        <button type="submit" class="btn btn-primary" [disabled]="billingSaving()">
+          {{ billingSaving() ? 'Saving…' : 'Save billing address' }}
+        </button>
+      </div>
+    </form>
+  </section>
+
   <app-settings-notifications-section
     [pushEnabled]="pushEnabled"
     [emailEnabled]="emailEnabled"
@@ -19,10 +109,66 @@
 
   <app-settings-account-section [user]="user()" (logoutClick)="logout()" />
 
+  <section class="settings-section card">
+    <h2 class="section-title">Security & Sessions</h2>
+    @if (securityOverview(); as sec) {
+      <div class="setting-item">
+        <div class="setting-info">
+          <h3>MFA Status</h3>
+          <p>{{ sec.mfa?.enabled ? 'Enabled' : (sec.mfa?.configured ? 'Configured (disabled)' : 'Not configured') }}</p>
+        </div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-info">
+          <h3>Passkey Status</h3>
+          <p>{{ sec.passkey?.enabled ? 'Enabled' : 'Disabled' }}</p>
+        </div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-info">
+          <h3>Connected Devices</h3>
+          <p>{{ sec.devices?.length || 0 }} registered push/session device(s)</p>
+        </div>
+        <button type="button" class="btn btn-outline" (click)="revokeAllSessions()">Revoke All Sessions</button>
+      </div>
+      @if (sec.connect?.blockedUntil) {
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>Connect Safety Lock</h3>
+            <p>Blocked until: {{ sec.connect?.blockedUntil }}</p>
+          </div>
+        </div>
+      }
+    } @else {
+      <p class="pin-note">Security overview unavailable right now.</p>
+    }
+
+    <div class="forgot-pin-divider"></div>
+    <h3 class="forgot-pin-title">Recent Security Activity</h3>
+    @if (securityActivity().length > 0) {
+      <div class="passkey-list">
+        @for (item of securityActivity(); track item.id) {
+          <div class="passkey-item">
+            <div class="passkey-meta">
+              <span>{{ item.source }}</span>
+              <span>{{ item.action }}</span>
+              <span>{{ item.created_at | date:'short' }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="pin-note">No recent security activity found.</p>
+    }
+  </section>
+
   <section class="settings-pin card">
     <h2>{{ pinTitle() }}</h2>
     <p class="pin-note">
-      Idle lock screen unlock ke liye 4-6 digit PIN use hota hai.
+      Use a 4–6 digit PIN to unlock the idle lock screen.
+    </p>
+    <p class="pin-note">
+      PIN is account-level and verified securely from server.
     </p>
     <form [formGroup]="pinForm" (ngSubmit)="saveSessionPin()" class="pin-form">
       @if (hasSessionPin()) {
@@ -66,8 +212,101 @@
     </form>
 
     <div class="forgot-pin-divider"></div>
+    <h3 class="forgot-pin-title">Passkey Unlock</h3>
+    @if (biometricSupported()) {
+      <p class="pin-note">Use passkey unlock with Face ID, fingerprint, Touch ID, or Windows Hello.</p>
+      <div class="otp-row">
+        @if (!hasBiometric()) {
+          <button type="button" class="btn btn-outline" (click)="enableBiometricUnlock()" [disabled]="biometricBusy()">
+            {{ biometricBusy() ? 'Enabling…' : 'Enable Passkey Unlock' }}
+          </button>
+        } @else {
+          <button type="button" class="btn btn-outline" (click)="testBiometricUnlock()" [disabled]="biometricBusy()">
+            {{ biometricBusy() ? 'Verifying…' : 'Test Passkey' }}
+          </button>
+          <button type="button" class="btn btn-outline" (click)="disableBiometricUnlock()" [disabled]="biometricBusy()">
+            Disable
+          </button>
+        }
+      </div>
+
+      @if (hasBiometric()) {
+        <div class="passkey-manage">
+          <div class="passkey-manage__head">
+            <h4>Your Passkeys</h4>
+            @if (passkeyListBusy()) {
+              <span class="passkey-muted">Loading...</span>
+            }
+          </div>
+
+          @if (passkeyCredentials().length === 0 && !passkeyListBusy()) {
+            <p class="passkey-muted">No active passkeys found for this account.</p>
+          } @else {
+            <div class="passkey-list">
+              @for (item of passkeyCredentials(); track item.id) {
+                <div class="passkey-item">
+                  <div class="field">
+                    <label>Passkey Name</label>
+                    <input
+                      type="text"
+                      maxlength="80"
+                      [value]="passkeyLabels()[item.id] || item.label"
+                      (input)="onPasskeyLabelInput(item.id, $any($event.target).value)"
+                      placeholder="e.g. iPhone 16 Pro"
+                    />
+                  </div>
+                  <div class="passkey-meta">
+                    <span>Created: {{ item.createdAt ? (item.createdAt | date: 'medium') : '—' }}</span>
+                    <span>Last used: {{ item.lastUsedAt ? (item.lastUsedAt | date: 'medium') : '—' }}</span>
+                  </div>
+                  <div class="otp-row">
+                    <button type="button" class="btn btn-outline" (click)="savePasskeyLabel(item.id)">
+                      Save Name
+                    </button>
+                    <button type="button" class="btn btn-outline" (click)="removePasskeyCredential(item.id)">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <div class="forgot-pin-divider"></div>
+          <h4>Lost Device Recovery</h4>
+          <p class="passkey-muted">Send OTP and revoke all passkeys if your device is lost.</p>
+          <div class="otp-row">
+            <button type="button" class="btn btn-outline" (click)="requestPasskeyRecoveryOtp()" [disabled]="passkeyRecoveryBusy()">
+              {{ passkeyRecoveryBusy() ? 'Sending...' : 'Send Recovery OTP' }}
+            </button>
+            @if (passkeyRecoveryOtpSent()) {
+              <span class="otp-sent-chip">OTP sent</span>
+            }
+          </div>
+          @if (passkeyRecoveryOtpSent()) {
+            <div class="otp-row otp-row--stack">
+              <input
+                type="text"
+                maxlength="6"
+                inputmode="numeric"
+                [value]="passkeyRecoveryOtp"
+                (input)="passkeyRecoveryOtp = $any($event.target).value"
+                placeholder="Enter OTP"
+              />
+              <button type="button" class="btn btn-outline" (click)="verifyPasskeyRecoveryOtp()" [disabled]="passkeyRecoveryBusy()">
+                {{ passkeyRecoveryBusy() ? 'Verifying...' : 'Verify OTP & Revoke All' }}
+              </button>
+            </div>
+          }
+        </div>
+      }
+    } @else {
+      <p class="pin-note">Passkey unlock is not available on this browser or device.</p>
+    }
+
+    <div class="forgot-pin-divider"></div>
     <h3 class="forgot-pin-title">Forgot PIN via OTP</h3>
-    <p class="pin-note">Registered mobile par OTP aayega. Verify karne ke baad naya PIN set hoga.</p>
+    <p class="pin-note">An OTP will be sent to your registered mobile number. Verify it to set a new PIN.</p>
     <div class="otp-row">
       <button type="button" class="btn btn-outline" (click)="requestForgotPinOtp()" [disabled]="otpSending">
         {{ otpSending ? 'Sending OTP…' : 'Send OTP' }}

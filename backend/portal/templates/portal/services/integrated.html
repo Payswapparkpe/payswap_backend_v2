@@ -4,11 +4,13 @@
 {% block page_title %}Services – Integrated Vendors{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
+<div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Services</h1>
-            <p class="text-sm text-gray-500 mt-1">Integrated vendors and their services</p>
+            <h1 class="text-2xl font-bold text-gray-900">Vendor API Control Center</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Manage integrated vendor API availability and quickly review where each vendor is used.
+            </p>
         </div>
         <div class="flex gap-3 items-center">
             {% if platform %}<a href="{% url 'project_management' %}" class="text-[#0066CC] hover:underline text-sm">← Project Management</a>{% endif %}
@@ -16,46 +18,479 @@
         </div>
     </div>
 
-    <!-- 1. Integrated vendors & services -->
-    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <h2 class="px-4 py-3 bg-gray-50 border-b border-gray-200 text-lg font-semibold text-gray-900">
-            Integrated vendors & services
-        </h2>
-        <p class="px-4 py-2 text-sm text-gray-600">Ye vendors integrate hain aur inka use kis service me ho raha hai.</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Services</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">APIs integrated</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    {% for v in vendors_integrated %}
-                    <tr>
-                        <td class="px-4 py-3">
-                            <span class="font-medium text-gray-900">{{ v.name }}</span>
-                            <span class="text-gray-500 font-mono text-sm ml-1">({{ v.code }})</span>
-                        </td>
-                        <td class="px-4 py-3">
-                            {% for svc in v.services %}
-                            <span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-800 text-sm font-mono mr-1">{{ svc.code }}</span>
-                            {% empty %}
-                            <span class="text-gray-400">—</span>
-                            {% endfor %}
-                        </td>
-                        <td class="px-4 py-3 text-right text-gray-600">{{ v.api_count }}</td>
-                    </tr>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3">
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Vendors</p>
+            <p class="mt-2 text-3xl font-bold text-gray-900">{{ vendors_stats.total|default:0 }}</p>
+            <p class="mt-1 text-xs text-gray-500">Integrated in flow steps</p>
+        </div>
+        <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Active Vendors</p>
+            <p class="mt-2 text-3xl font-bold text-emerald-700">{{ vendors_stats.active|default:0 }}</p>
+            <p class="mt-1 text-xs text-emerald-700/80">Currently enabled for routing</p>
+        </div>
+        <div class="rounded-xl border border-amber-100 bg-amber-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Integrated Services</p>
+            <p class="mt-2 text-3xl font-bold text-amber-700">{{ vendors_stats.services|default:0 }}</p>
+            <p class="mt-1 text-xs text-amber-700/80">Unique service families</p>
+        </div>
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Mapped APIs</p>
+            <p class="mt-2 text-3xl font-bold text-indigo-700">{{ vendors_stats.apis|default:0 }}</p>
+            <p class="mt-1 text-xs text-indigo-700/80">Distinct APIs in orchestration</p>
+        </div>
+        <div class="rounded-xl border border-sky-100 bg-sky-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">APIs In Use</p>
+            <p class="mt-2 text-3xl font-bold text-sky-700">{{ vendors_stats.used_apis|default:0 }}</p>
+            <p class="mt-1 text-xs text-sky-700/80">With flow or endpoint usage mapped</p>
+        </div>
+        <div class="rounded-xl border border-rose-100 bg-rose-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Failures (24h)</p>
+            <p class="mt-2 text-3xl font-bold text-rose-700">{{ vendors_stats.daily_failures|default:0 }}</p>
+            <p class="mt-1 text-xs text-rose-700/80">Vendor/API failures only</p>
+        </div>
+        <div class="rounded-xl border border-orange-100 bg-orange-50/40 shadow-sm p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-orange-700">AD400 (24h)</p>
+            <p class="mt-2 text-3xl font-bold text-orange-700">{{ vendors_stats.admin_blocked_24h|default:0 }}</p>
+            <p class="mt-1 text-xs text-orange-700/80">Blocked by admin toggle</p>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
+        <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
+            24h Hits: {{ vendors_stats.daily_hits|default:0 }}
+        </span>
+        <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
+            Best API Today: {{ vendors_stats.best_api_today }}
+        </span>
+        <span class="text-blue-800/80 text-xs">Tip: Review Impact before switching an API OFF to avoid breaking dependent flows.</span>
+    </div>
+
+    <div class="rounded-2xl border border-indigo-100/80 bg-gradient-to-br from-white via-indigo-50/40 to-sky-50/30 shadow-sm p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+                <h2 class="text-base font-semibold text-gray-900">Observability Snapshot (24h)</h2>
+                <p class="text-xs text-gray-500 mt-0.5">Executive view for traffic, reliability and admin-control impact</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center rounded-full bg-white/90 border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 shadow-sm">24h</span>
+                <span class="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-100 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 shadow-sm">7D trend enabled</span>
+                <span class="inline-flex items-center rounded-full bg-white/90 border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
+                    Readiness Score: {{ vendors_stats.readiness_score_24h|default:0 }}%
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+            <div class="rounded-lg border border-white/70 bg-white/85 px-3 py-2.5 shadow-sm">
+                <p class="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">7D Hits</p>
+                <p class="text-xl font-bold text-gray-900 mt-1">{{ vendors_stats.weekly_hits|default:0 }}</p>
+            </div>
+            <div class="rounded-lg border border-white/70 bg-white/85 px-3 py-2.5 shadow-sm">
+                <p class="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Daily Run Rate</p>
+                <p class="text-xl font-bold text-blue-700 mt-1">{{ vendors_stats.daily_run_rate_7d|default:0 }}</p>
+            </div>
+            <div class="rounded-lg border border-white/70 bg-white/85 px-3 py-2.5 shadow-sm">
+                <p class="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">7D Success</p>
+                <p class="text-xl font-bold text-emerald-700 mt-1">{{ vendors_stats.weekly_success_rate|default:0 }}%</p>
+            </div>
+            <div class="rounded-lg border border-white/70 bg-white/85 px-3 py-2.5 shadow-sm">
+                <p class="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Traffic Delta (D/D)</p>
+                <p class="text-xl font-bold mt-1 {% if vendors_stats.traffic_delta_pct >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
+                    {% if vendors_stats.traffic_delta_pct >= 0 %}+{% endif %}{{ vendors_stats.traffic_delta_pct|default:0 }}%
+                </p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div class="rounded-xl border border-emerald-100/70 bg-white/90 p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3">Health Distribution</p>
+                <div class="flex items-center gap-4">
+                    <div
+                        class="relative h-28 w-28 rounded-full"
+                        style="background: conic-gradient(#10b981 0% {{ vendors_stats.health_success_pct_24h|default:0 }}%, #f43f5e {{ vendors_stats.health_success_pct_24h|default:0 }}% {{ vendors_stats.health_success_pct_24h|add:vendors_stats.health_failure_pct_24h|default:0 }}%, #f59e0b {{ vendors_stats.health_success_pct_24h|add:vendors_stats.health_failure_pct_24h|default:0 }}% 100%);"
+                    >
+                        <div class="absolute inset-3 rounded-full bg-white flex flex-col items-center justify-center">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-500">Success</span>
+                            <span class="text-base font-bold text-emerald-700">{{ vendors_stats.health_success_pct_24h|default:0 }}%</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 space-y-1.5 text-xs">
+                        <p class="flex justify-between rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
+                            <span>Success</span><span class="font-semibold">{{ vendors_stats.daily_successes|default:0 }}</span>
+                        </p>
+                        <p class="flex justify-between rounded-md bg-rose-50 px-2 py-1 text-rose-700">
+                            <span>Vendor Failures</span><span class="font-semibold">{{ vendors_stats.daily_failures|default:0 }}</span>
+                        </p>
+                        <p class="flex justify-between rounded-md bg-orange-50 px-2 py-1 text-orange-700">
+                            <span>AD400 Blocks</span><span class="font-semibold">{{ vendors_stats.admin_blocked_24h|default:0 }}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-blue-100/70 bg-white/90 p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Top APIs by Hits</p>
+                    <span class="text-[10px] text-gray-500">Live rank</span>
+                </div>
+                <div class="space-y-2.5">
+                    {% for api in top_apis_24h %}
+                    <div class="rounded-md border border-blue-100 bg-blue-50/40 px-2.5 py-2">
+                        <div class="flex items-center justify-between text-[11px] text-gray-700">
+                            <div class="flex items-center gap-1.5">
+                                <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white border border-blue-200 text-[10px] font-semibold text-blue-700">
+                                    {{ forloop.counter }}
+                                </span>
+                                <span class="font-mono text-blue-800">{{ api.code }}</span>
+                            </div>
+                            <span class="font-semibold">{{ api.daily_hits|default:0 }} hits</span>
+                        </div>
+                        <div class="mt-1.5 h-2 rounded bg-blue-100 overflow-hidden">
+                            <div class="h-2 bg-gradient-to-r from-blue-500 to-indigo-500" style="width: {{ api.hit_bar_pct|default:0 }}%;"></div>
+                        </div>
+                    </div>
                     {% empty %}
-                    <tr>
-                        <td colspan="3" class="px-4 py-8 text-center text-gray-500">No integrated vendors. Add ServiceFlowStep (service + vendor + vendor API) to see here.</td>
-                    </tr>
+                    <p class="text-xs text-gray-500">No traffic data yet.</p>
                     {% endfor %}
-                </tbody>
-            </table>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-violet-100/70 bg-white/90 p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3">Vendor Health</p>
+                <div class="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {% for row in vendor_health_24h %}
+                    <div class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[12px] font-semibold text-gray-800">{{ row.name }}</span>
+                            <span class="text-[10px] text-gray-500">{{ row.hits }} hits</span>
+                        </div>
+                        <div class="mt-1.5 h-1.5 rounded bg-gray-100 overflow-hidden">
+                            <div class="h-1.5 bg-gradient-to-r from-emerald-500 to-green-400" style="width: {{ row.success_rate|default:0 }}%;"></div>
+                        </div>
+                        <div class="mt-1.5 flex items-center justify-between text-[10px]">
+                            {% if row.success_rate >= 98 %}
+                            <span class="inline-flex rounded-full bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-emerald-700 font-semibold">Excellent</span>
+                            {% elif row.success_rate >= 90 %}
+                            <span class="inline-flex rounded-full bg-sky-50 border border-sky-200 px-1.5 py-0.5 text-sky-700 font-semibold">Stable</span>
+                            {% elif row.success_rate >= 75 %}
+                            <span class="inline-flex rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-700 font-semibold">Watch</span>
+                            {% else %}
+                            <span class="inline-flex rounded-full bg-rose-50 border border-rose-200 px-1.5 py-0.5 text-rose-700 font-semibold">Risk</span>
+                            {% endif %}
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-700 font-semibold">{{ row.success_rate }}%</span>
+                                <span class="text-rose-700">F: {{ row.failures }}</span>
+                                <span class="text-orange-700">AD400: {{ row.admin_blocked }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-xs text-gray-500">No vendor health data yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-cyan-100/80 bg-white/85 p-4 shadow-sm">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">7-Day Traffic & Quality Trend</p>
+                <span class="text-[11px] text-gray-500">Bars = Hits, tint = failure intensity</span>
+            </div>
+            <div class="grid grid-cols-7 gap-2 items-end h-32">
+                {% for day in trend_7d %}
+                <div class="flex flex-col items-center justify-end gap-1.5">
+                    <div class="w-full max-w-[42px] rounded-t-md bg-gradient-to-t from-indigo-600 to-sky-400 shadow-sm"
+                         style="height: calc(24px + {{ day.hit_bar_pct|default:0 }}px); opacity: {% if day.failure_mix_pct >= 40 %}0.55{% elif day.failure_mix_pct >= 20 %}0.72{% else %}0.92{% endif %};">
+                    </div>
+                    <span class="text-[10px] font-semibold text-gray-700">{{ day.label }}</span>
+                    <span class="text-[10px] text-gray-500">{{ day.hits }}</span>
+                </div>
+                {% empty %}
+                <p class="col-span-7 text-xs text-gray-500">No weekly trend data yet.</p>
+                {% endfor %}
+            </div>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                <div class="rounded-md bg-rose-50 border border-rose-100 px-2 py-1 text-rose-700">
+                    7D Vendor Failures: <span class="font-semibold">{{ vendors_stats.weekly_failures|default:0 }}</span>
+                </div>
+                <div class="rounded-md bg-orange-50 border border-orange-100 px-2 py-1 text-orange-700">
+                    7D AD400 Blocks: <span class="font-semibold">{{ vendors_stats.weekly_admin_blocked|default:0 }}</span>
+                </div>
+                <div class="rounded-md bg-emerald-50 border border-emerald-100 px-2 py-1 text-emerald-700">
+                    7D Effective Success: <span class="font-semibold">{{ vendors_stats.weekly_success_rate|default:0 }}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toggle-alert" class="hidden rounded-lg border px-4 py-2 text-sm"></div>
+
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="px-4 py-3 border-b border-gray-100">
+            <h2 class="text-lg font-semibold text-gray-900">Integrated Vendor APIs</h2>
+            <p class="text-sm text-gray-500 mt-1">Vendor toggle is the master switch; each integrated API can also be toggled individually.</p>
+        </div>
+        <div class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {% for v in vendors_integrated %}
+            <article class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900">{{ v.name }}</h3>
+                        <p class="text-xs font-mono text-gray-500 mt-1">{{ v.code }}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="vendor-status-label text-xs font-medium {% if v.is_active %}text-emerald-700{% else %}text-gray-500{% endif %}">
+                            {% if v.is_active %}ON{% else %}OFF{% endif %}
+                        </span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                class="sr-only peer vendor-toggle"
+                                data-url="{% url 'toggle_vendor_status' vendor_code=v.code %}"
+                                {% if v.is_active %}checked{% endif %}
+                            >
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-200 transition-colors"></div>
+                            <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5 shadow-sm"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <p class="text-sm text-gray-600 mt-3 leading-relaxed">{{ v.narration }}</p>
+
+                <div class="mt-3 grid grid-cols-2 xl:grid-cols-5 gap-2">
+                    <div class="rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+                        <p class="text-[10px] uppercase font-semibold text-gray-500">Hits (24h)</p>
+                        <p class="text-sm font-bold text-gray-900">{{ v.daily_hits|default:0 }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+                        <p class="text-[10px] uppercase font-semibold text-gray-500">Failures</p>
+                        <p class="text-sm font-bold text-rose-700">{{ v.daily_failures|default:0 }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+                        <p class="text-[10px] uppercase font-semibold text-gray-500">AD400</p>
+                        <p class="text-sm font-bold text-orange-700">{{ v.admin_blocked_24h|default:0 }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+                        <p class="text-[10px] uppercase font-semibold text-gray-500">Success %</p>
+                        <p class="text-sm font-bold text-emerald-700">{{ v.success_rate_24h|default:0 }}%</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+                        <p class="text-[10px] uppercase font-semibold text-gray-500">Avg Response</p>
+                        <p class="text-sm font-bold text-indigo-700">
+                            {% if v.avg_response_ms_24h is not None %}{{ v.avg_response_ms_24h }} ms{% else %}N/A{% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                {% if v.top_api_24h %}
+                <div class="mt-2 inline-flex items-center rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-700">
+                    Top performer: <span class="font-mono font-semibold ml-1">{{ v.top_api_24h.code }}</span> ({{ v.top_api_24h.success_rate_24h }}% success)
+                </div>
+                {% endif %}
+
+                <div class="mt-3 flex flex-wrap gap-2">
+                    {% for svc in v.services %}
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                        {{ svc.code }}
+                    </span>
+                    {% empty %}
+                    <span class="inline-flex items-center rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-500">
+                        Service mapping pending
+                    </span>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-3">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Integrated APIs</p>
+                    <div class="space-y-1.5">
+                        {% for api in v.apis %}
+                        <div class="api-row rounded-md border border-gray-200 bg-white px-2 py-1.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="min-w-0 pr-2">
+                                    <p class="text-[11px] font-mono text-indigo-700 truncate">{{ api.code }}</p>
+                                    <p class="text-[11px] text-gray-500 truncate">{{ api.name }}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-semibold {% if api.is_used %}text-sky-700{% else %}text-gray-400{% endif %}">
+                                        {% if api.is_used %}USED{% else %}UNMAPPED{% endif %}
+                                    </span>
+                                    <span class="text-[10px] font-semibold text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">
+                                        {{ api.daily_hits|default:0 }} hits
+                                    </span>
+                                    <span class="api-status-label text-[11px] font-semibold {% if api.is_active %}text-emerald-700{% else %}text-gray-500{% endif %}">
+                                        {% if api.is_active %}ON{% else %}OFF{% endif %}
+                                    </span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            class="sr-only peer api-toggle"
+                                            data-url="{% url 'toggle_vendor_api_status' vendor_code=v.code api_code=api.code %}"
+                                            {% if api.is_active %}checked{% endif %}
+                                        >
+                                        <div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-200 transition-colors"></div>
+                                        <div class="absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 shadow-sm"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mt-1 flex flex-wrap gap-1.5">
+                                <span class="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">Hits: {{ api.daily_hits|default:0 }}</span>
+                                <span class="inline-flex items-center rounded bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">Fail: {{ api.daily_failures|default:0 }}</span>
+                                <span class="inline-flex items-center rounded bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">AD400: {{ api.admin_blocked_24h|default:0 }}</span>
+                                <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Success: {{ api.success_rate_24h|default:0 }}%</span>
+                                <span class="inline-flex items-center rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                    Avg:
+                                    {% if api.avg_response_ms_24h is not None %}{{ api.avg_response_ms_24h }} ms{% else %}N/A{% endif %}
+                                </span>
+                            </div>
+                            <div class="mt-1.5 space-y-1">
+                                <p class="text-[10px] text-gray-600">
+                                    <span class="font-semibold text-gray-700">Services:</span>
+                                    {% if api.service_links %}
+                                        {{ api.service_links|join:", " }}
+                                    {% else %}
+                                        Not mapped in `ServiceFlowStep`
+                                    {% endif %}
+                                </p>
+                                <p class="text-[10px] text-gray-600">
+                                    <span class="font-semibold text-gray-700">Endpoints:</span>
+                                    {% if api.endpoint_links %}
+                                        {% for link in api.endpoint_links %}
+                                            <span class="font-mono">{{ link.route }}</span>{% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        No API v2 route mapping found
+                                    {% endif %}
+                                </p>
+                                <p class="text-[10px] text-amber-700">
+                                    <span class="font-semibold">Impact if OFF:</span> {{ api.impact_note }}
+                                </p>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <span class="text-xs text-gray-400">No APIs mapped</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                    <span>{{ v.services|length }} services mapped</span>
+                    <span>{{ v.api_count }} APIs integrated</span>
+                </div>
+            </article>
+            {% empty %}
+            <div class="col-span-full rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500">
+                No integrated vendors found. Add `ServiceFlowStep` entries to populate this dashboard.
+            </div>
+            {% endfor %}
         </div>
     </div>
 
 </div>
+
+<form id="csrf-form" style="display:none">{% csrf_token %}</form>
+
+<script>
+(function () {
+    const csrfToken = document.querySelector('#csrf-form [name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+    const alertBox = document.getElementById('toggle-alert');
+
+    function showAlert(message, ok) {
+        alertBox.textContent = message;
+        alertBox.classList.remove('hidden', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-700', 'border-red-200', 'bg-red-50', 'text-red-700');
+        if (ok) {
+            alertBox.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
+        } else {
+            alertBox.classList.add('border-red-200', 'bg-red-50', 'text-red-700');
+        }
+    }
+
+    document.querySelectorAll('.vendor-toggle').forEach(function (toggle) {
+        toggle.addEventListener('change', function () {
+            const nextState = toggle.checked;
+            const label = toggle.closest('article')?.querySelector('.vendor-status-label');
+            const url = toggle.dataset.url;
+
+            toggle.disabled = true;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                credentials: 'include',
+                body: JSON.stringify({ enabled: nextState })
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.success) {
+                        throw new Error(result.data.message || 'Toggle update failed.');
+                    }
+
+                    if (label) {
+                        label.textContent = result.data.is_active ? 'ON' : 'OFF';
+                        label.classList.toggle('text-emerald-700', result.data.is_active);
+                        label.classList.toggle('text-gray-500', !result.data.is_active);
+                    }
+                    showAlert(result.data.message || 'Vendor status updated.', true);
+                })
+                .catch(function (error) {
+                    toggle.checked = !nextState;
+                    showAlert(error.message || 'Toggle update failed.', false);
+                })
+                .finally(function () {
+                    toggle.disabled = false;
+                });
+        });
+    });
+
+    document.querySelectorAll('.api-toggle').forEach(function (toggle) {
+        toggle.addEventListener('change', function () {
+            const nextState = toggle.checked;
+            const label = toggle.closest('.api-row')?.querySelector('.api-status-label');
+            const url = toggle.dataset.url;
+
+            toggle.disabled = true;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                credentials: 'include',
+                body: JSON.stringify({ enabled: nextState })
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.success) {
+                        throw new Error(result.data.message || 'API toggle update failed.');
+                    }
+                    if (label) {
+                        label.textContent = result.data.is_active ? 'ON' : 'OFF';
+                        label.classList.toggle('text-emerald-700', result.data.is_active);
+                        label.classList.toggle('text-gray-500', !result.data.is_active);
+                    }
+                    showAlert(result.data.message || 'API status updated.', true);
+                })
+                .catch(function (error) {
+                    toggle.checked = !nextState;
+                    showAlert(error.message || 'API toggle update failed.', false);
+                })
+                .finally(function () {
+                    toggle.disabled = false;
+                });
+        });
+    });
+})();
+</script>
 {% endblock %}

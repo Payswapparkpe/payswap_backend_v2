@@ -17,7 +17,7 @@
         </a>
     </li>
     {% endif %}
-    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+    {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'project_management' %}" class="nav-link {% if '/dashboard/projects/' in request.path %}active{% endif %}">
             <i class="ti ti-apps"></i>
@@ -26,7 +26,7 @@
     </li>
     {% endif %}
     <!-- Other: VoucherX, Users, Profile, Settings, etc. -->
-    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+    {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'voucherx_dashboard' %}" class="nav-link {% if '/voucherx/' in request.path %}active{% endif %}">
             <i class="ti ti-gift"></i>
@@ -88,7 +88,7 @@
     </li>
     {% endif %}
 
-    {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+    {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
     <li class="nav-item">
         <a href="{% url 'log_list' %}" class="nav-link {% if '/logs/' in request.path %}active{% endif %}">
             <i class="ti ti-file-analytics"></i>
@@ -102,9 +102,27 @@
         </a>
     </li>
     <li class="nav-item">
+        <a href="{% url 'parkpe_app_management' %}" class="nav-link {% if '/parkpe/app-management/' in request.path or '/parkpe/connect/' in request.path %}active{% endif %}">
+            <i class="ti ti-device-mobile"></i>
+            <span>ParkPe Control Center</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a href="{% url 'parkpe_fleet_access_requests' %}" class="nav-link {% if '/parkpe/fleet-access/' in request.path %}active{% endif %}">
+            <i class="ti ti-truck"></i>
+            <span>Fleet access requests</span>
+        </a>
+    </li>
+    <li class="nav-item">
         <a href="{% url 'services_list' %}" class="nav-link {% if request.path == '/services/' %}active{% endif %}">
             <i class="ti ti-server"></i>
             <span>Services</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a href="{% url 'notification_center' %}" class="nav-link {% if '/notifications/' in request.path %}active{% endif %}">
+            <i class="ti ti-bell-ringing"></i>
+            <span>Notifications</span>
         </a>
     </li>
     {% endif %}

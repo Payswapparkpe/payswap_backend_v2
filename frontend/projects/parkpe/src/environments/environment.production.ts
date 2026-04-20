@@ -65,10 +65,10 @@ export const environment = {
   connectAppUrl: 'https://connect.parkpe.in',
 
   features: {
-    parking: true,
+    parking: false,
     bbps: true,
     fastag: true,
-    challan: true,
+    challan: false,
     connect: true,
     callingService: true,
     qrScanner: true,

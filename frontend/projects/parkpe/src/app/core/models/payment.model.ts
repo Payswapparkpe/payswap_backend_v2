@@ -18,7 +18,23 @@ export type TransactionType =
   | 'fastag'
   | 'challan'
   | 'voucher_purchase'
+  | 'rc_view'
+  | 'rollback'
   | 'other';
+
+/** Tax snapshot from BillingDocument (ParkPe payment APIs). */
+export interface TaxSnapshot {
+  documentType: string;
+  taxableAmount: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  gstTotal: number;
+  tdsAmount: number;
+  grandTotal: number;
+  sacOrHsn: string;
+  currency: string;
+}
 
 export type RefundStatus =
   | 'pending'
@@ -189,6 +205,8 @@ export interface Transaction {
   transactionTypeDirection?: 'credit' | 'debit';
   /** Balance after this transaction (when available). */
   balanceAfter?: number;
+  billingDocumentId?: number;
+  taxSnapshot?: TaxSnapshot;
 }
 
 // Refund Details
@@ -253,6 +271,7 @@ export interface PaymentOrder {
   status: 'pending' | 'completed' | 'failed';
   referenceId?: string;
   createdAt: string;
+  taxSnapshot?: TaxSnapshot;
 }
 
 // Gateway Order Creation Response (for createOrder)

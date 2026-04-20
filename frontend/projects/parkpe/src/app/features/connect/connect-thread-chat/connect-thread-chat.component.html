@@ -1,66 +1,253 @@
-<div class="connect-thread-chat">
+<div class="connect-thread-chat tg-chat">
   @if (threadLoading()) {
-  <p class="loading">Loading chat…</p>
+    <div class="chat-state chat-state--loading" aria-busy="true">
+      <span class="chat-state__spinner" aria-hidden="true"></span>
+      <p>Loading…</p>
+    </div>
   } @else if (threadError(); as err) {
-  <p class="error">{{ err }}</p>
-  <a routerLink="/connect/chats" class="btn btn-outline">Back to Chats</a>
+    <div class="chat-state chat-state--error">
+      <span class="material-icons chat-state__icon" aria-hidden="true">error_outline</span>
+      <p>{{ err }}</p>
+      <a routerLink="/connect/chats" class="btn btn-outline">Back to Inbox</a>
+    </div>
   } @else if (thread(); as t) {
-  <div class="chat-page-header">
-    <div class="chat-page-header-top">
-      <a routerLink="/connect/chats" class="back-link">← Chats</a>
-      @if (t.other_participant_id != null) {
-      <button type="button" class="btn btn-ghost btn-sm report-btn" (click)="openReportModal()">Report user</button>
+    <div class="tg-layout">
+      <header class="tg-topbar">
+        <a routerLink="/connect/chats" class="tg-topbar__back" aria-label="Back to inbox">
+          <span class="material-icons" aria-hidden="true">arrow_back</span>
+        </a>
+        <div class="tg-topbar__avatar" aria-hidden="true">{{ avatarInitial(t) }}</div>
+        <div class="tg-topbar__info">
+          <div class="tg-topbar__title">{{ t.registration_number_masked }} · {{ peerDisplayName(t) }}</div>
+          <div class="tg-topbar__subtitle">
+            {{ threadSubtitle(t) }}
+            <span class="tg-topbar__dot" aria-hidden="true">·</span>
+            @if (chatService.otherTyping()) {
+              <span class="tg-topbar__live">typing…</span>
+            } @else if (chatService.otherOnline()) {
+              <span class="tg-topbar__live">online</span>
+            } @else {
+              <span>offline</span>
+            }
+            @if (chatService.reconnectState() === 'reconnecting') {
+              <span class="tg-topbar__sync"> · updating</span>
+            }
+          </div>
+        </div>
+        <button
+          type="button"
+          class="tg-topbar__icon-btn"
+          (click)="toggleMessageSearch()"
+          [class.tg-topbar__icon-btn--on]="messageSearchPanelOpen()"
+          [attr.aria-expanded]="messageSearchPanelOpen()"
+          aria-controls="connect-chat-search"
+          aria-label="Search in chat"
+          title="Search"
+        >
+          <span class="material-icons" aria-hidden="true">search</span>
+        </button>
+        <details class="tg-more">
+          <summary class="tg-more__trigger" aria-label="Menu">
+            <span class="material-icons" aria-hidden="true">more_vert</span>
+          </summary>
+          <div class="tg-more__panel" role="menu">
+            <button type="button" class="tg-more__item" (click)="toggleThreadSetting('pinned'); $event.stopPropagation()">
+              <span class="material-icons" aria-hidden="true">{{ t.pinned ? 'keep_off' : 'push_pin' }}</span>
+              {{ t.pinned ? 'Unpin' : 'Pin' }}
+            </button>
+            <button type="button" class="tg-more__item" (click)="toggleThreadSetting('muted'); $event.stopPropagation()">
+              <span class="material-icons" aria-hidden="true">{{ t.muted ? 'notifications_active' : 'notifications_off' }}</span>
+              {{ t.muted ? 'Unmute' : 'Mute' }}
+            </button>
+            <button type="button" class="tg-more__item" (click)="toggleThreadSetting('archived'); $event.stopPropagation()">
+              <span class="material-icons" aria-hidden="true">inventory_2</span>
+              {{ t.archived ? 'Unarchive' : 'Archive' }}
+            </button>
+            <button type="button" class="tg-more__item tg-more__item--warn" (click)="blockOrUnblockUser(); $event.stopPropagation()" [disabled]="blockInProgress()">
+              <span class="material-icons" aria-hidden="true">block</span>
+              {{ t.muted ? 'Unblock' : 'Block' }}
+            </button>
+            @if (t.other_participant_id != null) {
+              <button type="button" class="tg-more__item" (click)="openReportModal(); $event.stopPropagation()">
+                <span class="material-icons" aria-hidden="true">flag</span>
+                Report
+              </button>
+            }
+          </div>
+        </details>
+      </header>
+
+      @if (showArchivedMutedHint()) {
+        <p class="tg-banner">Muted or archived — you can still send messages.</p>
       }
-    </div>
-    <h1>{{ t.registration_number_masked }}</h1>
-    <p class="chat-subtitle">{{ t.owner_display_name }}</p>
-  </div>
 
-  @if (chatService.error(); as err) {
-  <p class="chat-error">{{ err }}</p>
-  }
-  <div class="chat-messages">
-    @for (msg of chatService.messages(); track msg.id) {
-    <div class="chat-msg" [class.chat-msg-me]="currentUserId() === msg.sender_id"
-      [class.chat-msg-other]="currentUserId() !== msg.sender_id">
-      <span class="chat-msg-body">{{ msg.body }}</span>
-      <span class="chat-msg-time">{{ msg.created_at | date:'shortTime' }}</span>
-    </div>
-    }
-  </div>
-  <div class="chat-predefined">
-    @for (pref of predefined(); track pref.code) {
-    <button type="button" class="btn btn-outline btn-sm" (click)="sendPredefined(pref.code)"
-      [disabled]="chatService.loading()">{{ pref.label_en }}</button>
-    }
-  </div>
-  <div class="chat-input-row">
-    <input type="text" class="chat-input" [value]="messageInput()" (input)="onMessageInput($event)"
-      placeholder="Type a message…" (keydown.enter)="sendMessage()" />
-    <button type="button" class="btn btn-primary" (click)="sendMessage()"
-      [disabled]="!messageInput().trim() || chatService.loading()">
-      {{ chatService.loading() ? '…' : 'Send' }}
-    </button>
-  </div>
+      @if (chatService.error(); as svcErr) {
+        <div class="tg-alert" role="alert">{{ svcErr }}</div>
+      }
 
-  @if (showReportModal()) {
-  <div class="modal-overlay" (click)="closeReportModal()" role="presentation"></div>
-  <div class="report-modal" role="dialog" aria-labelledby="report-modal-title">
-    <h2 id="report-modal-title">Report user</h2>
-    <p class="report-modal-text">Describe why you are reporting this user. Our team will review it.</p>
-    <textarea class="report-reason-input" [value]="reportReason()" (input)="onReportReasonInput($event)"
-      placeholder="Reason…" rows="3"></textarea>
-    @if (reportError(); as err) {
-    <p class="report-error">{{ err }}</p>
-    }
-    <div class="report-modal-actions">
-      <button type="button" class="btn btn-ghost" (click)="closeReportModal()">Cancel</button>
-      <button type="button" class="btn btn-primary" (click)="submitReport()"
-        [disabled]="!reportReason().trim() || reportSubmitting()">
-        {{ reportSubmitting() ? 'Submitting…' : 'Submit report' }}
-      </button>
+      @if (messageSearchPanelOpen()) {
+        <div class="tg-search" id="connect-chat-search">
+          <span class="material-icons tg-search__icon" aria-hidden="true">search</span>
+          <input
+            type="search"
+            class="tg-search__input"
+            [value]="messageSearch()"
+            (input)="onSearchInput($event)"
+            placeholder="Search messages"
+            autocomplete="off"
+          />
+          @if (messageSearch().trim()) {
+            <button type="button" class="tg-search__clear" (click)="clearMessageSearch()" aria-label="Clear search">×</button>
+          }
+        </div>
+      }
+
+      <div class="tg-scroll-outer">
+        <div class="tg-pattern">
+          <div class="chat-scroll">
+            @if (filteredMessages().length === 0) {
+              <div class="tg-empty">
+                <span class="material-icons tg-empty__icon" aria-hidden="true">chat_bubble_outline</span>
+                <p class="tg-empty__title">No messages here yet…</p>
+                <p class="tg-empty__hint">Send a message or tap a quick reply.</p>
+              </div>
+            }
+            @for (msg of filteredMessages(); track msg.id) {
+              <div
+                class="tg-bubble"
+                [class.tg-bubble--out]="currentUserId() === msg.sender_id"
+                [class.tg-bubble--in]="currentUserId() !== msg.sender_id"
+                [class.tg-bubble--pending]="msg.delivery_status === 'sending'"
+                [class.tg-bubble--failed]="msg.delivery_status === 'failed' || msg.local_failed"
+              >
+                @if (msg.message_type === 'attachment') {
+                  <div class="tg-bubble__text">{{ msg.body }}</div>
+                  @if ($any(msg.metadata)?.media_url || $any(msg.metadata)?.data_url; as mediaUrl) {
+                    <a [href]="$any(mediaUrl)" target="_blank" rel="noopener" class="tg-bubble__link">
+                      <span class="material-icons" aria-hidden="true">attach_file</span>
+                      Open file
+                    </a>
+                  }
+                } @else if (msg.message_type === 'voice') {
+                  <div class="tg-bubble__text">{{ msg.body }}</div>
+                  @if ($any(msg.metadata)?.media_url || $any(msg.metadata)?.data_url; as voiceUrl) {
+                    <audio controls [src]="$any(voiceUrl)" class="tg-bubble__audio"></audio>
+                  }
+                } @else {
+                  <div class="tg-bubble__text">{{ msg.body }}</div>
+                }
+                <div class="tg-bubble__footer">
+                  <time class="tg-bubble__time" [attr.datetime]="msg.created_at">{{ msg.created_at | date: 'HH:mm' }}</time>
+                  @if (currentUserId() === msg.sender_id) {
+                    <span class="tg-ticks" [attr.aria-label]="deliveryLabel(msg)">
+                      @switch (tickKind(msg)) {
+                        @case ('failed') {
+                          <span class="material-icons tg-ticks__icon tg-ticks__icon--fail" aria-hidden="true">error_outline</span>
+                        }
+                        @case ('sending') {
+                          <span class="material-icons tg-ticks__icon tg-ticks__icon--pending" aria-hidden="true">schedule</span>
+                        }
+                        @case ('sent') {
+                          <span class="material-icons tg-ticks__icon" aria-hidden="true">done</span>
+                        }
+                        @case ('delivered') {
+                          <span class="material-icons tg-ticks__icon" aria-hidden="true">done_all</span>
+                        }
+                        @case ('read') {
+                          <span class="material-icons tg-ticks__icon tg-ticks__icon--read" aria-hidden="true">done_all</span>
+                        }
+                      }
+                    </span>
+                  }
+                </div>
+                @if (msg.delivery_status === 'failed' || msg.local_failed) {
+                  <button type="button" class="tg-bubble__retry" (click)="retryMessage(msg.id)">Resend</button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      @if (predefined().length > 0) {
+        <div class="tg-quick">
+          <div class="tg-quick__track">
+            @for (pref of predefined(); track pref.code) {
+              <button
+                type="button"
+                class="tg-chip"
+                (click)="sendPredefined(pref.code)"
+                [disabled]="chatService.loading() || chatService.sending()"
+              >
+                {{ prefLabel(pref) }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <footer class="tg-compose">
+        <input #attachmentInput type="file" hidden (change)="onAttachmentPicked($event)" />
+        <div class="tg-compose__bar">
+          <button type="button" class="tg-compose__icon" (click)="triggerAttachmentPicker()" title="Attach" aria-label="Attach file">
+            <span class="material-icons" aria-hidden="true">attach_file</span>
+          </button>
+          <input
+            type="text"
+            class="tg-compose__input"
+            [value]="messageInput()"
+            (input)="onMessageInput($event)"
+            placeholder="Write a message…"
+            (keydown)="onComposerKeydown($event)"
+            enterkeyhint="send"
+          />
+          @if (recording()) {
+            <span class="tg-compose__rec">{{ recordingSeconds() }}s</span>
+            <button type="button" class="tg-compose__send tg-compose__send--danger" (click)="toggleVoiceRecording()" aria-label="Stop recording" title="Stop">
+              <span class="material-icons" aria-hidden="true">stop</span>
+            </button>
+          } @else if (messageInput().trim()) {
+            <button
+              type="button"
+              class="tg-compose__send"
+              (click)="sendMessage()"
+              [disabled]="chatService.loading() || chatService.sending()"
+              aria-label="Send"
+              title="Send"
+            >
+              <span class="material-icons" aria-hidden="true">{{ chatService.sending() ? 'hourglass_empty' : 'send' }}</span>
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="tg-compose__send tg-compose__send--mic"
+              (click)="toggleVoiceRecording()"
+              aria-label="Voice message"
+              title="Voice message"
+            >
+              <span class="material-icons" aria-hidden="true">mic</span>
+            </button>
+          }
+        </div>
+      </footer>
     </div>
-  </div>
-  }
+
+    @if (showReportModal()) {
+      <div class="modal-overlay" (click)="closeReportModal()" role="presentation"></div>
+      <div class="report-modal" role="dialog" aria-labelledby="report-modal-title">
+        <h2 id="report-modal-title">Report user</h2>
+        <p class="report-modal-text">Tell us briefly what happened. Our team will review it.</p>
+        <textarea class="report-reason-input" [value]="reportReason()" (input)="onReportReasonInput($event)" placeholder="Reason…" rows="3"></textarea>
+        @if (reportError(); as rerr) {
+          <p class="report-error">{{ rerr }}</p>
+        }
+        <div class="report-modal-actions">
+          <button type="button" class="btn btn-ghost" (click)="closeReportModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="submitReport()" [disabled]="!reportReason().trim() || reportSubmitting()">
+            {{ reportSubmitting() ? 'Submitting…' : 'Submit' }}
+          </button>
+        </div>
+      </div>
+    }
   }
 </div>

@@ -40,7 +40,7 @@ import { GatewayConfig, PaymentGateway } from 'shared';
               }
             </div>
             @if (gateways().length === 0) {
-              <p class="hint">{{ needsLogin() ? 'Please log in to add voucher balance.' : 'No gateway enabled. Ask admin to enable Cashfree for voucher purchase.' }}</p>
+              <p class="hint">{{ needsLogin() ? 'Please log in to add voucher balance.' : 'No gateway enabled. Ask admin to enable Cashfree.' }}</p>
             }
           }
         </div>

@@ -143,13 +143,34 @@ def generate_partner_documents(
     _ensure_dir(base_dir)
     generated = []
 
+    gst_for_invoice = Decimal("0.00")
+    try:
+        from portal.models import BillingDocument
+        from portal.services.billing_document_service import schedule_partner_commission_invoice
+
+        schedule_partner_commission_invoice(
+            partner=partner,
+            period_key=period,
+            commission_base=settlement.total_commission or Decimal("0"),
+        )
+        ref_key = f"{partner.pk}:{period}"
+        bd = BillingDocument.objects.filter(
+            partner=partner,
+            reference_id=ref_key,
+            document_type=BillingDocument.DOC_B2B_COMMISSION,
+        ).first()
+        if bd:
+            gst_for_invoice = bd.gst_total
+    except Exception as e:
+        logger.warning("partner commission billing document skipped: %s", e)
+
     # Commission / Settlement statement (same data, different title)
     for doc_type, title in [
         ("settlement", "Settlement Statement"),
         ("commission", "Commission Invoice"),
         ("invoice", "GST Invoice"),
     ]:
-        gst = Decimal("0.00") if doc_type == "invoice" else None
+        gst = gst_for_invoice if doc_type == "invoice" else None
         html = _render_html(
             doc_title=title,
             partner=partner,

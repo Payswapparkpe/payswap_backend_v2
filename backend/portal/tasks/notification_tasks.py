@@ -12,10 +12,33 @@ from core.config import payswap_config
 from portal.services.vendors.kaleyra import KaleyraClient
 from portal.utils.phone_utils import normalize_phone_number, format_phone_for_kaleyra
 from portal.utils.logging_helper import get_logger, sanitize_sensitive_data
-from portal.models import EmailQueue
+from portal.models import EmailQueue, ApiVendor, VendorApi
 
 logger = get_logger('portal.tasks.notifications')
 email_logger = get_logger('portal.email')
+
+
+def _is_vendor_api_enabled(vendor_code: str, api_code: str) -> bool:
+    vendor = ApiVendor.objects.filter(code=vendor_code, is_active=True).first()
+    if not vendor:
+        return False
+    return VendorApi.objects.filter(
+        vendor=vendor,
+        api_code=api_code,
+        is_active=True,
+    ).exists()
+
+
+@shared_task(name="portal.tasks.dispatch_notification_campaign")
+def dispatch_notification_campaign_task(campaign_id: int, actor_id: Optional[int] = None) -> Dict[str, Any]:
+    from portal.models import NotificationCampaign
+    from portal.services.notification_orchestrator import NotificationOrchestrator
+
+    campaign = NotificationCampaign.objects.filter(id=campaign_id).first()
+    if not campaign:
+        return {"success": False, "error": "campaign_not_found"}
+    result = NotificationOrchestrator().dispatch_campaign(campaign, actor_id=actor_id)
+    return {"success": True, "result": result}
 
 
 @shared_task(
@@ -102,6 +125,13 @@ def send_sms_task(
     """
     context = context or {}
     try:
+        if not _is_vendor_api_enabled("kaleyra", "sms"):
+            return {
+                'success': False,
+                'message': 'AD400',
+                'error': 'AD400',
+            }
+
         # Normalize phone number (91XXXXXXXXXX format, no +)
         normalized_phone = normalize_phone_number(phone_number)
         
@@ -376,6 +406,29 @@ def send_otp_sms_task(
     module_name = 'portal.tasks.send_otp_sms'
     
     try:
+        if not _is_vendor_api_enabled("kaleyra", "sms"):
+            write_logs_task.delay(
+                log_level='WARNING',
+                message='OTP SMS Task blocked: Kaleyra SMS API is disabled by admin',
+                module_name=module_name,
+                url=None,
+                request_id=None,
+                response_id=None,
+                user_id=user_id,
+                extra_data={
+                    'action': 'otp_sms_task_blocked',
+                    'reason': 'vendor_api_disabled',
+                },
+                client_ip=None,
+                user_agent=None,
+                session_id=None
+            )
+            return {
+                'success': False,
+                'message': 'AD400',
+                'error': 'AD400',
+            }
+
         # Normalize phone number (91XXXXXXXXXX format, no +)
         normalized_phone = normalize_phone_number(phone_number)
         masked_phone = f"{normalized_phone[:4]}****{normalized_phone[-4:]}"

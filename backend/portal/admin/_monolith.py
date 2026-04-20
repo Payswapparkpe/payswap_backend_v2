@@ -14,7 +14,7 @@ from portal.models import (
     EmailQueue,
     Department, Agent, Ticket, TicketNote, TicketAssignmentHistory, TicketAttachment,
     Vehicle, VehicleQRCode,
-    ConnectPredefinedMessage, ConnectThread, ConnectMessage, ConnectCallLog, ConnectReport,
+    ConnectPredefinedMessage, ConnectThread, ConnectMessage, ConnectCallLog, ConnectScanLog, ConnectQrOnboardLog, ConnectReport, ConnectModerationAction, UserSettingsAuditLog,
     GiftVoucherBrand, GiftVoucher, GiftVoucherTransaction, GiftVoucherOTP, 
     BulkVoucherIssuanceBatch, GiftVoucherAuditLog, VoucherClient,
     ResellerPartner, APIKey, APIKeyUsageLog,
@@ -23,9 +23,15 @@ from portal.models import (
     HubVendorCostRecord, HubCostRateConfig, HubIncomeRecord, ServiceIncomeConfig,
     IdempotencyRecord,
     ApprovalRequest,
+    NotificationBanner, NotificationCampaign, NotificationAudienceRule,
+    NotificationMessageTemplate, NotificationEventRule, DevicePushToken, UserNotification,
+    NotificationDeliveryLog,
     ApiVendor, VendorApi, ServiceFlowStep,
-    ParkPeVoucherBalance, ParkPeVoucherTransaction, ParkPeServiceConfig,
+    ParkPeVoucherBalance, ParkPeVoucherTransaction, ServiceVoucherRefundCase,
+    TaxServiceProfile, BillingDocument,
+    ParkPeServiceConfig,
     ParkPePaymentGatewayConfig, ParkPePaymentOrder,
+    FleetWorkspaceInterest,
 )
 
 
@@ -184,6 +190,49 @@ class ParkPeVoucherTransactionAdmin(admin.ModelAdmin):
     list_filter = ['transaction_type', 'created_at']
     search_fields = ['user__username', 'reference_id', 'service_code']
     readonly_fields = ['created_at']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(TaxServiceProfile)
+class TaxServiceProfileAdmin(admin.ModelAdmin):
+    list_display = ["id", "service_code", "document_subtype", "gst_rate", "is_gst_exempt", "is_pass_through", "is_active", "effective_from"]
+    list_filter = ["is_active", "document_subtype"]
+    search_fields = ["service_code", "notes"]
+
+
+@admin.register(BillingDocument)
+class BillingDocumentAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "document_type",
+        "service_code",
+        "reference_id",
+        "user",
+        "partner",
+        "gst_total",
+        "grand_total",
+        "issued_at",
+    ]
+    list_filter = ["document_type", "service_code", "issued_at"]
+    search_fields = ["reference_id", "idempotency_key"]
+    readonly_fields = ["issued_at", "idempotency_key", "snapshot"]
+
+
+@admin.register(ServiceVoucherRefundCase)
+class ServiceVoucherRefundCaseAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'user',
+        'service_code',
+        'debit_reference_id',
+        'amount',
+        'status',
+        'rc_reason_code',
+        'created_at',
+    ]
+    list_filter = ['status', 'service_code', 'created_at']
+    search_fields = ['user__username', 'debit_reference_id', 'credit_transaction_ref', 'failure_detail']
+    readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'created_at'
 
 
@@ -472,6 +521,26 @@ class ConnectCallLogAdmin(admin.ModelAdmin):
     ordering = ['-created_at']
 
 
+@admin.register(ConnectScanLog)
+class ConnectScanLogAdmin(admin.ModelAdmin):
+    list_display = ['id', 'qr_code', 'vehicle', 'scanned_by', 'ip_address', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['qr_code', 'vehicle__registration_number', 'scanned_by__username', 'ip_address']
+    readonly_fields = ['created_at']
+    raw_id_fields = ['vehicle', 'scanned_by']
+    ordering = ['-created_at']
+
+
+@admin.register(ConnectQrOnboardLog)
+class ConnectQrOnboardLogAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'qr_code', 'vehicle', 'is_new_user', 'ip_address', 'created_at']
+    list_filter = ['is_new_user', 'created_at']
+    search_fields = ['qr_code', 'user__username', 'vehicle__registration_number', 'ip_address']
+    readonly_fields = ['created_at']
+    raw_id_fields = ['user', 'vehicle']
+    ordering = ['-created_at']
+
+
 @admin.register(ConnectReport)
 class ConnectReportAdmin(admin.ModelAdmin):
     list_display = ['id', 'reporter_user', 'reported_user', 'thread', 'status', 'ticket', 'created_at']
@@ -480,6 +549,26 @@ class ConnectReportAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
     raw_id_fields = ['reporter_user', 'reported_user', 'thread', 'ticket']
     ordering = ['-created_at']
+
+
+@admin.register(ConnectModerationAction)
+class ConnectModerationActionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'action', 'target_user', 'actor_user', 'created_at']
+    list_filter = ['action', 'created_at']
+    search_fields = ['target_user__username', 'actor_user__username', 'reason']
+    readonly_fields = ['created_at']
+    raw_id_fields = ['target_user', 'actor_user']
+    ordering = ['-created_at']
+
+
+@admin.register(UserSettingsAuditLog)
+class UserSettingsAuditLogAdmin(admin.ModelAdmin):
+    list_display = ["id", "user", "actor_user", "source", "action", "created_at"]
+    list_filter = ["source", "action", "created_at"]
+    search_fields = ["user__username", "actor_user__username", "action", "ip_address"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["user", "actor_user"]
+    ordering = ["-created_at"]
 
 
 @admin.register(TicketNote)
@@ -1219,6 +1308,139 @@ class IdempotencyRecordAdmin(admin.ModelAdmin):
     def idempotency_key_short(self, obj):
         return (obj.idempotency_key[:20] + '...') if obj.idempotency_key and len(obj.idempotency_key) > 20 else obj.idempotency_key
     idempotency_key_short.short_description = 'Idempotency Key'
+
+
+@admin.register(NotificationBanner)
+class NotificationBannerAdmin(admin.ModelAdmin):
+    list_display = ['name', 'platform', 'slot', 'service_code', 'screen_code', 'priority', 'is_active', 'starts_at', 'ends_at']
+    list_filter = ['platform', 'slot', 'is_active']
+    search_fields = ['name', 'title', 'message', 'service_code', 'screen_code']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(NotificationCampaign)
+class NotificationCampaignAdmin(admin.ModelAdmin):
+    list_display = ['name', 'campaign_type', 'event_key', 'status', 'starts_at', 'ends_at', 'created_by', 'created_at']
+    list_filter = ['campaign_type', 'status']
+    search_fields = ['name', 'event_key', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(NotificationAudienceRule)
+class NotificationAudienceRuleAdmin(admin.ModelAdmin):
+    list_display = ['campaign', 'platform', 'service_code', 'screen_code', 'role_code', 'created_at']
+    list_filter = ['platform', 'role_code']
+    search_fields = ['campaign__name', 'service_code', 'screen_code', 'role_code']
+    readonly_fields = ['created_at']
+
+
+@admin.register(NotificationMessageTemplate)
+class NotificationMessageTemplateAdmin(admin.ModelAdmin):
+    list_display = ['campaign', 'channel', 'subject', 'title', 'updated_at']
+    list_filter = ['channel']
+    search_fields = ['campaign__name', 'subject', 'title', 'body']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(NotificationEventRule)
+class NotificationEventRuleAdmin(admin.ModelAdmin):
+    list_display = ['event_key', 'campaign', 'is_active', 'priority', 'updated_at']
+    list_filter = ['event_key', 'is_active']
+    search_fields = ['event_key', 'campaign__name']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(DevicePushToken)
+class DevicePushTokenAdmin(admin.ModelAdmin):
+    list_display = ['user', 'device_platform', 'app_platform', 'is_active', 'last_seen_at', 'updated_at']
+    list_filter = ['device_platform', 'app_platform', 'is_active']
+    search_fields = ['user__username', 'user__id', 'token']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(UserNotification)
+class UserNotificationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'channel', 'title', 'is_read', 'read_at', 'created_at']
+    list_filter = ['channel', 'is_read']
+    search_fields = ['user__username', 'title', 'message', 'deep_link']
+    readonly_fields = ['created_at']
+
+
+@admin.register(NotificationDeliveryLog)
+class NotificationDeliveryLogAdmin(admin.ModelAdmin):
+    list_display = ['channel', 'campaign', 'user', 'status', 'provider', 'provider_message_id', 'created_at']
+    list_filter = ['channel', 'status', 'provider']
+    search_fields = ['provider_message_id', 'destination', 'error_message', 'campaign__name', 'user__username']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+# ============================================================================
+# FLEET WORKSPACE INTEREST (ParkPe consumer → admin approves → fleet role on User)
+# ============================================================================
+
+@admin.register(FleetWorkspaceInterest)
+class FleetWorkspaceInterestAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'user',
+        'status',
+        'company_name',
+        'assigned_role_code',
+        'created_at',
+        'reviewed_at',
+    ]
+    list_filter = ['status']
+    search_fields = ['user__username', 'company_name', 'message']
+    readonly_fields = ['created_at', 'reviewed_at']
+    raw_id_fields = ['user', 'reviewed_by']
+    actions = ['approve_and_assign_role', 'reject_fleet_interest']
+
+    @admin.action(description='Approve selected — assign fleet role to user')
+    def approve_and_assign_role(self, request, queryset):
+        from django.db import transaction
+        from django.utils import timezone
+        from portal.models import Role
+
+        approved = 0
+        qs = queryset.filter(status=FleetWorkspaceInterest.STATUS_PENDING).select_related('user')
+        for obj in qs:
+            code = (obj.assigned_role_code or 'fleet_operator').strip()
+            try:
+                role_obj = Role.objects.get(code=code)
+            except Role.DoesNotExist:
+                messages_error(
+                    request,
+                    f'Role "{code}" does not exist. Run: python manage.py setup_roles',
+                )
+                continue
+            with transaction.atomic():
+                u = User.objects.select_for_update().get(pk=obj.user_id)
+                u.role_code = role_obj.code
+                u.role = role_obj
+                u.save()
+                obj.status = FleetWorkspaceInterest.STATUS_APPROVED
+                obj.reviewed_by = request.user
+                obj.reviewed_at = timezone.now()
+                obj.save()
+                approved += 1
+        if approved:
+            messages_success(request, f'Approved {approved} request(s). Fleet role assigned.')
+
+    @admin.action(description='Reject selected (no role change)')
+    def reject_fleet_interest(self, request, queryset):
+        from django.utils import timezone
+
+        n = 0
+        for obj in queryset.filter(status=FleetWorkspaceInterest.STATUS_PENDING):
+            obj.status = FleetWorkspaceInterest.STATUS_REJECTED
+            obj.reviewed_by = request.user
+            obj.reviewed_at = timezone.now()
+            if not obj.rejection_reason:
+                obj.rejection_reason = 'Rejected in admin.'
+            obj.save()
+            n += 1
+        if n:
+            messages_success(request, f'Rejected {n} request(s).')
 
 
 # ============================================================================

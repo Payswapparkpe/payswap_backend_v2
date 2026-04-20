@@ -1,0 +1,65 @@
+.bbps-banner-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.banner-rail-empty {
+  border: 1px dashed rgba(100, 116, 139, 0.4);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.banner-rail-empty-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.banner-rail-empty-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+.banner-card {
+  border-radius: 0.95rem;
+  padding: 0.9rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+}
+
+.banner-card-image {
+  width: 100%;
+  border-radius: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.banner-card-kicker {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  opacity: 0.88;
+  letter-spacing: 0.04em;
+}
+
+.banner-card-title {
+  margin-top: 0.3rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.banner-card-message {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  opacity: 0.95;
+}
+
+.banner-card-cta {
+  display: inline-block;
+  margin-top: 0.55rem;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  font-size: 0.78rem;
+  text-decoration: none;
+}

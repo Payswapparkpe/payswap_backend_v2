@@ -1,39 +1,9 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
-const PIN_KEY = 'parkpe:session-lock:pin';
 const LAST_ACTIVE_KEY = 'parkpe:session-lock:last-active';
+const PASSKEY_ENABLED_KEY = 'parkpe:session-lock:passkey-enabled';
 const DEFAULT_IDLE_LOCK_MS = 5 * 60 * 1000;
-
-/**
- * Simple one-way obfuscation for localStorage PIN storage.
- * PIN is XOR-scrambled + base64 so it's not readable plain text.
- * NOTE: This is NOT cryptographic security — it's obfuscation only.
- * The session lock is a convenience feature (idle screen lock), not
- * a replacement for backend authentication.
- */
-function encodePin(pin: string): string {
-  const salt = 'pkpe-sl-2025';
-  let out = '';
-  for (let i = 0; i < pin.length; i++) {
-    out += String.fromCharCode(pin.charCodeAt(i) ^ salt.charCodeAt(i % salt.length));
-  }
-  return btoa(out);
-}
-
-function decodePin(encoded: string): string | null {
-  try {
-    const raw = atob(encoded);
-    const salt = 'pkpe-sl-2025';
-    let out = '';
-    for (let i = 0; i < raw.length; i++) {
-      out += String.fromCharCode(raw.charCodeAt(i) ^ salt.charCodeAt(i % salt.length));
-    }
-    return out;
-  } catch {
-    return null;
-  }
-}
 
 @Injectable({ providedIn: 'root' })
 export class SessionLockService {
@@ -41,8 +11,12 @@ export class SessionLockService {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
   private _locked = signal(false);
+  private _hasPin = signal(false);
+  private _passkeyEnabled = signal(this.readPasskeyEnabledFlag());
   readonly locked = this._locked.asReadonly();
-  readonly hasPin = computed(() => !!this.readPin());
+  readonly hasPin = this._hasPin.asReadonly();
+  readonly hasPasskey = this._passkeyEnabled.asReadonly();
+  readonly hasBiometric = this.hasPasskey;
 
   constructor(private router: Router) {}
 
@@ -58,41 +32,55 @@ export class SessionLockService {
     this.scheduleIdleLock();
   }
 
-  setPin(pin: string): boolean {
-    if (!/^\d{4,6}$/.test(pin)) return false;
+  setHasPin(hasPin: boolean): void {
+    this._hasPin.set(hasPin);
+  }
+
+  // Legacy local PIN methods intentionally removed; PIN is server-validated.
+
+  async canUsePasskey(): Promise<boolean> {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    if (!('credentials' in navigator) || typeof PublicKeyCredential === 'undefined') return false;
+    if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') return false;
     try {
-      localStorage.setItem(PIN_KEY, encodePin(pin));
-      return true;
+      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
     } catch {
       return false;
     }
   }
 
-  ensurePinFromHint(hint: string | null | undefined): void {
-    if (this.hasPin()) return;
-    const digits = String(hint || '').replace(/\D/g, '');
-    const candidate = digits.slice(-4);
-    if (candidate.length === 4) this.setPin(candidate);
+  async canUseBiometric(): Promise<boolean> {
+    return this.canUsePasskey();
   }
 
-  verifyAndUnlock(pin: string): boolean {
-    const stored = this.readPin();
-    if (!stored || String(pin) !== stored) return false;
-    this.unlock();
-    return true;
+  setPasskeyEnabled(enabled: boolean): void {
+    try {
+      if (enabled) {
+        localStorage.setItem(PASSKEY_ENABLED_KEY, '1');
+      } else {
+        localStorage.removeItem(PASSKEY_ENABLED_KEY);
+      }
+    } catch {
+      // ignore
+    }
+    this._passkeyEnabled.set(enabled);
   }
 
-  verifyPin(pin: string): boolean {
-    const stored = this.readPin();
-    if (!stored) return false;
-    return String(pin) === stored;
+  disableBiometric(): void {
+    this.setPasskeyEnabled(false);
   }
 
   lock(reason: 'idle' | 'manual' = 'manual'): void {
     this._locked.set(true);
     this.clearTimer();
-    if (reason === 'idle') {
-      this.router.navigate(['/unlock'], { queryParams: { reason: 'idle' } });
+    const currentUrl = this.router.url || '/dashboard';
+    if (!currentUrl.startsWith('/unlock')) {
+      this.router.navigate(['/unlock'], {
+        queryParams: {
+          reason,
+          returnUrl: currentUrl,
+        },
+      });
     }
   }
 
@@ -142,22 +130,11 @@ export class SessionLockService {
     }
   }
 
-  private readPin(): string | null {
+  private readPasskeyEnabledFlag(): boolean {
     try {
-      const raw = localStorage.getItem(PIN_KEY);
-      if (!raw) return null;
-      // Support both encoded (new) and legacy plain-text (old) storage
-      const decoded = decodePin(raw);
-      // If decoded looks like a PIN (all digits, 4-6 chars), use it; else treat as legacy plain text
-      if (decoded && /^\d{4,6}$/.test(decoded)) return decoded;
-      // Legacy: plain text was a valid PIN — migrate to encoded
-      if (/^\d{4,6}$/.test(raw)) {
-        this.setPin(raw); // re-save encoded
-        return raw;
-      }
-      return null;
+      return localStorage.getItem(PASSKEY_ENABLED_KEY) === '1';
     } catch {
-      return null;
+      return false;
     }
   }
 }

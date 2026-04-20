@@ -20,9 +20,11 @@ const ACTIVITY_THROTTLE_MS = 1000;
   `,
   styles: [`
     :host {
-      display: block;
-      height: 100%;
+      display: flex;
+      flex-direction: column;
       width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
     }
   `],
 })

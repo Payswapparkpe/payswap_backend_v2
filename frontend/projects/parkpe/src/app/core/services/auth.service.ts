@@ -22,7 +22,7 @@ const PARKPE_TOKEN_KEY = 'parkpe_auth_token';
 const PARKPE_REFRESH_TOKEN_KEY = 'parkpe_refresh_token';
 const PARKPE_USER_KEY = 'parkpe_auth_user';
 
-/** Inactivity timeout: logout after 15 minutes with no user activity. */
+/** Inactivity timeout window for session lock. */
 const INACTIVITY_MS = 15 * 60 * 1000;
 
 @Injectable({
@@ -69,7 +69,6 @@ export class AuthService {
             const user = JSON.parse(userJson) as User;
             this.userSubject.next(user);
             this.userSignal.set(user);
-            this.sessionLock.ensurePinFromHint(this.getPinHint(user));
           } catch {
             // Invalid user JSON – keep token only; profile can be refetched
           }
@@ -89,6 +88,28 @@ export class AuthService {
       }),
       catchError((err) => {
         this.logger.warn('login_error', { service: 'auth', action: 'login_error', status: err?.status });
+        return throwError(() => err);
+      })
+    );
+  }
+
+  fleetLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    this.logger.info('fleet_login_start', { service: 'auth', action: 'fleet_login_start' });
+    return this.api.fleetLogin(credentials).pipe(
+      tap((response) => {
+        this.setSession(response);
+        this.logger.info('fleet_login_success', {
+          service: 'auth',
+          action: 'fleet_login_success',
+          userId: response.user?.id,
+        });
+      }),
+      catchError((err) => {
+        this.logger.warn('fleet_login_error', {
+          service: 'auth',
+          action: 'fleet_login_error',
+          status: err?.status,
+        });
         return throwError(() => err);
       })
     );
@@ -191,16 +212,15 @@ export class AuthService {
     }
   }
 
-  /** Start 15-min inactivity timer; on timeout logout and navigate to login. */
+  /** Start inactivity timer; on timeout lock session (do not logout). */
   startInactivityTimer(): void {
     this.stopInactivityTimer();
     if (!this.isAuthenticated()) return;
     this.inactivityTimer = setTimeout(() => {
       this.inactivityTimer = null;
-      this.clearSession();
-      this.router.navigate(['/auth/login']);
-      this.notification.showError('You were logged out due to inactivity.');
-      this.logger.info('inactivity_logout', { service: 'auth', action: 'inactivity_logout' });
+      this.sessionLock.lock('idle');
+      this.notification.showInfo('Session locked due to inactivity. Enter your PIN to continue.');
+      this.logger.info('inactivity_lock', { service: 'auth', action: 'inactivity_lock' });
     }, INACTIVITY_MS);
   }
 
@@ -297,8 +317,100 @@ export class AuthService {
     );
   }
 
+  updateProfile(payload: Partial<User>) {
+    return this.api.updateProfile(payload).pipe(
+      tap((user) => {
+        this.userSubject.next(user);
+        this.userSignal.set(user);
+        try {
+          localStorage.setItem(PARKPE_USER_KEY, JSON.stringify(user));
+        } catch {
+          // ignore
+        }
+      })
+    );
+  }
+
+  getPinStatus() {
+    return this.api.getPinStatus();
+  }
+
+  setSessionPin(payload: { pin: string; currentPin?: string; forceReset?: boolean }) {
+    return this.api.setSessionPin(payload);
+  }
+
+  verifySessionPin(pin: string) {
+    return this.api.verifySessionPin(pin);
+  }
+
+  getPasskeyStatus() {
+    return this.api.getPasskeyStatus();
+  }
+
+  getPasskeyRegisterOptions() {
+    return this.api.getPasskeyRegisterOptions();
+  }
+
+  verifyPasskeyRegistration(credential: Record<string, unknown>) {
+    return this.api.verifyPasskeyRegistration(credential);
+  }
+
+  getPasskeyAuthOptions() {
+    return this.api.getPasskeyAuthOptions();
+  }
+
+  verifyPasskeyAuth(credential: Record<string, unknown>) {
+    return this.api.verifyPasskeyAuth(credential);
+  }
+
+  disablePasskey() {
+    return this.api.disablePasskey();
+  }
+
+  getSecurityOverview() {
+    return this.api.getSecurityOverview();
+  }
+
+  revokeSessions(payload?: { device_id?: number }) {
+    return this.api.revokeSessions(payload);
+  }
+
+  getSecurityActivity() {
+    return this.api.getSecurityActivity();
+  }
+
+  getPasskeyCredentials() {
+    return this.api.getPasskeyCredentials();
+  }
+
+  updatePasskeyCredential(credentialId: number, label: string) {
+    return this.api.updatePasskeyCredential(credentialId, label);
+  }
+
+  deletePasskeyCredential(credentialId: number) {
+    return this.api.deletePasskeyCredential(credentialId);
+  }
+
+  requestPasskeyRecoveryOtp() {
+    return this.api.requestPasskeyRecoveryOtp();
+  }
+
+  verifyPasskeyRecoveryOtp(otp: string) {
+    return this.api.verifyPasskeyRecoveryOtp(otp);
+  }
+
   isAuthenticated(): boolean {
     return !!this.tokenSubject.value;
+  }
+
+  isFleetUser(user: User | null | undefined = this.userSubject.value): boolean {
+    const roleCode = String((user as unknown as { roleCode?: string })?.roleCode || '').toLowerCase();
+    const role = String((user as unknown as { role?: string })?.role || '').toLowerCase();
+    return roleCode.startsWith('fleet_') || role === 'fleet';
+  }
+
+  getPostLoginRoute(user: User | null | undefined = this.userSubject.value): string {
+    return this.isFleetUser(user) ? '/fleet/control-center' : '/dashboard';
   }
 
   private setSession(response: LoginResponse): void {
@@ -310,7 +422,6 @@ export class AuthService {
     this.userSubject.next(response.user);
     this.userSignal.set(response.user);
     this.isAuthenticatedSignal.set(true);
-    this.sessionLock.ensurePinFromHint(this.getPinHint(response.user));
     this.sessionLock.unlock();
     try {
       localStorage.setItem(PARKPE_TOKEN_KEY, response.token);
@@ -322,12 +433,6 @@ export class AuthService {
       // localStorage full or disabled – session will be lost on reload
     }
     this.startInactivityTimer();
-  }
-
-  private getPinHint(user: User | null | undefined): string {
-    if (!user) return '';
-    const anyUser = user as User & { phone?: string; mobile?: string; mobileNumber?: string };
-    return anyUser.mobile ?? anyUser.phone ?? anyUser.mobileNumber ?? '';
   }
 
   /** Set session from Connect scanner verify-otp (same shape as login). */

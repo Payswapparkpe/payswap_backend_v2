@@ -22,8 +22,22 @@ LOG_CATEGORIES = {
     'payment': 'payment',
     'notification': 'notification',
     'security': 'security',
+    'cashfree': 'cashfree',
+    'cashfree_pg': 'cashfree_pg',
+    'kaleyra': 'kaleyra',
+    'leegality': 'leegality',
     'mobikwik_bbps': 'mobikwik_bbps',
+    'gift_voucher': 'gift_voucher',
     'connect_vehicle': 'connect_vehicle',
+    'parkpe_auth': 'parkpe_auth',
+    'parkpe_bbps': 'parkpe_bbps',
+    'parkpe_voucher': 'parkpe_voucher',
+    'parkpe_payment': 'parkpe_payment',
+    'parkpe_connect': 'parkpe_connect',
+    'parkpe_dashboard': 'parkpe_dashboard',
+    'parkpe_fastag': 'parkpe_fastag',
+    'parkpe_challan': 'parkpe_challan',
+    'parkpe_general': 'parkpe_general',
     'general': 'general'
 }
 

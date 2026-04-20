@@ -1,0 +1,78 @@
+<section class="fleet-page">
+  <div class="fleet-page__header">
+    <div>
+      <h2>Fleet Compliance</h2>
+      <p>Insurance and PUC readiness with expiring/expired tracking.</p>
+    </div>
+    <a routerLink="/fleet/control-center" class="ghost-btn">Back to Control Center</a>
+  </div>
+
+  <div class="summary-grid">
+    <div><strong>{{ summary.compliant }}</strong><span>Compliant</span></div>
+    <div><strong>{{ summary.expiring }}</strong><span>Expiring</span></div>
+    <div><strong>{{ summary.expired }}</strong><span>Expired</span></div>
+    <div><strong>{{ summary.missing_rc }}</strong><span>Missing RC</span></div>
+  </div>
+
+  <section class="command-grid">
+    <article>
+      <p>Compliance Score</p>
+      <strong>{{ complianceScore }}%</strong>
+      <span>Weighted score across expiry and documentation health.</span>
+    </article>
+    <article>
+      <p>Action Required</p>
+      <strong>{{ actionRequired }}</strong>
+      <span>Vehicles waiting for renewal/document interventions.</span>
+    </article>
+    <article>
+      <p>Risk Band</p>
+      <strong><span class="risk-band" [class]="expiryRiskBand">{{ expiryRiskBand }}</span></strong>
+      <span>Current governance pressure level.</span>
+    </article>
+  </section>
+
+  <div class="filters">
+    <select [(ngModel)]="status">
+      <option value="">All states</option>
+      <option value="compliant">Compliant</option>
+      <option value="expiring">Expiring</option>
+      <option value="expired">Expired</option>
+      <option value="missing_rc">Missing RC</option>
+    </select>
+    <button (click)="applyFilters()">Apply</button>
+    <button (click)="status=''; applyFilters()">Reset</button>
+  </div>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="loading" *ngIf="loading">Syncing live compliance records...</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Owner</th>
+          <th>Insurance</th>
+          <th>PUC</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of items">
+          <td>{{ item.registrationNumber }}</td>
+          <td>{{ item.ownerName }}<br /><small>{{ item.ownerPhone }}</small></td>
+          <td>{{ item.insuranceUpto || '-' }}</td>
+          <td>{{ item.pucUpto || '-' }}</td>
+          <td><span class="badge" [class]="'badge ' + item.complianceState">{{ item.complianceState }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <button (click)="prevPage()" [disabled]="page <= 1">Previous</button>
+    <span>Page {{ page }} (Total {{ total }})</span>
+    <button (click)="nextPage()" [disabled]="page * limit >= total">Next</button>
+  </div>
+</section>

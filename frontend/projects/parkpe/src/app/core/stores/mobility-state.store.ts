@@ -102,6 +102,16 @@ export class MobilityStateStore {
     this.connectVehicleListRevision.update((n) => n + 1);
   }
 
+  /**
+   * Incremented when the browser tab becomes visible again so screens can refetch
+   * against the server instead of relying only on persisted snapshots.
+   */
+  readonly sessionResumedTick = signal(0);
+
+  notifySessionResumed(): void {
+    this.sessionResumedTick.update((n) => n + 1);
+  }
+
   setActiveBooking(booking: Booking | null): void {
     this.activeBooking.set(booking);
     this.activeBookingTs.set(booking ? Date.now() : null);

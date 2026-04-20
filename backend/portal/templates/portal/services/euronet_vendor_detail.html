@@ -76,7 +76,7 @@
     {% csrf_token %}
     <div class="card-enterprise">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Test parameters (optional overrides)</h2>
-        <p class="text-sm text-gray-500 mb-4">Override .env for testing. Leave blank to use .env values. Save then use "Test all APIs" or the tabs below. Required parameters: <code class="bg-gray-100 px-1 rounded">docs/VENDOR_INTEGRATION_REFERENCE.md</code> and <code class="bg-gray-100 px-1 rounded">docs/EURONET_BBPS_INTEGRATION.md</code>.</p>
+        <p class="text-sm text-gray-500 mb-4">Use optional overrides for testing. Leave blank to use `.env`. See <code class="bg-gray-100 px-1 rounded">docs/VENDOR_INTEGRATION_REFERENCE.md</code> and <code class="bg-gray-100 px-1 rounded">docs/EURONET_BBPS_INTEGRATION.md</code>.</p>
         <form id="vendor-test-params-form" class="space-y-4 mb-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {% for field in vendor_test_params_schema %}
@@ -108,7 +108,7 @@
     <!-- BBPS Test UI = Postman collection in Admin (Euronet UAT) -->
     <div class="card-enterprise">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Euronet BBPS Test Panel (Postman in Admin)</h2>
-        <p class="text-sm text-gray-500 mb-6">Same 5 APIs as Postman: 1 Balance Enquiry, 2 Get Billers, 3 Fetch Bill, 4 Pay Bill, 5 Transaction Status. Test here instead of Postman.</p>
+        <p class="text-sm text-gray-500 mb-6">Covers the same 5 Postman APIs: Balance Enquiry, Get Billers, Fetch Bill, Pay Bill, and Transaction Status.</p>
 
         <!-- Tabs (Postman order) -->
         <div class="border-b border-gray-200 mb-6">

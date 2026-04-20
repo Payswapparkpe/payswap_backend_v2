@@ -3,7 +3,7 @@ API Version 2 URL Configuration - External Parties
 """
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import HealthCheckView, PublicAPIView, PartnerAPIView
+from .views import HealthCheckView
 from .voucher_views import (
     VoucherIssueView, BulkVoucherIssueView, VoucherRedeemPINView,
     VoucherRedeemOTPRequestView, VoucherRedeemOTPVerifyView,
@@ -30,6 +30,23 @@ from .service_flow_views import (
     ServiceListView,
     ServiceFlowView,
 )
+from .instantpay_views import (
+    AepsWithdrawView,
+    AepsBalanceCheckView,
+    AepsAccountStatementView,
+    DmtTransferView,
+    DomesticRemittanceView,
+    NepalRemittanceView,
+    CreditCardBillPayView,
+    RcVerificationView,
+    VehicleChallanLookupView,
+    DigiLockerInitView,
+    BinLookupView,
+    CreditReportView,
+    CreditScoreSimulatorView,
+    MerchantOnboardingView,
+    TransactionStatusView,
+)
 
 router = DefaultRouter()
 # Register external ViewSets here: router.register(r'resource', ViewSet, basename='resource')
@@ -37,11 +54,6 @@ router = DefaultRouter()
 urlpatterns = [
     # Public endpoints
     path("health/", HealthCheckView.as_view(), name="health-check"),
-    path("public/", PublicAPIView.as_view(), name="public-endpoint"),
-    
-    # Partner endpoints (require API key)
-    path("partner/", PartnerAPIView.as_view(), name="partner-endpoint"),
-    path("vendor/", PartnerAPIView.as_view(), name="vendor-endpoint"),
     
     # Voucher Management APIs
     path("vouchers/issue/", VoucherIssueView.as_view(), name="v2-voucher-issue"),
@@ -84,6 +96,23 @@ urlpatterns = [
     path("bbps/bill/fetch/", BBPSFetchBillView.as_view(), name="v2-bbps-fetch-bill"),
     path("bbps/bill/pay/", BBPSPayBillView.as_view(), name="v2-bbps-pay-bill"),
     path("bbps/bill/status/<str:ref_id>/", BBPSPaymentStatusView.as_view(), name="v2-bbps-payment-status"),
+
+    # Instantpay Modules
+    path("aeps/withdraw/", AepsWithdrawView.as_view(), name="v2-aeps-withdraw"),
+    path("aeps/balance-check/", AepsBalanceCheckView.as_view(), name="v2-aeps-balance-check"),
+    path("aeps/account-statement/", AepsAccountStatementView.as_view(), name="v2-aeps-account-statement"),
+    path("dmt/transfer/", DmtTransferView.as_view(), name="v2-dmt-transfer"),
+    path("dmt/remittance/domestic/", DomesticRemittanceView.as_view(), name="v2-remittance-domestic"),
+    path("dmt/remittance/nepal/", NepalRemittanceView.as_view(), name="v2-remittance-nepal"),
+    path("billpay/credit-card/pay/", CreditCardBillPayView.as_view(), name="v2-credit-card-billpay"),
+    path("vehicle/rc-verify/", RcVerificationView.as_view(), name="v2-vehicle-rc-verify"),
+    path("vehicle/challan-lookup/", VehicleChallanLookupView.as_view(), name="v2-vehicle-challan-lookup"),
+    path("identity-docs/digilocker/init/", DigiLockerInitView.as_view(), name="v2-digilocker-init"),
+    path("cards/bin-lookup/", BinLookupView.as_view(), name="v2-bin-lookup"),
+    path("credit/report/", CreditReportView.as_view(), name="v2-credit-report"),
+    path("credit/score-simulator/", CreditScoreSimulatorView.as_view(), name="v2-credit-score-simulator"),
+    path("merchant/onboarding/", MerchantOnboardingView.as_view(), name="v2-merchant-onboarding"),
+    path("reconciliation/transaction-status/<str:partner_txn_id>/", TransactionStatusView.as_view(), name="v2-transaction-status"),
     
     # Vendor-orchestrated service flows (vendors, APIs, ordered steps)
     path("vendors/", VendorListView.as_view(), name="v2-vendors-list"),

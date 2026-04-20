@@ -1,0 +1,97 @@
+{
+  "info": {
+    "_postman_id": "a43f01ce-8bc5-4c44-bf0a-f682633f52b8",
+    "name": "Instantpay Hub API v2",
+    "description": "Partner-facing Hub APIs mapped to Instantpay vendor routes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Api-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "api_key", "value": "replace-with-api-key" },
+    { "key": "partner_txn_id", "value": "PTX-10001" },
+    { "key": "reference_id", "value": "REF-10001" }
+  ],
+  "item": [
+    {
+      "name": "AEPS",
+      "item": [
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{partner_txn_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"aadhaar\": \"999988887777\",\n  \"amount\": \"500\"\n}" },
+            "url": "{{base_url}}/api/v2/aeps/withdraw/"
+          }
+        },
+        {
+          "name": "Balance Check",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"aadhaar\": \"999988887777\"\n}" }, "url": "{{base_url}}/api/v2/aeps/balance-check/" }
+        },
+        {
+          "name": "Account Statement",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"aadhaar\": \"999988887777\"\n}" }, "url": "{{base_url}}/api/v2/aeps/account-statement/" }
+        }
+      ]
+    },
+    {
+      "name": "DMT and Remittance",
+      "item": [
+        { "name": "DMT Transfer", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{partner_txn_id}}" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"beneficiary_account\": \"1234567890\",\n  \"ifsc\": \"HDFC0001234\",\n  \"amount\": \"1000\"\n}" }, "url": "{{base_url}}/api/v2/dmt/transfer/" } },
+        { "name": "Domestic Remittance", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"beneficiary_account\": \"1234567890\",\n  \"amount\": \"2000\"\n}" }, "url": "{{base_url}}/api/v2/dmt/remittance/domestic/" } },
+        { "name": "Nepal Remittance", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"beneficiary_name\": \"Test User\",\n  \"amount\": \"2500\"\n}" }, "url": "{{base_url}}/api/v2/dmt/remittance/nepal/" } }
+      ]
+    },
+    {
+      "name": "Billpay and Vehicle",
+      "item": [
+        { "name": "Credit Card Bill Pay", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"card_number\": \"4111111111111111\",\n  \"amount\": \"999\"\n}" }, "url": "{{base_url}}/api/v2/billpay/credit-card/pay/" } },
+        { "name": "RC Verify", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"vehicle_number\": \"DL01AB1234\"\n}" }, "url": "{{base_url}}/api/v2/vehicle/rc-verify/" } },
+        { "name": "Challan Lookup", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"vehicle_number\": \"DL01AB1234\"\n}" }, "url": "{{base_url}}/api/v2/vehicle/challan-lookup/" } }
+      ]
+    },
+    {
+      "name": "Identity, Cards, Credit, Merchant",
+      "item": [
+        { "name": "DigiLocker Init", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"redirect_url\": \"https://example.com/callback\"\n}" }, "url": "{{base_url}}/api/v2/identity-docs/digilocker/init/" } },
+        { "name": "DigiLocker Status", "request": { "method": "GET", "url": "{{base_url}}/api/v2/identity-docs/digilocker/status/{{reference_id}}/" } },
+        { "name": "BIN Lookup", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"bin\": \"411111\"\n}" }, "url": "{{base_url}}/api/v2/cards/bin-lookup/" } },
+        { "name": "Credit Report", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"pan\": \"ABCDE1234F\"\n}" }, "url": "{{base_url}}/api/v2/credit/report/" } },
+        { "name": "Credit Score Simulator", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"income\": 70000,\n  \"emi\": 15000\n}" }, "url": "{{base_url}}/api/v2/credit/score-simulator/" } },
+        { "name": "Merchant Onboarding", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"partner_txn_id\": \"{{partner_txn_id}}\",\n  \"business_name\": \"Demo Store\",\n  \"pan\": \"ABCDE1234F\"\n}" }, "url": "{{base_url}}/api/v2/merchant/onboarding/" } }
+      ]
+    },
+    {
+      "name": "Reconciliation",
+      "item": [
+        {
+          "name": "Transaction Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v2/reconciliation/transaction-status/{{partner_txn_id}}/"
+          }
+        }
+      ]
+    }
+  ]
+}

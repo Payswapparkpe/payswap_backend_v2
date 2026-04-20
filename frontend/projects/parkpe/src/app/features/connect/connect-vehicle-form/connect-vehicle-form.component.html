@@ -67,6 +67,18 @@
         Set as primary vehicle
       </label>
     </div>
+    @if (isFastagVehicleType()) {
+      <div class="field">
+        <label for="fastag_biller_id">FASTag issuer</label>
+        <select id="fastag_biller_id" formControlName="fastag_biller_id">
+          <option value="">Select bank / issuer (optional)</option>
+          @for (op of fastagOperators(); track op.id) {
+            <option [value]="op.id">{{ op.name }}</option>
+          }
+        </select>
+        <p class="form-hint">Used to show your tag balance (BBPS). You can refresh balance on the vehicle page.</p>
+      </div>
+    }
     @if (!isEdit()) {
       <div class="declaration">
         <p class="declaration-text">{{ declarationText }}</p>

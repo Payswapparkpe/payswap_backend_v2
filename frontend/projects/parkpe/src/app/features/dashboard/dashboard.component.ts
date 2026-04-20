@@ -1,8 +1,16 @@
-import { ChangeDetectorRef, Component, ElementRef, afterNextRender, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  effect,
+  ElementRef,
+  afterNextRender,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { API_BACKEND_TOKEN } from '../../core/constants';
-import { AuthService } from '../../core/services/auth.service';
 import { ConnectService } from '../connect/services/connect.service';
 import { timeout, catchError, of } from 'rxjs';
 import type { Transaction } from 'shared';
@@ -25,6 +33,7 @@ import { DashboardQuickActionsComponent } from './dashboard-quick-actions/dashbo
 import { DashboardRecentTransactionsComponent } from './dashboard-recent-transactions/dashboard-recent-transactions.component';
 import { ConnectVehicleCardComponent } from '../connect/connect-vehicle-card/connect-vehicle-card.component';
 import { MobilityStateStore } from '../../core/stores/mobility-state.store';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -45,10 +54,13 @@ import { MobilityStateStore } from '../../core/stores/mobility-state.store';
 export class DashboardComponent implements OnInit {
   private readonly el = inject(ElementRef);
   private api = inject(API_BACKEND_TOKEN);
-  private authService = inject(AuthService);
   private connectService = inject(ConnectService);
   private cdr = inject(ChangeDetectorRef);
   private stateStore = inject(MobilityStateStore);
+  private auth = inject(AuthService);
+
+  /** Shown when API reports billingAddressComplete === false (GST receipt address). */
+  showBillingAddressBanner = signal(false);
 
   summary: {
     totalSpendMonth: number;
@@ -98,6 +110,8 @@ export class DashboardComponent implements OnInit {
   connectVehiclesError: string | null = null;
   /** When set, vehicle card expands to show info panel; View more details goes to this id */
   expandedVehicleId: number | null = null;
+  /** Vehicle ids currently refreshing FASTag via BBPS. */
+  private fastagRefreshingVehicleIds = new Set<number>();
 
   /** Index of vehicle shown in the dashboard card; cycle with prev/next arrows. */
   displayedVehicleIndex = 0;
@@ -145,8 +159,27 @@ export class DashboardComponent implements OnInit {
     { title: 'Reports', description: 'Payment & voucher reports.', icon: 'assessment', route: '/payment/reports' },
   ];
 
+  /**
+   * Overview row: Challans / FASTag / Active Bookings. Flip to `false` when the matching
+   * `quickActions` entry no longer uses `comingSoon`.
+   */
+  readonly overviewTilesComingSoon = {
+    challans: true,
+    fastag: true,
+    parking: true,
+  } as const;
+
   constructor() {
     afterNextRender(() => this.initAnimations());
+    effect(() => {
+      const tick = this.stateStore.sessionResumedTick();
+      if (tick < 1) return;
+      this.loadDashboardData();
+      this.loadRecentTransactions();
+      this.loadSpendingTrends();
+      this.loadConnectVehicles();
+      this.refreshBillingAddressBanner();
+    });
   }
 
   ngOnInit() {
@@ -157,10 +190,21 @@ export class DashboardComponent implements OnInit {
       this.displayedVehicleIndex = primaryIdx >= 0 ? primaryIdx : 0;
       this.connectVehiclesLoading = false;
     }
+    this.refreshBillingAddressBanner();
+    this.auth.getProfile().subscribe({
+      next: () => this.refreshBillingAddressBanner(),
+      error: () => {},
+    });
     this.loadDashboardData();
     this.loadRecentTransactions();
     this.loadSpendingTrends();
     this.loadConnectVehicles();
+  }
+
+  private refreshBillingAddressBanner(): void {
+    const u = this.auth.userSignal();
+    this.showBillingAddressBanner.set(!!u && u.billingAddressComplete === false);
+    this.cdr.markForCheck();
   }
 
   setExpandedVehicle(id: number | null) {
@@ -330,6 +374,35 @@ export class DashboardComponent implements OnInit {
         this.connectVehiclesLoading = false;
         this.cdr.detectChanges();
       });
+  }
+
+  isVehicleFastagRefreshing(vehicleId: number): boolean {
+    return this.fastagRefreshingVehicleIds.has(vehicleId);
+  }
+
+  onVehicleFastagRefresh(vehicleId: number): void {
+    if (!vehicleId || this.fastagRefreshingVehicleIds.has(vehicleId)) return;
+    this.fastagRefreshingVehicleIds.add(vehicleId);
+    this.cdr.markForCheck();
+    this.connectService.refreshVehicleFastagBalance(vehicleId).subscribe({
+      next: (updatedVehicle) => {
+        this.connectVehicles = this.connectVehicles.map((v) => (v.id === updatedVehicle.id ? { ...v, ...updatedVehicle } : v));
+        this.stateStore.setConnectVehicles(this.connectVehicles);
+        const refreshed = this.connectVehicles.find((v) => v.id === updatedVehicle.id);
+        if (refreshed?.is_primary) {
+          this.summary = { ...this.summary, fastagBalance: updatedVehicle.fastag_balance ?? 0 };
+          this.stateStore.setDashboardSummary(this.summary);
+        }
+      },
+      error: () => {
+        this.fastagRefreshingVehicleIds.delete(vehicleId);
+        this.cdr.markForCheck();
+      },
+      complete: () => {
+        this.fastagRefreshingVehicleIds.delete(vehicleId);
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   /**

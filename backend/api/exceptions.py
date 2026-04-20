@@ -20,6 +20,17 @@ class VendorNotAssigned(APIException):
     default_code = "vendor_not_assigned"
 
 
+class AdminDisabledException(APIException):
+    """
+    Raised when admin has disabled a vendor/API toggle.
+    Returns 400 with AD400 error code.
+    """
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "AD400"
+    default_code = "AD400"
+
+
 def api_exception_handler(exc, context):
     """
     Call DRF default handler first, then convert response to standardized format.
@@ -34,6 +45,8 @@ def api_exception_handler(exc, context):
         if hasattr(message, "__iter__") and not isinstance(message, str):
             message = message[0] if message else exc.default_detail
         message = str(message)
+        if "AD400" not in message:
+            message = f"AD400: {message}"
         data = format_api_error(
             message=message,
             errors=[{"message": message}],
@@ -42,6 +55,25 @@ def api_exception_handler(exc, context):
             response_id=response_id,
         )
         data["error"] = "vendor_not_assigned"
+        return Response(data, status=status.HTTP_400_BAD_REQUEST, headers={
+            "X-Request-ID": request_id,
+            "X-Response-ID": response_id,
+        })
+
+    # Admin-disabled config → 400 with AD400 code
+    if isinstance(exc, AdminDisabledException):
+        message = getattr(exc, "detail", exc.default_detail)
+        if hasattr(message, "__iter__") and not isinstance(message, str):
+            message = message[0] if message else exc.default_detail
+        message = str(message)
+        data = format_api_error(
+            message=message,
+            errors=[{"code": "AD400", "message": message}],
+            request=request,
+            request_id=request_id,
+            response_id=response_id,
+        )
+        data["error"] = "AD400"
         return Response(data, status=status.HTTP_400_BAD_REQUEST, headers={
             "X-Request-ID": request_id,
             "X-Response-ID": response_id,

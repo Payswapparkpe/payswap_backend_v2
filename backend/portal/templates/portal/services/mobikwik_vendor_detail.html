@@ -76,7 +76,7 @@
     {% csrf_token %}
     <div class="card-enterprise">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Test parameters (optional overrides)</h2>
-        <p class="text-sm text-gray-500 mb-4">Override .env for testing. Leave blank to use .env values. Save then use "Test all APIs" or the tabs below. Required parameters: see <code class="bg-gray-100 px-1 rounded">docs/VENDOR_INTEGRATION_REFERENCE.md</code> in repo.</p>
+        <p class="text-sm text-gray-500 mb-4">Use optional overrides for testing. Leave blank to use `.env`. Required fields are documented in <code class="bg-gray-100 px-1 rounded">docs/VENDOR_INTEGRATION_REFERENCE.md</code>.</p>
         <form id="vendor-test-params-form" class="space-y-4 mb-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {% for field in vendor_test_params_schema %}
@@ -108,7 +108,7 @@
     <!-- BBPS Test UI (per BBPS guideline) -->
     <div class="card-enterprise">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">BBPS Test Panel</h2>
-        <p class="text-sm text-gray-500 mb-6">Operators from Operators.xlsx; all parameters required for BBPS API (operator_id, customer_id, subscriber_id, ad1–ad9, amount, ref_id).</p>
+        <p class="text-sm text-gray-500 mb-6">Required fields: operator_id, customer_id, subscriber_id, ad1–ad9, amount, ref_id.</p>
 
         <!-- Tabs -->
         <div class="border-b border-gray-200 mb-6">

@@ -1,7 +1,40 @@
 from django.urls import path
-from .views import DashboardSummaryView, PincodeLookupView
+from .views import (
+    DashboardSummaryView,
+    FleetControlCenterView,
+    FleetVehiclesView,
+    FleetDriverRosterView,
+    FleetDriverRosterUnlinkView,
+    FleetDriversView,
+    FleetTripsView,
+    FleetComplianceView,
+    FleetTrendsView,
+    FleetWorkspaceInterestStatusView,
+    FleetWorkspaceInterestSubmitView,
+    PincodeLookupView,
+    NotificationBannersView,
+    NotificationFeedView,
+    NotificationUnreadCountView,
+    NotificationReadView,
+    RegisterPushTokenView,
+)
 
 urlpatterns = [
     path("summary", DashboardSummaryView.as_view(), name="parkpe-dashboard-summary"),
+    path("fleet/control-center", FleetControlCenterView.as_view(), name="parkpe-fleet-control-center"),
+    path("fleet/vehicles", FleetVehiclesView.as_view(), name="parkpe-fleet-vehicles"),
+    path("fleet/roster", FleetDriverRosterView.as_view(), name="parkpe-fleet-roster"),
+    path("fleet/roster/<int:driver_id>", FleetDriverRosterUnlinkView.as_view(), name="parkpe-fleet-roster-unlink"),
+    path("fleet/drivers", FleetDriversView.as_view(), name="parkpe-fleet-drivers"),
+    path("fleet/trips", FleetTripsView.as_view(), name="parkpe-fleet-trips"),
+    path("fleet/compliance", FleetComplianceView.as_view(), name="parkpe-fleet-compliance"),
+    path("fleet/trends", FleetTrendsView.as_view(), name="parkpe-fleet-trends"),
+    path("fleet/interest/status", FleetWorkspaceInterestStatusView.as_view(), name="parkpe-fleet-interest-status"),
+    path("fleet/interest", FleetWorkspaceInterestSubmitView.as_view(), name="parkpe-fleet-interest-submit"),
     path("pincode", PincodeLookupView.as_view(), name="parkpe-pincode-lookup"),
+    path("notifications", NotificationBannersView.as_view(), name="parkpe-dashboard-notifications"),
+    path("notifications/feed", NotificationFeedView.as_view(), name="parkpe-notification-feed"),
+    path("notifications/unread-count", NotificationUnreadCountView.as_view(), name="parkpe-notification-unread"),
+    path("notifications/<int:notification_id>/read", NotificationReadView.as_view(), name="parkpe-notification-read"),
+    path("notifications/push-token", RegisterPushTokenView.as_view(), name="parkpe-notification-push-token"),
 ]

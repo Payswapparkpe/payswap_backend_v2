@@ -1,0 +1,67 @@
+.fleet-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #f3f6fb;
+  padding: 24px;
+}
+
+.fleet-login__card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e4ebf5;
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(24, 42, 78, 0.08);
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 0 0 18px;
+  color: #5b6985;
+}
+
+form {
+  display: grid;
+  gap: 10px;
+}
+
+label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #cad7ea;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #1f4f94;
+  color: #fff;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.7;
+}
+
+small {
+  color: #b3261e;
+}
+
+a {
+  display: inline-block;
+  margin-top: 12px;
+  color: #1f4f94;
+  text-decoration: none;
+}

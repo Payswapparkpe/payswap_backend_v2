@@ -1,0 +1,180 @@
+<section class="fleet-page">
+  <div class="fleet-page__header">
+    <div>
+      <h2>Fleet Vehicles</h2>
+      <p>Operational vehicle registry with live usage indicators.</p>
+    </div>
+    <div class="fleet-page__actions">
+      <button type="button" class="primary-btn" (click)="openAdd()">Add vehicle</button>
+      <a routerLink="/fleet/control-center" class="ghost-btn">Back to Control Center</a>
+    </div>
+  </div>
+
+  <div class="filters">
+    <input [(ngModel)]="search" placeholder="Search registration, owner, brand..." />
+    <select [(ngModel)]="vehicleType">
+      <option value="">All types</option>
+      <option value="commercial">Commercial</option>
+      <option value="four_wheeler">Four wheeler</option>
+      <option value="two_wheeler">Two wheeler</option>
+    </select>
+    <button (click)="applyFilters()">Apply</button>
+  </div>
+
+  <section class="roster-panel" *ngIf="canDelegateToDrivers">
+    <h3>Driver roster</h3>
+    <p class="roster-lead">
+      Add drivers by <strong>username</strong> or <strong>phone</strong> (they must already have a ParkPe account). Then you can register vehicles in their name from <strong>Add vehicle</strong>.
+    </p>
+    <ul class="roster-list" *ngIf="rosterDrivers.length">
+      <li *ngFor="let d of rosterDrivers">
+        <span>{{ d.name }} · {{ d.username }} · {{ d.phone || '—' }}</span>
+        <button type="button" class="roster-remove" (click)="removeRosterDriver(d.userId)" [disabled]="rosterSubmitting">Remove</button>
+      </li>
+    </ul>
+    <p class="roster-empty" *ngIf="!rosterDrivers.length">No drivers linked yet.</p>
+    <div class="roster-add">
+      <input [(ngModel)]="rosterUsername" name="rus" placeholder="Username" [disabled]="rosterSubmitting" />
+      <span class="roster-or">or</span>
+      <input [(ngModel)]="rosterPhone" name="rup" placeholder="Phone" [disabled]="rosterSubmitting" />
+      <button type="button" (click)="submitRosterLink()" [disabled]="rosterSubmitting">Add to roster</button>
+    </div>
+    <p class="error" *ngIf="rosterError">{{ rosterError }}</p>
+  </section>
+
+  <section class="insight-grid">
+    <article>
+      <p>Fleet Health Index</p>
+      <strong>{{ avgHealthIndex }}%</strong>
+      <span>Predictive condition score across active fleet.</span>
+    </article>
+    <article>
+      <p>Compliant Vehicles</p>
+      <strong>{{ compliantVehicles }}</strong>
+      <span>Road-ready and policy safe vehicles.</span>
+    </article>
+    <article>
+      <p>Critical Attention</p>
+      <strong>{{ criticalVehicles }}</strong>
+      <span>Expired/missing RC needs immediate action.</span>
+    </article>
+    <article>
+      <p>Predictive Maintenance</p>
+      <strong>{{ predictiveMaintenanceCount }}</strong>
+      <span>Vehicles flagged by high incident intensity.</span>
+    </article>
+  </section>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="loading" *ngIf="loading">Syncing live vehicles...</p>
+
+  <div class="table-wrap">
+    <p class="empty-hint" *ngIf="!loading && !items.length && !error">
+      No fleet vehicles yet. Use <strong>Add vehicle</strong> to register one here. Fleet registrations are separate from <strong>Connect → My vehicles</strong> (personal); they do not mix in either app.
+    </p>
+    <table *ngIf="items.length">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th *ngIf="canDelegateToDrivers">Registered under</th>
+          <th>Owner</th>
+          <th>24h Scans/Calls</th>
+          <th>Compliance</th>
+          <th>Health Index</th>
+          <th>Recommended Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of items">
+          <td>{{ item.registrationNumber }} ({{ item.vehicleType || 'n/a' }})</td>
+          <td *ngIf="canDelegateToDrivers"><small>{{ ownerLabel(item) }}</small></td>
+          <td>{{ item.ownerName }}<br /><small>{{ item.ownerPhone }}</small></td>
+          <td>{{ item.scans24h }} / {{ item.calls24h }}</td>
+          <td><span class="badge" [class]="'badge ' + item.complianceState">{{ item.complianceState }}</span></td>
+          <td>
+            @let health = getHealthIndex(item);
+            <span class="health-pill" [class]="getHealthBand(health)">{{ health }}%</span>
+          </td>
+          <td>{{ getRecommendation(item) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <button (click)="prevPage()" [disabled]="page <= 1">Previous</button>
+    <span>Page {{ page }} (Total {{ total }})</span>
+    <button (click)="nextPage()" [disabled]="page * limit >= total">Next</button>
+  </div>
+
+  <div class="drawer-backdrop" *ngIf="showAddDialog" (click)="closeAdd()">
+    <aside
+      class="add-vehicle-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-vehicle-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="add-vehicle-drawer__header">
+        <div>
+          <h3 id="add-vehicle-title">Add vehicle</h3>
+          <p class="add-vehicle-drawer__lead">Fleet-only registration; a QR is created automatically.</p>
+        </div>
+        <button type="button" class="drawer-close" (click)="closeAdd()" [disabled]="addSubmitting" aria-label="Close panel">
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+
+      <div class="add-vehicle-drawer__body">
+        <label class="field" *ngIf="canDelegateToDrivers">
+          <span>Register for *</span>
+          <select [(ngModel)]="addOwnerUserId" name="addOwner">
+            <option [ngValue]="null">Me (my fleet account)</option>
+            <option *ngFor="let d of rosterDrivers" [ngValue]="d.userId">{{ d.name }} ({{ d.username }})</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Registration number *</span>
+          <input [(ngModel)]="addForm.registrationNumber" name="reg" placeholder="e.g. DL01AB1234" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Vehicle type *</span>
+          <select [(ngModel)]="addForm.vehicleType" name="vtype">
+            <option value="commercial">Commercial</option>
+            <option value="four_wheeler">Four wheeler</option>
+            <option value="two_wheeler">Two wheeler</option>
+          </select>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Brand</span>
+            <input [(ngModel)]="addForm.brand" name="brand" />
+          </label>
+          <label class="field">
+            <span>Model</span>
+            <input [(ngModel)]="addForm.model" name="model" />
+          </label>
+        </div>
+        <label class="field">
+          <span>Year (optional)</span>
+          <input type="number" [(ngModel)]="addForm.year" name="year" min="1950" [attr.max]="maxModelYear" />
+        </label>
+
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="addForm.acceptOwnershipDeclaration" name="decl" />
+          <span>I confirm I am authorised to register this vehicle for fleet operations and accept the ownership declaration.</span>
+        </label>
+
+        <p class="error" *ngIf="addError">{{ addError }}</p>
+      </div>
+
+      <footer class="add-vehicle-drawer__footer">
+        <button type="button" class="ghost-btn" (click)="closeAdd()" [disabled]="addSubmitting">Cancel</button>
+        <button type="button" class="drawer-save" (click)="submitAdd()" [disabled]="addSubmitting">
+          {{ addSubmitting ? 'Saving…' : 'Save vehicle' }}
+        </button>
+      </footer>
+    </aside>
+  </div>
+</section>

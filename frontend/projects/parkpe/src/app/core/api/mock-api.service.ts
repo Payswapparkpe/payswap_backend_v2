@@ -1,7 +1,25 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, delay, of, map } from 'rxjs';
-import type { ApiBackend, BbpsSavedBillApi, BbpsSavedBillAdd } from './api-backend.interface';
+import type {
+  ApiBackend,
+  BbpsSavedBillApi,
+  BbpsSavedBillAdd,
+  NotificationBannerItem,
+  InboxNotificationItem,
+  FleetControlCenterResponse,
+  FleetListResponse,
+  FleetVehicleItem,
+  FleetVehicleCreatePayload,
+  FleetVehiclesListResponse,
+  FleetRosterDriverItem,
+  FleetDriverItem,
+  FleetTripItem,
+  FleetTripManualCreatePayload,
+  FleetComplianceResponse,
+  FleetTrendsResponse,
+  FleetInterestStatus,
+} from './api-backend.interface';
 import {
   User,
   LoginRequest,
@@ -58,12 +76,35 @@ import { generateTransactionId } from '../utils/transaction-id';
 export class MockApiService implements ApiBackend {
   private http = inject(HttpClient);
   private mockDelay = 500; // Simulate network delay
+  private fleetInterestState: FleetInterestStatus = { status: 'none' };
+  /** Manual trips added in mock mode (prepended to list). */
+  private mockFleetManualTrips: FleetTripItem[] = [];
+
+  private mockFleetRosterDrivers: FleetRosterDriverItem[] = [
+    { userId: 501, username: 'D01MOCK01', name: 'Roster Driver One', phone: '9811111111' },
+  ];
 
   // Auth API
   login(credentials: LoginRequest): Observable<LoginResponse> {
     return this.http
       .get<LoginResponse>('assets/mock/auth/login.json')
       .pipe(delay(this.mockDelay));
+  }
+
+  fleetLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http
+      .get<LoginResponse>('assets/mock/auth/login.json')
+      .pipe(
+        map((res) => {
+          const fleetUser: User = {
+            ...res.user,
+            role: 'admin',
+          };
+          (fleetUser as unknown as Record<string, unknown>)['roleCode'] = 'fleet_admin';
+          return { ...res, user: fleetUser };
+        }),
+        delay(this.mockDelay)
+      );
   }
 
   requestLoginOtp(phone: string): Observable<{ message: string; expires_in: number }> {
@@ -122,6 +163,119 @@ export class MockApiService implements ApiBackend {
     return this.http
       .get<User>('assets/mock/auth/profile.json')
       .pipe(delay(this.mockDelay));
+  }
+
+  getPinStatus(): Observable<{ hasPin: boolean; pinSetAt?: string | null; pinLockedUntil?: string | null; isLocked: boolean; fullAuthFresh: boolean }> {
+    return of({
+      hasPin: true,
+      pinSetAt: new Date().toISOString(),
+      pinLockedUntil: null,
+      isLocked: false,
+      fullAuthFresh: true,
+    }).pipe(delay(this.mockDelay));
+  }
+
+  setSessionPin(_payload: { pin: string; currentPin?: string; forceReset?: boolean }): Observable<{ success: boolean; hasPin: boolean }> {
+    return of({ success: true, hasPin: true }).pipe(delay(this.mockDelay));
+  }
+
+  verifySessionPin(_pin: string): Observable<{ success: boolean; verified: boolean; remainingAttempts?: number }> {
+    return of({ success: true, verified: true, remainingAttempts: 4 }).pipe(delay(this.mockDelay));
+  }
+
+  getPasskeyStatus(): Observable<{ supported: boolean; enabled: boolean }> {
+    return of({ supported: true, enabled: false }).pipe(delay(this.mockDelay));
+  }
+
+  getPasskeyRegisterOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return of({
+      publicKey: {
+        challenge: 'mock-challenge',
+        rp: { name: 'ParkPe', id: 'localhost' },
+        user: { id: 'mock-user', name: 'mock-user', displayName: 'Mock User' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+      },
+    }).pipe(delay(this.mockDelay));
+  }
+
+  verifyPasskeyRegistration(_credential: Record<string, unknown>): Observable<{ success: boolean; enabled: boolean }> {
+    return of({ success: true, enabled: true }).pipe(delay(this.mockDelay));
+  }
+
+  getPasskeyAuthOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return of({
+      publicKey: {
+        challenge: 'mock-auth-challenge',
+        rpId: 'localhost',
+        allowCredentials: [],
+      },
+    }).pipe(delay(this.mockDelay));
+  }
+
+  verifyPasskeyAuth(_credential: Record<string, unknown>): Observable<{ success: boolean; verified: boolean }> {
+    return of({ success: true, verified: true }).pipe(delay(this.mockDelay));
+  }
+
+  disablePasskey(): Observable<{ success: boolean; enabled: boolean }> {
+    return of({ success: true, enabled: false }).pipe(delay(this.mockDelay));
+  }
+
+  getPasskeyCredentials(): Observable<{ items: import('./api-backend.interface').PasskeyCredentialItem[] }> {
+    return of({
+      items: [
+        {
+          id: 1,
+          label: 'Primary Device',
+          transports: ['internal'],
+          createdAt: new Date().toISOString(),
+          lastUsedAt: new Date().toISOString(),
+        },
+      ],
+    }).pipe(delay(this.mockDelay));
+  }
+
+  updatePasskeyCredential(credentialId: number, label: string): Observable<{ success: boolean; id: number; label: string }> {
+    return of({ success: true, id: credentialId, label }).pipe(delay(this.mockDelay));
+  }
+
+  deletePasskeyCredential(_credentialId: number): Observable<{ success: boolean; enabled: boolean }> {
+    return of({ success: true, enabled: false }).pipe(delay(this.mockDelay));
+  }
+
+  requestPasskeyRecoveryOtp(): Observable<{ message: string; expires_in: number }> {
+    return of({ message: 'OTP sent to your mobile number.', expires_in: 300 }).pipe(delay(this.mockDelay));
+  }
+
+  verifyPasskeyRecoveryOtp(_otp: string): Observable<{ success: boolean; revoked: number; enabled: boolean }> {
+    return of({ success: true, revoked: 1, enabled: false }).pipe(delay(this.mockDelay));
+  }
+
+  getSecurityOverview(): Observable<import('./api-backend.interface').SecurityOverviewResponse> {
+    return of({
+      mfa: { enabled: false, configured: false, method: null },
+      passkey: { enabled: false },
+      pinLock: { pinSet: false, pinSetAt: null, pinLockedUntil: null, fullAuthFresh: true },
+      connect: { blockedUntil: null, warningCount: 0 },
+      devices: [],
+    }).pipe(delay(this.mockDelay));
+  }
+
+  revokeSessions(_payload?: { device_id?: number }): Observable<{ success: boolean; revoked: number }> {
+    return of({ success: true, revoked: 1 }).pipe(delay(this.mockDelay));
+  }
+
+  getSecurityActivity(): Observable<{ items: import('./api-backend.interface').SecurityActivityItem[] }> {
+    return of({
+      items: [
+        {
+          id: 1,
+          source: 'parkpe',
+          action: 'settings_updated',
+          change_summary: { language: { from: 'en', to: 'hi' } },
+          created_at: new Date().toISOString(),
+        },
+      ],
+    }).pipe(delay(this.mockDelay));
   }
 
   // Payment API
@@ -235,9 +389,16 @@ export class MockApiService implements ApiBackend {
     } as RefundDetails).pipe(delay(this.mockDelay));
   }
 
-  downloadReceipt(transactionId: string): Observable<Blob | string> {
-    // Mock: return receipt URL
-    return of(`/receipts/${transactionId}.pdf`).pipe(delay(this.mockDelay));
+  downloadReceipt(
+    transactionId: string,
+    options?: { attachment?: boolean; format?: 'pdf' }
+  ): Observable<Blob | string> {
+    if (options?.format === 'pdf') {
+      const minimalPdf = '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF';
+      return of(new Blob([minimalPdf], { type: 'application/pdf' })).pipe(delay(this.mockDelay));
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Receipt</title></head><body><h1>Mock receipt</h1><p>${transactionId}</p></body></html>`;
+    return of(new Blob([html], { type: 'text/html;charset=utf-8' })).pipe(delay(this.mockDelay));
   }
 
   // Parking API
@@ -443,5 +604,307 @@ export class MockApiService implements ApiBackend {
         activeBookings: number;
       }>('assets/mock/profile/dashboard-summary.json')
       .pipe(delay(this.mockDelay));
+  }
+
+  getNotificationBanners(_params?: { slot?: string; screen?: string; service?: string }): Observable<{ banners: NotificationBannerItem[] }> {
+    return of({
+      banners: [
+        {
+          id: 1,
+          name: 'mock-bbps-offer',
+          title: 'Smart Pay Offer',
+          message: 'Pay BBPS bills using voucher and unlock extra cashback rewards.',
+          ctaText: 'View offers',
+          ctaUrl: '/vouchers',
+          bgColor: '#1f4f94',
+          textColor: '#ffffff',
+        },
+      ],
+    }).pipe(delay(this.bbpsDelay));
+  }
+
+  getNotificationFeed(_params?: { limit?: number; offset?: number }): Observable<{ items: InboxNotificationItem[]; total: number }> {
+    return of({
+      items: [
+        {
+          id: 101,
+          title: 'Welcome to Notification Center',
+          message: 'Your in-app inbox is now active for campaign alerts.',
+          channel: 'in_app',
+          isRead: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getNotificationUnreadCount(): Observable<{ unread: number }> {
+    return of({ unread: 1 }).pipe(delay(this.bbpsDelay));
+  }
+
+  markNotificationRead(_notificationId: number): Observable<{ success: boolean }> {
+    return of({ success: true }).pipe(delay(this.bbpsDelay));
+  }
+
+  registerPushToken(_payload: { token: string; devicePlatform?: string; appPlatform?: string }): Observable<{ success: boolean; id: number }> {
+    return of({ success: true, id: 1 }).pipe(delay(this.bbpsDelay));
+  }
+
+  getFleetControlCenter(): Observable<FleetControlCenterResponse> {
+    return of({
+      kpis: [
+        { label: 'Active Vehicles', value: 1284, trend: 'live' },
+        { label: 'Trips Today', value: 426, trend: 'today' },
+        { label: 'On-time Rate', value: '96.4%', trend: '24h' },
+        { label: 'Open Alerts', value: 37, trend: 'live' },
+      ],
+      priorityAlerts: [
+        '12 vehicles nearing insurance expiry in next 15 days.',
+        '7 route deviation events flagged in North zone in last 2 hours.',
+        '3 driver documents pending compliance verification.',
+      ],
+      modules: [
+        {
+          title: 'Fleet Ops',
+          description: 'Dispatch board, trip monitoring, and route adherence.',
+          route: '/fleet/trips',
+          cta: 'Open Fleet Ops',
+        },
+        {
+          title: 'Vehicles',
+          description: 'Vehicle master, RC health, and uptime readiness.',
+          route: '/fleet/vehicles',
+          cta: 'Manage Vehicles',
+        },
+        {
+          title: 'Drivers',
+          description: 'Driver roster, risk behavior, and performance snapshot.',
+          route: '/fleet/drivers',
+          cta: 'Open Driver Hub',
+        },
+        {
+          title: 'Notification Center',
+          description: 'Broadcast updates, route alerts, and escalations to fleet users.',
+          route: '/notifications',
+          cta: 'Open Notifications',
+        },
+        {
+          title: 'Payments & Settlement',
+          description: 'Voucher and payment workflows for fleet operations.',
+          route: '/payment/history',
+          cta: 'Open Payments',
+        },
+        {
+          title: 'Compliance & Governance',
+          description: 'Policies, approvals, and operational audit controls.',
+          route: '/fleet/compliance',
+          cta: 'Open Settings',
+        },
+      ],
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getFleetVehicles(params?: { page?: number; limit?: number; search?: string; vehicleType?: string }): Observable<FleetVehiclesListResponse> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const items: FleetVehicleItem[] = Array.from({ length: limit }).map((_, idx) => ({
+      id: idx + 1 + (page - 1) * limit,
+      ownerUserId: idx % 4 === 1 ? 501 : 1,
+      registrationNumber: `DL01AB${(1000 + idx).toString()}`,
+      vehicleType: idx % 3 === 0 ? 'commercial' : 'four_wheeler',
+      brand: idx % 2 === 0 ? 'Tata' : 'Mahindra',
+      model: idx % 2 === 0 ? 'Ace' : 'Bolero',
+      year: 2019 + (idx % 5),
+      isPrimary: idx % 4 === 0,
+      ownerName: idx % 4 === 1 ? 'Roster Driver One' : `Driver ${idx + 1}`,
+      ownerPhone: `98${(10000000 + idx).toString().slice(0, 8)}`,
+      scans24h: 5 + idx,
+      calls24h: 2 + (idx % 3),
+      complianceState: idx % 5 === 0 ? 'expiring' : 'compliant',
+      insuranceUpto: '2026-09-30',
+      pucUpto: '2026-05-30',
+      createdAt: new Date().toISOString(),
+    }));
+    return of({
+      items,
+      total: 120,
+      page,
+      limit,
+      canDelegateToDrivers: true,
+      rosterDrivers: [...this.mockFleetRosterDrivers],
+    }).pipe(delay(this.mockDelay));
+  }
+
+  createFleetVehicle(payload: FleetVehicleCreatePayload): Observable<FleetVehicleItem> {
+    const roster = payload.ownerUserId
+      ? this.mockFleetRosterDrivers.find((d) => d.userId === payload.ownerUserId)
+      : null;
+    const item: FleetVehicleItem = {
+      id: Math.floor(Math.random() * 1_000_000) + 10_000,
+      ownerUserId: payload.ownerUserId ?? 1,
+      registrationNumber: payload.registrationNumber.trim().toUpperCase(),
+      vehicleType: payload.vehicleType,
+      brand: payload.brand,
+      model: payload.model,
+      year: payload.year ?? null,
+      isPrimary: false,
+      ownerName: roster?.name ?? 'Mock Fleet Owner',
+      ownerPhone: roster?.phone ?? '9800000000',
+      scans24h: 0,
+      calls24h: 0,
+      complianceState: 'missing_rc',
+      insuranceUpto: null,
+      pucUpto: null,
+      createdAt: new Date().toISOString(),
+    };
+    return of(item).pipe(delay(this.mockDelay));
+  }
+
+  getFleetRoster(): Observable<{ canDelegateToDrivers: boolean; rosterDrivers: FleetRosterDriverItem[] }> {
+    return of({
+      canDelegateToDrivers: true,
+      rosterDrivers: [...this.mockFleetRosterDrivers],
+    }).pipe(delay(this.mockDelay));
+  }
+
+  linkFleetRosterDriver(payload: { driverUserId?: number; username?: string; phone?: string }): Observable<FleetRosterDriverItem> {
+    const n = this.mockFleetRosterDrivers.length;
+    const row: FleetRosterDriverItem = {
+      userId: payload.driverUserId ?? 9000 + n,
+      username: payload.username?.trim() || `DMOCK${n}`,
+      name: `Linked driver ${n + 1}`,
+      phone: payload.phone?.trim() || '9898989898',
+    };
+    this.mockFleetRosterDrivers = [...this.mockFleetRosterDrivers, row];
+    return of(row).pipe(delay(this.mockDelay));
+  }
+
+  unlinkFleetRosterDriver(driverUserId: number): Observable<void> {
+    this.mockFleetRosterDrivers = this.mockFleetRosterDrivers.filter((d) => d.userId !== driverUserId);
+    return of(undefined).pipe(delay(this.mockDelay));
+  }
+
+  getFleetDrivers(params?: { page?: number; limit?: number; search?: string }): Observable<FleetListResponse<FleetDriverItem>> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const items: FleetDriverItem[] = Array.from({ length: limit }).map((_, idx) => ({
+      id: idx + 1 + (page - 1) * limit,
+      name: `Fleet Driver ${idx + 1}`,
+      phone: `99${(10000000 + idx).toString().slice(0, 8)}`,
+      email: `fleet.driver${idx + 1}@parkpe.test`,
+      city: idx % 2 === 0 ? 'Delhi' : 'Gurgaon',
+      vehiclesCount: 1 + (idx % 3),
+      scans24h: 3 + idx,
+      reportsAgainst24h: idx % 2,
+      warningCount: idx % 3,
+      blockedUntil: idx % 10 === 0 ? new Date(Date.now() + 3600_000).toISOString() : null,
+    }));
+    return of({ items, total: 84, page, limit }).pipe(delay(this.mockDelay));
+  }
+
+  getFleetTrips(params?: { page?: number; limit?: number; dateFrom?: string; dateTo?: string }): Observable<FleetListResponse<FleetTripItem>> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const baseTotal = 345;
+    const manual = [...this.mockFleetManualTrips];
+    const total = manual.length + baseTotal;
+    const start = (page - 1) * limit;
+    const items: FleetTripItem[] = [];
+    for (let i = start; i < start + limit && i < total; i++) {
+      if (i < manual.length) {
+        items.push(manual[i]);
+      } else {
+        const j = i - manual.length;
+        items.push({
+          id: j + 1,
+          qrCode: `QR-MOCK-${j + 1}`,
+          vehicleId: j + 10,
+          registrationNumber: `HR26CD${(2000 + j).toString()}`,
+          vehicleType: j % 2 === 0 ? 'commercial' : 'four_wheeler',
+          scannedBy: `Ops User ${j + 1}`,
+          scannerPhone: `97${(10000000 + j).toString().slice(0, 8)}`,
+          ipAddress: '127.0.0.1',
+          createdAt: new Date(Date.now() - j * 600000).toISOString(),
+          entrySource: 'connect',
+        });
+      }
+    }
+    return of({ items, total, page, limit }).pipe(delay(this.mockDelay));
+  }
+
+  createFleetTripManual(payload: FleetTripManualCreatePayload): Observable<FleetTripItem> {
+    const item: FleetTripItem = {
+      id: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
+      qrCode: `manual:${payload.vehicleId}`,
+      vehicleId: payload.vehicleId,
+      registrationNumber: `MOCK-${payload.vehicleId}`,
+      vehicleType: 'four_wheeler',
+      scannedBy: 'You (mock)',
+      scannerPhone: '0000000000',
+      ipAddress: '127.0.0.1',
+      createdAt: new Date().toISOString(),
+      entrySource: 'manual',
+    };
+    this.mockFleetManualTrips = [item, ...this.mockFleetManualTrips];
+    return of(item).pipe(delay(this.mockDelay));
+  }
+
+  getFleetCompliance(params?: { page?: number; limit?: number; status?: string }): Observable<FleetComplianceResponse> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const states = ['compliant', 'expiring', 'expired', 'missing_rc'];
+    const items = Array.from({ length: limit }).map((_, idx) => {
+      const state = states[idx % states.length];
+      return {
+        vehicleId: idx + 100,
+        registrationNumber: `UP32EF${(3000 + idx).toString()}`,
+        ownerName: `Owner ${idx + 1}`,
+        ownerPhone: `96${(10000000 + idx).toString().slice(0, 8)}`,
+        insuranceUpto: state === 'expired' ? '2025-01-01' : '2026-12-31',
+        pucUpto: state === 'expiring' ? '2026-05-01' : '2026-11-20',
+        complianceState: state,
+      };
+    }).filter((row) => !params?.status || row.complianceState === params.status);
+    return of({
+      items,
+      total: 98,
+      page,
+      limit,
+      summary: { compliant: 52, expiring: 18, expired: 14, missing_rc: 14 },
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getFleetTrends(params?: { days?: number }): Observable<FleetTrendsResponse> {
+    const days = params?.days ?? 7;
+    const series = Array.from({ length: days }).map((_, idx) => ({
+      date: new Date(Date.now() - (days - idx - 1) * 86400000).toISOString().slice(0, 10),
+      label: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][idx % 7],
+      scans: 100 + idx * 8,
+      calls: 80 + idx * 6,
+      callSuccessRate: 92 + (idx % 4),
+      reports: 4 + (idx % 3),
+    }));
+    return of({ series, days }).pipe(delay(this.mockDelay));
+  }
+
+  getFleetInterestStatus(): Observable<FleetInterestStatus> {
+    return of({ ...this.fleetInterestState }).pipe(delay(this.mockDelay));
+  }
+
+  submitFleetInterest(payload: { companyName?: string; message?: string }): Observable<{
+    success: boolean;
+    status: string;
+    submittedAt?: string;
+    message?: string;
+  }> {
+    const submittedAt = new Date().toISOString();
+    this.fleetInterestState = {
+      status: 'pending',
+      submittedAt,
+      companyName: payload.companyName,
+      message: payload.message,
+    };
+    return of({ success: true, status: 'pending', submittedAt }).pipe(delay(this.mockDelay));
   }
 }

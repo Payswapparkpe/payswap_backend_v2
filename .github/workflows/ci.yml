@@ -76,6 +76,26 @@ jobs:
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
+      - name: Microcopy quality check
+        working-directory: frontend
+        run: npm run copy:check
       - name: Build ParkPe
         working-directory: frontend
         run: npx ng build parkpe --configuration=development
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Flutter pub get (parkpe_app)
+        working-directory: parkpe_app
+        run: flutter pub get
+      - name: Flutter analyze
+        working-directory: parkpe_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Flutter test
+        working-directory: parkpe_app
+        run: flutter test

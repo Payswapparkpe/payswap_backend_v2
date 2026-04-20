@@ -27,7 +27,12 @@
         {% endfor %}
         <div class="border-t border-gray-200 pt-4 mt-6">
             <label class="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
-            <p class="text-xs text-gray-500 mb-2">Permissions app/category wise grouped hain. Har section expand karke relevant permissions select karo.</p>
+            <p class="text-xs text-gray-500 mb-2">Permissions are grouped by app and category. Expand each section and select only what is required.</p>
+            <div class="flex items-center gap-2 mb-2">
+                <input id="perm-search" type="text" placeholder="Search permission codename..." class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <button type="button" id="perm-select-visible" class="btn-enterprise-outline">Select visible</button>
+                <button type="button" id="perm-clear-visible" class="btn-enterprise-outline">Clear visible</button>
+            </div>
             <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
                 {% for group in permission_groups %}
                 <details class="border border-gray-200 rounded-lg bg-gray-50" {% if forloop.first %}open{% endif %}>
@@ -62,4 +67,34 @@
         </div>
     </form>
 </div>
+<script>
+(function () {
+    const searchInput = document.getElementById('perm-search');
+    const selectVisibleBtn = document.getElementById('perm-select-visible');
+    const clearVisibleBtn = document.getElementById('perm-clear-visible');
+    const rows = Array.from(document.querySelectorAll('label input[name="permissions"]')).map(function (input) {
+        return input.closest('label');
+    });
+
+    function applyFilter() {
+        const q = (searchInput.value || '').trim().toLowerCase();
+        rows.forEach(function (row) {
+            const text = (row.textContent || '').toLowerCase();
+            row.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+        });
+    }
+
+    function setVisible(checked) {
+        rows.forEach(function (row) {
+            if (row.style.display === 'none') return;
+            const input = row.querySelector('input[name="permissions"]');
+            if (input) input.checked = checked;
+        });
+    }
+
+    searchInput.addEventListener('input', applyFilter);
+    selectVisibleBtn.addEventListener('click', function () { setVisible(true); });
+    clearVisibleBtn.addEventListener('click', function () { setVisible(false); });
+})();
+</script>
 {% endblock %}

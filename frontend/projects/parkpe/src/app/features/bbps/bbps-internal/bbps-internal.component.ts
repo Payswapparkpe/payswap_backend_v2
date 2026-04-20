@@ -32,6 +32,7 @@ import {
 } from '../../../core/models/bbps.model';
 import { BBPSStorageService, SavedBill, FavoriteBiller } from '../services/bbps-storage.service';
 import { StepIndicatorComponent } from '../../../shared/components/step-indicator/step-indicator.component';
+import { NotificationBannerRailComponent } from '../../../shared/components/notification-banner-rail/notification-banner-rail.component';
 import gsap from 'gsap';
 import { from } from 'rxjs';
 import { concatMap, filter, map, take } from 'rxjs/operators';
@@ -78,7 +79,7 @@ const CATEGORY_GROUPS: { groupKey: string; groupLabel: string; categories: strin
 @Component({
   selector: 'app-bbps-internal',
   standalone: true,
-  imports: [CommonModule, NgOptimizedImage, ReactiveFormsModule, StepIndicatorComponent, RouterLink],
+  imports: [CommonModule, NgOptimizedImage, ReactiveFormsModule, StepIndicatorComponent, RouterLink, NotificationBannerRailComponent],
   templateUrl: './bbps-internal.component.html',
   styleUrl: './bbps-internal.component.scss',
 })
@@ -136,6 +137,8 @@ export class BBPSInternalComponent implements OnInit {
   readonly CART_MAX_TOTAL = 10_000;
   cartTotal = computed(() => this.cart().reduce((s, b) => s + b.amount, 0));
   cartCount = computed(() => this.cart().length);
+  cartRemaining = computed(() => Math.max(0, this.CART_MAX_TOTAL - this.cartTotal()));
+  cartUsagePercent = computed(() => Math.min(100, (this.cartTotal() / this.CART_MAX_TOTAL) * 100));
   /** Effective amount to pay for current bill. When acceptPartPay: user-editable (payableAmount); else full bill amount. */
   currentPayableAmount = computed(() => {
     const b = this.bill();
@@ -155,6 +158,13 @@ export class BBPSInternalComponent implements OnInit {
   });
 
   readonly categoryGroups = CATEGORY_GROUPS;
+  quickAccessCount = computed(
+    () =>
+      this.bbpsStorage.favoriteBillersList().length +
+      this.bbpsStorage.savedBillsList().length +
+      this.cartCount()
+  );
+  commandCenterScore = computed(() => Math.min(100, 35 + this.quickAccessCount() * 18));
 
   currentStepIndex = computed(() => {
     const s = this.step();
@@ -583,6 +593,10 @@ export class BBPSInternalComponent implements OnInit {
   }
 
   fetchBill() {
+    if (this.getFormParams().length === 0) {
+      this.notification.showError('This biller has no consumer fields configured. Choose another biller.');
+      return;
+    }
     if (this.billForm.invalid) {
       this.billForm.markAllAsTouched();
       return;

@@ -39,23 +39,24 @@ def _get_user_agent(request) -> Optional[str]:
         return None
 
 
-def _sanitize_body_for_log(data: Any, max_len: int = MAX_LOG_BODY_LEN) -> str:
-    """Convert request/response to string for log; mask sensitive keys; truncate."""
+def _sanitize_body_for_log(data: Any, max_len: int = MAX_LOG_BODY_LEN, *, mask_sensitive: bool = True) -> str:
+    """Convert request/response to string for log; optionally mask sensitive keys; truncate."""
     if data is None:
         return ""
     try:
         if isinstance(data, dict):
             copy = dict(data)
-            for key in list(copy.keys()):
-                k = key.lower() if isinstance(key, str) else ""
-                if "pin" in k or "password" in k or "secret" in k or "token" in k:
-                    copy[key] = "***"
-                elif key in ("consumerId", "customer_id", "consumer_id", "connectionId"):
-                    v = copy[key]
-                    if isinstance(v, str) and len(v) > 4:
-                        copy[key] = "*" * (len(v) - 4) + v[-4:]
-                    else:
+            if mask_sensitive:
+                for key in list(copy.keys()):
+                    k = key.lower() if isinstance(key, str) else ""
+                    if "pin" in k or "password" in k or "secret" in k or "token" in k:
                         copy[key] = "***"
+                    elif key in ("consumerId", "customer_id", "consumer_id", "connectionId"):
+                        v = copy[key]
+                        if isinstance(v, str) and len(v) > 4:
+                            copy[key] = "*" * (len(v) - 4) + v[-4:]
+                        else:
+                            copy[key] = "***"
             try:
                 s = json.dumps(copy, default=str, ensure_ascii=False)
             except Exception:
@@ -122,12 +123,14 @@ def log_parkpe(
             extra["api_url"] = request.path
         if request_method:
             extra["request_method"] = request_method
+        # BBPS / FASTag debugging requires raw values in logs (no masking).
+        mask_sensitive = category not in ("parkpe_bbps", "parkpe_fastag")
         if request_body is not None:
-            extra["request_body"] = _sanitize_body_for_log(request_body)
+            extra["request_body"] = _sanitize_body_for_log(request_body, mask_sensitive=mask_sensitive)
         if response_status is not None:
             extra["response_status"] = response_status
         if response_body is not None:
-            extra["response_body"] = _sanitize_body_for_log(response_body)
+            extra["response_body"] = _sanitize_body_for_log(response_body, mask_sensitive=mask_sensitive)
         level = log_level or ("INFO" if success else "ERROR")
         LogEntry.objects.create(
             log_level=level,

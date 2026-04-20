@@ -1,0 +1,78 @@
+<div class="fi-page">
+  <div class="fi-card">
+    <div class="fi-hero">
+      <p class="fi-eyebrow">Fleet workspace</p>
+      <h1>Interest &amp; access</h1>
+      <p class="fi-lead">
+        Fleet tools are for business accounts. Submit your details — after admin approval, you can open the full Fleet
+        workspace with the same ParkPe login.
+      </p>
+    </div>
+
+    @if (loading()) {
+      <p class="fi-muted">Loading…</p>
+    } @else if (status()?.status === 'approved') {
+      <div class="fi-panel fi-panel--ok">
+        <span class="material-icons" aria-hidden="true">check_circle</span>
+        <div>
+          <h2>Access enabled</h2>
+          <p>Your account has fleet access. If the app still shows the old home, refresh once or sign out and sign in again.</p>
+          <button type="button" class="fi-btn fi-btn--primary" (click)="goFleetHome()">Open Fleet control center</button>
+        </div>
+      </div>
+    } @else if (status()?.status === 'pending') {
+      <div class="fi-panel fi-panel--wait">
+        <span class="material-icons" aria-hidden="true">hourglass_top</span>
+        <div>
+          <h2>Request under review</h2>
+          <p>We received your interest. Admin will review and approve fleet access for your account.</p>
+          @if (status()?.submittedAt) {
+            <p class="fi-muted">Submitted: {{ status()?.submittedAt | date: 'medium' }}</p>
+          }
+        </div>
+      </div>
+    } @else if (status()?.status === 'rejected') {
+      <div class="fi-panel fi-panel--warn">
+        <span class="material-icons" aria-hidden="true">info</span>
+        <div>
+          <h2>Previous request was not approved</h2>
+          @if (status()?.rejectionReason) {
+            <p>{{ status()?.rejectionReason }}</p>
+          }
+          <p>You can submit a new request below.</p>
+        </div>
+      </div>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="fi-form">
+        <label class="fi-field">
+          <span>Company / fleet name (optional)</span>
+          <input type="text" formControlName="companyName" autocomplete="organization" />
+        </label>
+        <label class="fi-field">
+          <span>Message (optional)</span>
+          <textarea rows="4" formControlName="message" placeholder="Fleet size, city, use case…"></textarea>
+        </label>
+        <button type="submit" class="fi-btn fi-btn--primary" [disabled]="submitting()">
+          {{ submitting() ? 'Submitting…' : 'Submit again' }}
+        </button>
+      </form>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" class="fi-form">
+        <label class="fi-field">
+          <span>Company / fleet name (optional)</span>
+          <input type="text" formControlName="companyName" autocomplete="organization" />
+        </label>
+        <label class="fi-field">
+          <span>Message (optional)</span>
+          <textarea rows="4" formControlName="message" placeholder="Tell us about your fleet (size, city, use case)…"></textarea>
+        </label>
+        <button type="submit" class="fi-btn fi-btn--primary" [disabled]="submitting()">
+          {{ submitting() ? 'Submitting…' : 'Submit interest' }}
+        </button>
+      </form>
+    }
+
+    <p class="fi-foot">
+      <a routerLink="/dashboard">Back to dashboard</a>
+    </p>
+  </div>
+</div>

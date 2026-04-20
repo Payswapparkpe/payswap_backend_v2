@@ -37,7 +37,7 @@
         <i class="ti ti-mail-x text-2xl text-amber-600 mt-0.5"></i>
         <div class="flex-1">
             <p class="font-semibold text-amber-900 mb-1">Email could not be sent</p>
-            <p class="text-sm text-amber-800 mb-3">Please copy the voucher details below and share them with the customer manually (e.g. by messaging or in person).</p>
+            <p class="text-sm text-amber-800 mb-3">Copy the voucher details below and share them with the customer manually.</p>
             {% if can_see_voucher_sensitive %}
             <button type="button" id="copy-voucher-details" class="btn-enterprise-primary text-sm" data-code="{{ voucher.voucher_code }}" data-pin="{{ voucher.pin }}" data-amount="{{ voucher.amount }}" data-ref="{{ voucher.reference_number }}">
                 <i class="ti ti-copy mr-2"></i>
@@ -85,7 +85,7 @@
                         </div>
                     </div>
                     {% else %}
-                    <p class="text-gray-500 text-sm">Not displayed. Only users with permission to view sensitive details can see the PIN. Contact an administrator if you need it.</p>
+                    <p class="text-gray-500 text-sm">PIN is hidden. Only users with sensitive-data access can view it.</p>
                     {% endif %}
                 </div>
                 

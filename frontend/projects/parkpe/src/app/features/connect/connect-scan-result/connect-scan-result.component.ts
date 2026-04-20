@@ -8,6 +8,7 @@ import {
 } from '../services/connect.service';
 import { ConnectChatService } from '../services/connect-chat.service';
 import { AuthService } from '@core/services/auth.service';
+import { ToastService } from '../../../ui/toast/toast.service';
 
 @Component({
   selector: 'app-connect-scan-result',
@@ -21,6 +22,7 @@ export class ConnectScanResultComponent implements OnInit, OnDestroy {
   public chatService = inject(ConnectChatService); // Public for HTML access
   private route = inject(ActivatedRoute);
   private auth = inject(AuthService);
+  private toast = inject(ToastService);
 
   qrCode = signal<string | null>(null);
   data = signal<VehicleByQRResponse | null>(null);
@@ -185,8 +187,15 @@ export class ConnectScanResultComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.chatOpening.set(false);
-        const msg = err?.error?.detail || 'Failed to open chat.';
+        const raw = err?.error?.detail;
+        const msg =
+          typeof raw === 'string'
+            ? raw
+            : Array.isArray(raw)
+              ? raw.map((x: unknown) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')
+              : 'Failed to open chat.';
         this.chatService.setError(msg);
+        this.toast.error(msg);
         this.showChatPanel.set(true); // open panel so error is visible (UX-002: no blocking alert)
       },
     });
@@ -211,6 +220,14 @@ export class ConnectScanResultComponent implements OnInit, OnDestroy {
 
   sendPredefinedMessage(code: string) {
     this.chatService.sendMessage('', true, code);
+  }
+
+  prefLabel(pref: ConnectPredefinedMessageDto): string {
+    const lang = (navigator.language || '').toLowerCase();
+    if (lang.startsWith('hi') && pref.label_hi?.trim()) {
+      return pref.label_hi;
+    }
+    return pref.label_en;
   }
 
   openReportModal() {
@@ -287,7 +304,7 @@ export class ConnectScanResultComponent implements OnInit, OnDestroy {
         this.calling.set(false);
         this.showPhoneInput.set(false);
         this.scannerPhone.set('');
-        alert('Call initiated. You will receive a call shortly – answer it to be connected to the vehicle owner (masked).');
+        this.toast.success('Call initiated. You will receive a masked bridge call shortly.');
       },
       error: (err) => {
         this.calling.set(false);
@@ -295,6 +312,7 @@ export class ConnectScanResultComponent implements OnInit, OnDestroy {
         const is502 = err?.status === 502;
         this.callError.set(detail);
         this.callErrorIs502.set(is502);
+        this.toast.error(detail);
       },
     });
   }

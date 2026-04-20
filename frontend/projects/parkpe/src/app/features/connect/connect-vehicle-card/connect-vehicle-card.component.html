@@ -7,46 +7,12 @@
   [class.vehicle-card-smart--health-critical]="cardHealthStatus() === 'critical'"
   [class.vehicle-card-smart--health-warning]="cardHealthStatus() === 'warning'"
   [class.vehicle-card-smart--health-ok]="cardHealthStatus() === 'ok'"
-  [attr.aria-label]="vehicle().registration_number + ' – ' + (needsRcInfo() ? 'Get vehicle information' : brandModel())">
-  <!-- Same-size card: CTA when no RC, full card when RC available -->
+  [attr.aria-label]="vehicle().registration_number + ' – ' + (needsRcInfo() ? 'RC pending' : brandModel())">
+  <!-- Unverified: same layout as verified; RC fetch is secondary to Connect / FASTag / Challan -->
   <div
     class="vehicle-card-smart__inner"
-    [class.vehicle-card-smart__inner--cta]="needsRcInfo()">
-    @if (needsRcInfo()) {
-      <!-- No RC / locked: Get your vehicle information → connect page (pay ₹50, then fetch RC) -->
-      <div
-        class="vehicle-card-smart__cta-content"
-        [class.vehicle-card-smart__cta-content--row]="isDashboardRow()">
-        <div class="vehicle-card-smart__cta-text-block">
-          <header class="vehicle-card-smart__head">
-            <span class="vehicle-card-smart__icon-wrap" aria-hidden="true">
-              @if (isBike()) {
-                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--bike">two_wheeler</span>
-              } @else {
-                <span class="material-icons vehicle-card-smart__icon vehicle-card-smart__icon--car">directions_car</span>
-              }
-            </span>
-          </header>
-          <a [routerLink]="['/connect/vehicles', vehicle().id]" class="vehicle-card-smart__reg vehicle-card-smart__reg--link">
-            {{ vehicle().registration_number }}
-          </a>
-          <p class="vehicle-card-smart__meta">
-            {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
-          </p>
-          <p class="vehicle-card-smart__cta-hint">Verified RC data not loaded yet.</p>
-        </div>
-        <div class="vehicle-card-smart__cta-action-block">
-          <a
-            [routerLink]="['/connect/vehicles', vehicle().id]"
-            class="vehicle-card-smart__cta-btn"
-            aria-label="Get your vehicle information – pay ₹50 to fetch verified RC data">
-            <span class="material-icons" aria-hidden="true">info</span>
-            Get your vehicle information
-          </a>
-          <p class="vehicle-card-smart__cta-sub">Pay ₹50 to fetch verified RC (1st vehicle free). Verify ownership on Connect page to see full details.</p>
-        </div>
-      </div>
-    } @else if (isDashboardRow()) {
+    [class.vehicle-card-smart__inner--rc-pending]="needsRcInfo()">
+    @if (isDashboardRow()) {
       <!-- Dashboard + single vehicle: horizontal strip on wide screens -->
       <div class="vehicle-card-smart__dash-row-layout">
         <div class="vehicle-card-smart__dash-row-main">
@@ -56,6 +22,11 @@
                 <span class="vehicle-card-smart__badge vehicle-card-smart__badge--verified" aria-label="RC verified by government">
                   <span class="material-icons" aria-hidden="true">verified</span>
                   RC Verified
+                </span>
+              } @else if (needsRcInfo()) {
+                <span class="vehicle-card-smart__badge vehicle-card-smart__badge--rc-pending" aria-label="Verified RC not loaded">
+                  <span class="material-icons" aria-hidden="true">schedule</span>
+                  RC pending
                 </span>
               }
               @if (vehicle().is_primary) {
@@ -75,8 +46,10 @@
           <a [routerLink]="['/connect/vehicles', vehicle().id]" class="vehicle-card-smart__reg vehicle-card-smart__reg--link">
             {{ vehicle().registration_number }}
           </a>
-          <p class="vehicle-card-smart__meta vehicle-card-smart__meta--clamp">
-            {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
+          <p
+            class="vehicle-card-smart__meta vehicle-card-smart__meta--clamp"
+            [attr.title]="brandModel() !== displayBrandModel() ? brandModel() : null">
+            {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (displayBrandModel(); as bm) { · {{ bm }} }
           </p>
           @if (fuelLabel() || rcStatusLabel()) {
             <p class="vehicle-card-smart__meta-tight">
@@ -90,6 +63,8 @@
                 <span>RC: {{ rcStatus }}</span>
               }
             </p>
+          } @else if (needsRcInfo()) {
+            <p class="vehicle-card-smart__meta-tight vehicle-card-smart__meta-tight--muted">RC not loaded yet</p>
           }
           <!-- FASTag mini balance bar (car only) -->
           @if (fastagBalanceLabel(); as fastagLbl) {
@@ -99,10 +74,25 @@
                   <span class="material-icons" aria-hidden="true">toll</span>
                   FASTag
                 </span>
-                <span class="vehicle-card-smart__fastag-bar-value"
-                  [class.vehicle-card-smart__fastag-bar-value--low]="isLowFastagBalance()"
-                  [class.vehicle-card-smart__fastag-bar-value--critical]="isCriticalFastagBalance()">
-                  {{ fastagLbl }}
+                <span class="vehicle-card-smart__fastag-bar-value-wrap">
+                  <span class="vehicle-card-smart__fastag-bar-value"
+                    [class.vehicle-card-smart__fastag-bar-value--low]="isLowFastagBalance()"
+                    [class.vehicle-card-smart__fastag-bar-value--critical]="isCriticalFastagBalance()">
+                    {{ fastagLbl }}
+                  </span>
+                  @if (canRefreshFastag()) {
+                    <button
+                      type="button"
+                      class="vehicle-card-smart__fastag-refresh-btn"
+                      (click)="requestFastagRefresh($event)"
+                      [disabled]="fastagRefreshing()"
+                      [attr.aria-label]="fastagRefreshing() ? 'Refreshing FASTag balance' : 'Refresh FASTag balance'"
+                      title="Refresh FASTag balance">
+                      <span class="material-icons"
+                        [class.vehicle-card-smart__fastag-refresh-btn-icon--spin]="fastagRefreshing()"
+                        aria-hidden="true">refresh</span>
+                    </button>
+                  }
                 </span>
               </div>
               <div class="vehicle-card-smart__fastag-bar" role="progressbar"
@@ -130,6 +120,13 @@
               </span>
             }
           </div>
+          @if (needsRcInfo()) {
+            <a
+              [routerLink]="['/connect/vehicles', vehicle().id]"
+              class="vehicle-card-smart__fetch-rc-link">
+              Fetch RC details
+            </a>
+          }
           <div class="vehicle-card-smart__actions vehicle-card-smart__actions--row-aside">
             <a
               [routerLink]="['/connect/vehicles', vehicle().id]"
@@ -143,7 +140,7 @@
                 [routerLink]="['/fastag']"
                 [queryParams]="{ registration_number: vehicle().registration_number }"
                 class="vehicle-card-smart__action"
-                [class.vehicle-card-smart__action--urgent]="isCriticalFastagBalance()"
+                [class.vehicle-card-smart__action--recharge-cta]="isCriticalFastagBalance()"
                 aria-label="Recharge FASTag">
                 <span class="material-icons" aria-hidden="true">toll</span>
                 Recharge
@@ -161,13 +158,18 @@
         </div>
       </div>
     } @else {
-      <!-- RC available: default vertical layout (Connect list, multi-vehicle dashboard, etc.) -->
+      <!-- Default vertical: Connect list, multi-vehicle dashboard (verified or RC pending) -->
       <header class="vehicle-card-smart__head">
         <div class="vehicle-card-smart__head-badges">
           @if (isRcVerified()) {
             <span class="vehicle-card-smart__badge vehicle-card-smart__badge--verified" aria-label="RC verified by government">
               <span class="material-icons" aria-hidden="true">verified</span>
               RC Verified
+            </span>
+          } @else if (needsRcInfo()) {
+            <span class="vehicle-card-smart__badge vehicle-card-smart__badge--rc-pending" aria-label="Verified RC not loaded">
+              <span class="material-icons" aria-hidden="true">schedule</span>
+              RC pending
             </span>
           }
           @if (vehicle().is_primary) {
@@ -188,8 +190,11 @@
       <a [routerLink]="['/connect/vehicles', vehicle().id]" class="vehicle-card-smart__reg vehicle-card-smart__reg--link">
         {{ vehicle().registration_number }}
       </a>
-      <p class="vehicle-card-smart__meta" [class.vehicle-card-smart__meta--clamp]="isDashboard()">
-        {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (brandModel(); as bm) { · {{ bm }} }
+      <p
+        class="vehicle-card-smart__meta"
+        [class.vehicle-card-smart__meta--clamp]="isDashboard()"
+        [attr.title]="brandModel() !== displayBrandModel() ? brandModel() : null">
+        {{ getVehicleTypeLabel(vehicle().vehicle_type) }}@if (displayBrandModel(); as bm) { · {{ bm }} }
       </p>
       @if (isDashboard() && (fuelLabel() || rcStatusLabel())) {
         <p class="vehicle-card-smart__meta-tight">
@@ -203,6 +208,8 @@
             <span>RC: {{ rcStatus }}</span>
           }
         </p>
+      } @else if (isDashboard() && needsRcInfo()) {
+        <p class="vehicle-card-smart__meta-tight vehicle-card-smart__meta-tight--muted">RC not loaded yet</p>
       } @else if (!isDashboard()) {
         @if (fuelLabel(); as fuel) {
           <p class="vehicle-card-smart__fuel">Fuel: {{ fuel }}</p>
@@ -220,11 +227,26 @@
               <span class="material-icons" aria-hidden="true">toll</span>
               FASTag
             </span>
+          <span class="vehicle-card-smart__fastag-bar-value-wrap">
             <span class="vehicle-card-smart__fastag-bar-value"
               [class.vehicle-card-smart__fastag-bar-value--low]="isLowFastagBalance()"
               [class.vehicle-card-smart__fastag-bar-value--critical]="isCriticalFastagBalance()">
               {{ fastagLbl }}
             </span>
+            @if (canRefreshFastag()) {
+              <button
+                type="button"
+                class="vehicle-card-smart__fastag-refresh-btn"
+                (click)="requestFastagRefresh($event)"
+                [disabled]="fastagRefreshing()"
+                [attr.aria-label]="fastagRefreshing() ? 'Refreshing FASTag balance' : 'Refresh FASTag balance'"
+                title="Refresh FASTag balance">
+                <span class="material-icons"
+                  [class.vehicle-card-smart__fastag-refresh-btn-icon--spin]="fastagRefreshing()"
+                  aria-hidden="true">refresh</span>
+              </button>
+            }
+          </span>
           </div>
           <div class="vehicle-card-smart__fastag-bar" role="progressbar"
             [attr.aria-valuenow]="fastagBalancePct()"
@@ -251,6 +273,14 @@
         }
       </div>
 
+      @if (needsRcInfo()) {
+        <a
+          [routerLink]="['/connect/vehicles', vehicle().id]"
+          class="vehicle-card-smart__fetch-rc-link">
+          Fetch RC details
+        </a>
+      }
+
       <div class="vehicle-card-smart__actions">
         <a
           [routerLink]="['/connect/vehicles', vehicle().id]"
@@ -264,7 +294,7 @@
             [routerLink]="['/fastag']"
             [queryParams]="{ registration_number: vehicle().registration_number }"
             class="vehicle-card-smart__action"
-            [class.vehicle-card-smart__action--urgent]="isCriticalFastagBalance()"
+            [class.vehicle-card-smart__action--recharge-cta]="isCriticalFastagBalance()"
             aria-label="Recharge FASTag">
             <span class="material-icons" aria-hidden="true">toll</span>
             Recharge

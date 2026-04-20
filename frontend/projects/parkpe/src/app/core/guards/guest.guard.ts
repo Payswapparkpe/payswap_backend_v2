@@ -14,7 +14,7 @@ export const guestGuard: CanActivateFn = () => {
     return true;
   }
 
-  // Already authenticated, redirect to dashboard
-  router.navigate(['/dashboard']);
+  // Already authenticated, redirect by account type
+  router.navigate([authService.getPostLoginRoute()]);
   return false;
 };

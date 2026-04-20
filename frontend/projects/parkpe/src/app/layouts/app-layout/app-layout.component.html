@@ -1,13 +1,13 @@
 <div class="app-shell">
   <header class="topbar" [class.scrolled]="scrolled()">
     <div class="topbar-inner">
-      <a routerLink="/dashboard" class="brand" aria-label="ParkPe">
+      <a [routerLink]="shellHomePath" class="brand" [attr.aria-label]="isFleetWorkspace ? 'Fleet home' : 'ParkPe home'">
         <img class="brand-logo" src="assets/parkpe-logo.svg" alt="ParkPe" width="65" height="65" />
       </a>
 
       <div class="nav-marquee">
         <nav class="nav-track" aria-label="Primary navigation">
-          @for (item of navItems; track item.path + '_1') {
+          @for (item of navItems; track item.path) {
             <a
               class="nav-link"
               [routerLink]="item.path"
@@ -16,40 +16,133 @@
             >
               <span class="material-icons" aria-hidden="true">{{ item.icon }}</span>
               <span class="nav-text">{{ item.label }}</span>
-              @if (item.comingSoon) { <span class="badge coming-soon">Coming Soon</span> }
-            </a>
-          }
-          @for (item of navItems; track item.path + '_2') {
-            <a
-              class="nav-link"
-              [routerLink]="item.path"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="{ exact: !!item.exact }"
-            >
-              <span class="material-icons" aria-hidden="true">{{ item.icon }}</span>
-              <span class="nav-text">{{ item.label }}</span>
-              @if (item.comingSoon) { <span class="badge coming-soon">Coming Soon</span> }
             </a>
           }
         </nav>
       </div>
 
       <div class="actions">
-        <a routerLink="/dashboard" class="icon-btn" aria-label="Dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-          <span class="material-icons" aria-hidden="true">dashboard</span>
+        <a
+          [routerLink]="shellHomePath"
+          class="icon-btn"
+          [attr.aria-label]="isFleetWorkspace ? 'Control center' : 'Dashboard'"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          <span class="material-icons" aria-hidden="true">{{ isFleetWorkspace ? 'hub' : 'dashboard' }}</span>
         </a>
 
-        <a routerLink="/profile/view" class="icon-btn" aria-label="Profile" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
-          <span class="material-icons" aria-hidden="true">person</span>
-        </a>
+        @if (isFleetWorkspace) {
+          <button
+            type="button"
+            class="icon-btn individual-entry-btn"
+            (click)="goIndividualHome()"
+            aria-label="Open consumer ParkPe — BBPS, vouchers, Connect; separate from this fleet workspace"
+          >
+            <span class="material-icons" aria-hidden="true">home_work</span>
+            <span class="individual-entry-label">Consumer</span>
+          </button>
+        }
 
-        <a routerLink="/settings" class="icon-btn" aria-label="Settings" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
-          <span class="material-icons" aria-hidden="true">settings</span>
-        </a>
+        @if (!isFleetWorkspace) {
+          <button type="button" class="icon-btn fleet-entry-btn" (click)="goFleetWorkspace()" aria-label="Open Fleet workspace">
+            <span class="material-icons" aria-hidden="true">local_shipping</span>
+            <span class="fleet-entry-label">Fleet</span>
+          </button>
+        }
 
-        <button type="button" class="icon-btn desktop-only" (click)="logout()" aria-label="Logout">
-          <span class="material-icons" aria-hidden="true">logout</span>
-        </button>
+        @if (!isFleetWorkspace) {
+          <button type="button" class="icon-btn notify-btn" (click)="openNotifications()" aria-label="Notifications">
+            <span class="material-icons" aria-hidden="true">notifications</span>
+            @if (unreadNotifications() > 0) {
+              <span class="notify-badge">{{ unreadNotifications() > 99 ? '99+' : unreadNotifications() }}</span>
+            }
+          </button>
+        }
+
+        <div class="profile-menu" #accountMenuRoot>
+          @if (!isFleetWorkspace) {
+            <button
+              type="button"
+              class="profile-menu__trigger icon-btn"
+              (click)="toggleAccountMenu($event, 'consumer')"
+              [attr.aria-expanded]="accountMenu() === 'consumer'"
+              aria-haspopup="true"
+              aria-controls="account-menu-panel-consumer"
+              id="account-menu-button"
+              aria-label="Account menu"
+            >
+              <span class="material-icons" aria-hidden="true">person</span>
+              <span class="material-icons profile-menu__caret" aria-hidden="true">expand_more</span>
+            </button>
+          }
+          @if (isFleetWorkspace) {
+            <button
+              type="button"
+              class="profile-menu__trigger icon-btn"
+              (click)="toggleAccountMenu($event, 'fleet')"
+              [attr.aria-expanded]="accountMenu() === 'fleet'"
+              aria-haspopup="true"
+              aria-controls="account-menu-panel-fleet"
+              id="fleet-account-menu-button"
+              aria-label="Session menu"
+            >
+              <span class="material-icons" aria-hidden="true">more_horiz</span>
+            </button>
+          }
+          @if (accountMenu() === 'consumer') {
+            <div
+              class="profile-menu__panel"
+              id="account-menu-panel-consumer"
+              role="menu"
+              aria-labelledby="account-menu-button"
+            >
+              <a
+                routerLink="/profile/view"
+                role="menuitem"
+                class="profile-menu__item"
+                (click)="closeAccountMenu()"
+              >
+                <span class="material-icons" aria-hidden="true">person</span>
+                Profile
+              </a>
+              <a
+                routerLink="/settings"
+                role="menuitem"
+                class="profile-menu__item"
+                (click)="closeAccountMenu()"
+              >
+                <span class="material-icons" aria-hidden="true">settings</span>
+                Settings
+              </a>
+              <button type="button" role="menuitem" class="profile-menu__item" (click)="lockSession(); closeAccountMenu()">
+                <span class="material-icons" aria-hidden="true">lock</span>
+                Lock session
+              </button>
+              <button type="button" role="menuitem" class="profile-menu__item profile-menu__item--danger" (click)="logout(); closeAccountMenu()">
+                <span class="material-icons" aria-hidden="true">logout</span>
+                Logout
+              </button>
+            </div>
+          }
+          @if (accountMenu() === 'fleet') {
+            <div
+              class="profile-menu__panel"
+              id="account-menu-panel-fleet"
+              role="menu"
+              aria-labelledby="fleet-account-menu-button"
+            >
+              <button type="button" role="menuitem" class="profile-menu__item" (click)="lockSession(); closeAccountMenu()">
+                <span class="material-icons" aria-hidden="true">lock</span>
+                Lock session
+              </button>
+              <button type="button" role="menuitem" class="profile-menu__item profile-menu__item--danger" (click)="logout(); closeAccountMenu()">
+                <span class="material-icons" aria-hidden="true">logout</span>
+                Logout
+              </button>
+            </div>
+          }
+        </div>
 
         <button type="button" class="icon-btn mobile-only" (click)="toggleDrawer()" aria-label="Menu">
           <span class="material-icons" aria-hidden="true">
@@ -70,10 +163,28 @@
         </div>
 
         <div class="drawer-links">
-          <a class="drawer-link" routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" (click)="closeDrawer()">
-            <span class="material-icons" aria-hidden="true">dashboard</span>
-            <span>Dashboard</span>
-          </a>
+          @if (isFleetWorkspace) {
+            <button type="button" class="drawer-link drawer-link-button" (click)="goIndividualHome(); closeDrawer()">
+              <span class="material-icons" aria-hidden="true">home_work</span>
+              <span>Consumer dashboard</span>
+            </button>
+          }
+          @if (!isFleetWorkspace) {
+            <a
+              class="drawer-link"
+              [routerLink]="shellHomePath"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+              (click)="closeDrawer()"
+            >
+              <span class="material-icons" aria-hidden="true">dashboard</span>
+              <span>Dashboard</span>
+            </a>
+            <button type="button" class="drawer-link drawer-link-button" (click)="goFleetWorkspace(); closeDrawer()">
+              <span class="material-icons" aria-hidden="true">local_shipping</span>
+              <span>Fleet workspace</span>
+            </button>
+          }
           @for (item of navItems; track item.path) {
             <a
               class="drawer-link"
@@ -84,16 +195,24 @@
             >
               <span class="material-icons" aria-hidden="true">{{ item.icon }}</span>
               <span>{{ item.label }}</span>
-              @if (item.comingSoon) { <span class="badge coming-soon">Coming Soon</span> }
             </a>
           }
-          <a class="drawer-link" routerLink="/settings" routerLinkActive="active" (click)="closeDrawer()">
-            <span class="material-icons" aria-hidden="true">settings</span>
-            <span>Settings</span>
-          </a>
+          @if (!isFleetWorkspace) {
+            <a class="drawer-link" routerLink="/settings" routerLinkActive="active" (click)="closeDrawer()">
+              <span class="material-icons" aria-hidden="true">settings</span>
+              <span>Settings</span>
+            </a>
+            <a class="drawer-link" routerLink="/notifications" routerLinkActive="active" (click)="closeDrawer()">
+              <span class="material-icons" aria-hidden="true">notifications</span>
+              <span>Notifications</span>
+            </a>
+          }
         </div>
 
         <div class="drawer-foot">
+          <button type="button" class="icon-btn btn-block" (click)="lockSession(); closeDrawer()" aria-label="Lock session">
+            <span class="material-icons" aria-hidden="true">lock</span>
+          </button>
           <button type="button" class="icon-btn btn-block" (click)="logout(); closeDrawer()" aria-label="Logout">
             <span class="material-icons" aria-hidden="true">logout</span>
           </button>

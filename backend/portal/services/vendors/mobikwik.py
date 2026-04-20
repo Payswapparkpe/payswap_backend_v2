@@ -121,13 +121,31 @@ class MobikwikBBPSClient:
             self.use_encryption = False
         self.member_id = getattr(cfg, "MOBIKWIK_BBPS_MEMBER_ID", None)
         self.agent_id = getattr(cfg, "MOBIKWIK_BBPS_AGENT_ID", None)
-        self.public_key_pem = public_key_pem or _secret_value(
-            getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY", None)
-        )
+        pk = public_key_pem or _secret_value(getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY", None))
+        if pk is not None and not str(pk).strip():
+            pk = None
+        self.public_key_pem = pk
         if not self.public_key_pem:
-            key_path = getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY_PATH", None)
-            if key_path:
-                self.public_key_pem = self._load_public_key_from_path(key_path)
+            # .env may set PATH= (empty), wrong folder (e.g. zip name only), or a valid path — try explicit then default.
+            raw_path = getattr(cfg, "MOBIKWIK_BBPS_PUBLIC_KEY_PATH", None)
+            if isinstance(raw_path, str):
+                raw_path = raw_path.strip() or None
+            paths_to_try = []
+            if raw_path:
+                paths_to_try.append(raw_path)
+            if "Mobikwik/public_key.pem" not in paths_to_try:
+                paths_to_try.append("Mobikwik/public_key.pem")
+            for kp in paths_to_try:
+                loaded = self._load_public_key_from_path(kp)
+                if loaded:
+                    self.public_key_pem = loaded
+                    if raw_path and kp != raw_path:
+                        logger.warning(
+                            "Mobikwik BBPS: MOBIKWIK_BBPS_PUBLIC_KEY_PATH did not load (%s); using fallback %s",
+                            raw_path,
+                            kp,
+                        )
+                    break
         # Key version: Mobikwik README in zip says "Key Version: 1.0" – must match. Wrong value causes "Unsupported Tag" / 900.
         _kv = key_version or getattr(cfg, "MOBIKWIK_BBPS_KEY_VERSION", "1.0")
         _kv_str = str(_kv).strip() if _kv is not None else "1.0"
@@ -173,46 +191,22 @@ class MobikwikBBPSClient:
 
     @staticmethod
     def _sanitize_for_log(data: Dict[str, Any]) -> Dict[str, Any]:
-        """Deep-copy and redact sensitive values for UAT LogEntry. Safe for request body."""
+        """Deep-copy request payload for log (no field masking; caller controls whether this is used)."""
         if not data or not isinstance(data, dict):
             return {}
-        out = copy.deepcopy(data)
-        for key in list(out.keys()):
-            k_lower = key.lower() if isinstance(key, str) else ""
-            if key in _SENSITIVE_KEYS or "secret" in k_lower or "token" in k_lower or key == "Authorization":
-                out[key] = "***"
-            elif key in ("customerId", "cn", "refId", "ref_id"):
-                if isinstance(out[key], str):
-                    out[key] = _mask_value(out[key], 4)
-                else:
-                    out[key] = "***"
-        return out
+        return copy.deepcopy(data)
 
     @staticmethod
     def _sanitize_response_for_log(data: Any, max_len: int = 2000) -> str:
-        """Sanitize response (dict or str) for UAT log: redact token/secret recursively, truncate."""
+        """Serialize response for log without redaction; only truncate for storage safety."""
         if data is None:
             return ""
-
-        def _redact(obj: Any) -> Any:
-            if isinstance(obj, dict):
-                out = {}
-                for k, v in obj.items():
-                    k_lower = k.lower() if isinstance(k, str) else ""
-                    if k in _SENSITIVE_KEYS or "token" in k_lower or "secret" in k_lower:
-                        out[k] = "***"
-                    else:
-                        out[k] = _redact(v)
-                return out
-            if isinstance(obj, list):
-                return [_redact(x) for x in obj]
-            return obj
 
         if isinstance(data, str):
             s = data
         else:
             try:
-                obj = _redact(copy.deepcopy(data) if isinstance(data, dict) else data)
+                obj = copy.deepcopy(data) if isinstance(data, dict) else data
                 s = json.dumps(obj, default=str, sort_keys=True)
             except Exception:
                 s = str(data)
@@ -531,14 +525,14 @@ class MobikwikBBPSClient:
             "clientId": self.client_id,
             "clientSecret": self.client_secret,
         }
-        # B2B (rapi-b2b) needs encrypted token body; UAT alpha3 uses plain JSON. Auto-enable for rapi-b2b so a stale
-        # get_settings() lru_cache (old process before MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION existed) still encrypts.
+        # Official UAT Postman: Token Generation = plain JSON at /recharge/v1/verify/retailer (same path for alpha3 and often B2B).
+        # Encrypted token body is opt-in: MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION=True (confirm with Mobikwik for your bundle).
+        # Do not auto-encrypt only because base URL is rapi-b2b — that produced 1308 Invalid request for many lprod setups.
         plain_override = bool(getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_PLAIN_JSON", False))
         explicit_enc = bool(getattr(payswap_config, "MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION", False))
-        is_b2b_host = "rapi-b2b.mobikwik.com" in (self.base_url or "").lower()
         if plain_override:
             token_encrypt = False
-        elif explicit_enc or is_b2b_host:
+        elif explicit_enc:
             token_encrypt = True
         else:
             token_encrypt = False
@@ -642,14 +636,16 @@ class MobikwikBBPSClient:
                         if isinstance(m, dict) and str(m.get("code", "")) == "1308":
                             if not token_encrypt:
                                 self._last_token_error = (
-                                    f"{vendor_msg} — B2B host needs encrypted token body + PEM; "
-                                    "restart Django after .env changes (cached settings). "
-                                    "Or set MOBIKWIK_BBPS_PUBLIC_KEY_PATH and ensure base URL is rapi-b2b.mobikwik.com."
+                                    f"{vendor_msg} — With plain token body: verify MOBIKWIK_BBPS_CLIENT_ID / "
+                                    "MOBIKWIK_BBPS_CLIENT_SECRET match this base URL (UAT vs rapi-b2b). "
+                                    "If Mobikwik requires encrypted token for your account, set MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION=True "
+                                    "and MOBIKWIK_BBPS_PUBLIC_KEY_PATH to the PEM from the same onboarding bundle."
                                 )
                             else:
                                 self._last_token_error = (
-                                    f"{vendor_msg} — Already using encrypted token body: confirm clientId/secret with Mobikwik, "
-                                    "PEM matches the B2B bundle, MOBIKWIK_BBPS_KEY_VERSION matches README; ask Mobikwik if token path differs."
+                                    f"{vendor_msg} — Encrypted token body: confirm clientId/secret, PEM matches bundle, "
+                                    "MOBIKWIK_BBPS_KEY_VERSION matches README. If Mobikwik says token API is plain JSON only, "
+                                    "set MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION=False (and optionally MOBIKWIK_BBPS_TOKEN_PLAIN_JSON=True)."
                                 )
                 else:
                     keys_hint = ", ".join(str(k) for k in (data.keys() if isinstance(data, dict) else []))[:180]
@@ -1170,7 +1166,34 @@ class MobikwikBBPSClient:
             payload["memberId"] = self.member_id
         elif self.merchant_id:
             payload["merchantId"] = self.merchant_id
-        return self._request("POST", path, json_data=payload if payload else None, action="balance_check", log_context=log_context)
+        # Mobikwik production sometimes rejects specific memberId values with 1308, while accepting blank memberId.
+        # Keep primary payload first, then fallback to blank memberId for better operational resilience.
+        primary_payload = payload if payload else {"memberId": ""}
+        result = self._request("POST", path, json_data=primary_payload, action="balance_check", log_context=log_context)
+        if result.get("success"):
+            return result
+
+        msg = ((result.get("response") or {}).get("message") or {})
+        code = str(msg.get("code", "")).strip()
+        should_retry_blank_member = (
+            code == "1308"
+            and bool(payload.get("memberId"))
+            and payload.get("memberId") != ""
+        )
+        if should_retry_blank_member:
+            logger.warning("Mobikwik balance_check got 1308 for configured memberId; retrying with blank memberId.")
+            retry_payload = {"memberId": ""}
+            retry_result = self._request(
+                "POST",
+                path,
+                json_data=retry_payload,
+                action="balance_check",
+                log_context=log_context,
+            )
+            if retry_result.get("success"):
+                return retry_result
+
+        return result
 
     def validation(
         self,

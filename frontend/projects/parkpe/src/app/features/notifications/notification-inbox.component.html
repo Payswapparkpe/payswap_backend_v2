@@ -1,0 +1,25 @@
+<section class="inbox-wrap">
+  <header class="inbox-head">
+    <h1>Notification Inbox</h1>
+    <p>Total {{ total() }} messages</p>
+  </header>
+
+  @if (loading()) {
+    <div class="empty">Loading notifications...</div>
+  } @else if (items().length === 0) {
+    <div class="empty">No notifications yet.</div>
+  } @else {
+    <div class="inbox-list">
+      @for (item of items(); track item.id) {
+        <button class="inbox-item" [class.unread]="!item.isRead" type="button" (click)="markRead(item)">
+          <div class="inbox-meta">
+            <span class="channel">{{ item.channel }}</span>
+            <span class="time">{{ item.createdAt | date:'short' }}</span>
+          </div>
+          <p class="title">{{ item.title }}</p>
+          <p class="message">{{ item.message }}</p>
+        </button>
+      }
+    </div>
+  }
+</section>

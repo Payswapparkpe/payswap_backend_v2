@@ -18,7 +18,20 @@
       "timestamp": "2024-02-05T10:30:00Z",
       "completedAt": "2024-02-05T10:30:45Z",
       "description": "Parking at Downtown Mall - Slot A-101",
-      "receipt": "receipt_001"
+      "receipt": "receipt_001",
+      "billingDocumentId": 1001,
+      "taxSnapshot": {
+        "documentType": "b2c_receipt",
+        "taxableAmount": 127.12,
+        "cgst": 11.44,
+        "sgst": 11.44,
+        "igst": 0,
+        "gstTotal": 22.88,
+        "tdsAmount": 0,
+        "grandTotal": 150,
+        "sacOrHsn": "999799",
+        "currency": "INR"
+      }
     },
     {
       "id": "txn_002",

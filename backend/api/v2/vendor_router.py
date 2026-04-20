@@ -4,7 +4,7 @@ Admin assigns vendors to partners; this module resolves which vendor to use for 
 """
 from rest_framework.exceptions import PermissionDenied
 
-from api.exceptions import VendorNotAssigned
+from api.exceptions import VendorNotAssigned, AdminDisabledException
 from portal.models import ApiVendor
 from portal.services.partner_vendor_service import PartnerVendorService
 
@@ -27,6 +27,10 @@ class VendorRouter:
         if not vendor:
             raise VendorNotAssigned(
                 detail=f"No vendor assigned for service '{service_code}'. Contact admin to assign a vendor."
+            )
+        if not vendor.is_active:
+            raise AdminDisabledException(
+                detail=f"Vendor '{vendor.code}' is disabled by admin for service '{service_code}'."
             )
         return vendor
 

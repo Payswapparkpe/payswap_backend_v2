@@ -54,11 +54,25 @@ class ConnectScannerVerifyThrottle(SimpleRateThrottle):
 
 class ConnectChatRateThrottle(SimpleRateThrottle):
     """
-    Limit chat message sends per IP to prevent spam flooding to vehicle owners.
-    Default: 30 per minute per IP.
+    Limit chat message POST (send) per IP — spam / abuse protection.
+    Default: 30 per minute per IP. (Polling uses ConnectChatPollThrottle.)
     """
-    scope = "connect_chat"
+    scope = "connect_chat_send"
     rate = "30/min"
+
+    def get_cache_key(self, request, view):
+        ip = _get_client_ip(request)
+        return f"throttle_{self.scope}_{ip}"
+
+
+class ConnectChatPollThrottle(SimpleRateThrottle):
+    """
+    Limit GET message-list polling per IP — generous so ~2.5s polling never trips 429.
+    Separate from POST sends (ConnectChatRateThrottle).
+    Default: 180 per minute per IP.
+    """
+    scope = "connect_chat_poll"
+    rate = "180/min"
 
     def get_cache_key(self, request, view):
         ip = _get_client_ip(request)

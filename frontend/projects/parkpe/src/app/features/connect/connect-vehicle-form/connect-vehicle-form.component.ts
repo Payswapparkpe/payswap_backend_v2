@@ -4,6 +4,9 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConnectService, ConnectVehicle, ConnectVehicleCreate, ConnectVehiclesMeta } from '../services/connect.service';
 import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
+import { API_BACKEND_TOKEN } from '../../../core/constants';
+import type { ApiBackend } from '../../../core/api/api-backend.interface';
+import type { BBPSOperator } from '../../../core/models/bbps.model';
 import {
   VEHICLE_TYPES,
   getBrandsForType,
@@ -26,6 +29,7 @@ export const VEHICLE_OWNERSHIP_DECLARATION = `I declare that this vehicle belong
 export class ConnectVehicleFormComponent implements OnInit {
   private fb = inject(FormBuilder);
   private connect = inject(ConnectService);
+  private api = inject(API_BACKEND_TOKEN) as ApiBackend;
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private mobilityStore = inject(MobilityStateStore);
@@ -37,6 +41,7 @@ export class ConnectVehicleFormComponent implements OnInit {
   loading = signal(false);
   error = signal<string | null>(null);
   connectMeta = signal<ConnectVehiclesMeta | null>(null);
+  fastagOperators = signal<BBPSOperator[]>([]);
 
   form = this.fb.nonNullable.group({
     vehicle_type: ['' as VehicleTypeId | '', []],
@@ -47,6 +52,7 @@ export class ConnectVehicleFormComponent implements OnInit {
     model_other: [''],
     year: [null as number | null, []],
     is_primary: [false],
+    fastag_biller_id: [''],
     accept_ownership_declaration: [false, [Validators.requiredTrue]],
   });
 
@@ -74,6 +80,12 @@ export class ConnectVehicleFormComponent implements OnInit {
   showBrandOther = computed(() => this.form.getRawValue().brand === OTHER);
   showModelOther = computed(() => this.form.getRawValue().model === OTHER);
 
+  /** Car / CV — FASTag issuer applies */
+  isFastagVehicleType = computed(() => {
+    const t = this.selectedVehicleType();
+    return t === 'four_wheeler' || t === 'commercial';
+  });
+
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -98,11 +110,15 @@ export class ConnectVehicleFormComponent implements OnInit {
               model_other: modelInList ? '' : (v.model || ''),
               year: v.year,
               is_primary: v.is_primary,
+              fastag_biller_id: v.fastag_biller_id || '',
               accept_ownership_declaration: true,
             });
             this.selectedVehicleType.set(type);
             this.selectedBrand.set(brandInList ? v.brand! : (v.brand ? OTHER : ''));
             this.updateBrandModelDisabled();
+            if (type === 'four_wheeler' || type === 'commercial') {
+              this.loadFastagOperators();
+            }
           },
           error: () => this.error.set('Vehicle not found'),
         });
@@ -141,8 +157,18 @@ export class ConnectVehicleFormComponent implements OnInit {
     const type = this.form.getRawValue().vehicle_type as VehicleTypeId | '';
     this.selectedVehicleType.set(type);
     this.selectedBrand.set('');
-    this.form.patchValue({ brand: '', brand_other: '', model: '', model_other: '' });
+    this.form.patchValue({ brand: '', brand_other: '', model: '', model_other: '', fastag_biller_id: '' });
     this.updateBrandModelDisabled();
+    if (type === 'four_wheeler' || type === 'commercial') {
+      this.loadFastagOperators();
+    }
+  }
+
+  private loadFastagOperators(): void {
+    this.api.getOperators('fastag').subscribe({
+      next: (ops) => this.fastagOperators.set(ops ?? []),
+      error: () => this.fastagOperators.set([]),
+    });
   }
 
   onBrandChange() {
@@ -166,6 +192,10 @@ export class ConnectVehicleFormComponent implements OnInit {
       year: raw.year ?? undefined,
       is_primary: raw.is_primary,
     };
+    const vt = raw.vehicle_type;
+    if (vt === 'four_wheeler' || vt === 'commercial') {
+      payload.fastag_biller_id = (raw.fastag_biller_id || '').trim();
+    }
     if (!this.isEdit()) {
       payload.accept_ownership_declaration = raw.accept_ownership_declaration;
     }

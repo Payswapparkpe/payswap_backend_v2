@@ -14,7 +14,7 @@ import {
 
 /** Storage keys for session persistence (reload keeps user logged in). See docs/AUTH_STORAGE_SECURITY.md for production safety. */
 const PARKPE_TOKEN_KEY = 'parkpe_auth_token';
-const PARKPE_REFRESH_TOKEN_KEY = 'parkpe_auth_refresh_token';
+const PARKPE_REFRESH_TOKEN_KEY = 'parkpe_refresh_token';
 const PARKPE_USER_KEY = 'parkpe_auth_user';
 
 @Injectable({
@@ -163,6 +163,7 @@ export class AuthService {
     this.isAuthenticatedSignal.set(false);
     try {
       localStorage.removeItem(PARKPE_TOKEN_KEY);
+      localStorage.removeItem(PARKPE_REFRESH_TOKEN_KEY);
       localStorage.removeItem(PARKPE_USER_KEY);
     } catch {
       // ignore

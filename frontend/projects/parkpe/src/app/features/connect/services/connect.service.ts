@@ -47,10 +47,19 @@ export interface ConnectVehicle {
   rc_data?: VehicleRCData | null;
   /** True when RC exists but profile name does not match RC owner and user has not unlocked. */
   rc_locked?: boolean;
+  /**
+   * True when this vehicle has no RC row yet but is not the user's first Connect vehicle:
+   * user must pay ₹50 (voucher) before fetch-rc will run (matches backend fetch-rc gate).
+   */
+  rc_payment_required_before_fetch?: boolean;
   /** When owner paid Rs 50 from voucher to view full RC (ISO date string). */
   rc_view_paid_at?: string | null;
-  /** Optional: FASTag balance (only for car/four_wheeler). When backend provides it, use in vehicle card. */
+  /** BBPS FASTag biller id (Mobikwik); user-selected issuer. */
+  fastag_biller_id?: string | null;
+  /** Cached FASTag balance from BBPS View Bill (last refresh). */
   fastag_balance?: number | null;
+  /** ISO time when fastag_balance was last fetched. */
+  fastag_balance_fetched_at?: string | null;
 }
 
 export interface ConnectVehicleCreate {
@@ -63,6 +72,8 @@ export interface ConnectVehicleCreate {
   is_primary?: boolean;
   /** Required when creating: user must accept ownership declaration. */
   accept_ownership_declaration?: boolean;
+  /** FASTag issuer (BBPS biller id); four_wheeler / commercial. */
+  fastag_biller_id?: string;
 }
 
 /** Meta returned with vehicle list: individual max 4, corporate unlimited. */
@@ -127,6 +138,11 @@ export class ConnectService {
 
   updateVehicle(id: number, payload: Partial<ConnectVehicleCreate>): Observable<ConnectVehicle> {
     return this.http.patch<ConnectVehicle>(`${this.apiUrl}/connect/vehicles/${id}/`, payload);
+  }
+
+  /** Refresh FASTag balance via BBPS View Bill (requires fastag_biller_id on vehicle). */
+  refreshVehicleFastagBalance(vehicleId: number): Observable<ConnectVehicle> {
+    return this.http.post<ConnectVehicle>(`${this.apiUrl}/connect/vehicles/${vehicleId}/fastag-balance/`, {});
   }
 
   /** Request OTP for vehicle deletion (sends OTP to user's registered mobile). */
@@ -274,11 +290,48 @@ export class ConnectService {
   /** Chat: send text or predefined message (auth). */
   sendMessage(
     threadId: number,
-    payload: { message_type: 'text'; body: string } | { message_type: 'predefined'; predefined_code: string }
+    payload:
+      | { message_type: 'text'; body: string; client_id?: string; metadata?: Record<string, unknown> }
+      | { message_type: 'predefined'; predefined_code: string; client_id?: string; metadata?: Record<string, unknown> }
+      | { message_type: 'attachment' | 'voice'; body: string; client_id?: string; metadata?: Record<string, unknown> }
   ): Observable<ConnectMessageDto> {
     return this.http.post<ConnectMessageDto>(
       `${this.apiUrl}/connect/chat/threads/${threadId}/messages/`,
       payload
+    );
+  }
+
+  markThreadRead(threadId: number): Observable<{ ok: boolean; last_read_message_id: number }> {
+    return this.http.post<{ ok: boolean; last_read_message_id: number }>(
+      `${this.apiUrl}/connect/chat/threads/${threadId}/mark-read/`,
+      {}
+    );
+  }
+
+  sendThreadPresence(threadId: number, typing = false): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.apiUrl}/connect/chat/threads/${threadId}/presence/`, { typing });
+  }
+
+  getThreadPresence(threadId: number): Observable<{ other_online: boolean; other_typing: boolean }> {
+    return this.http.get<{ other_online: boolean; other_typing: boolean }>(
+      `${this.apiUrl}/connect/chat/threads/${threadId}/presence/`
+    );
+  }
+
+  updateThreadSettings(
+    threadId: number,
+    payload: Partial<{ pinned: boolean; muted: boolean; archived: boolean }>
+  ): Observable<{ pinned: boolean; muted: boolean; archived: boolean }> {
+    return this.http.patch<{ pinned: boolean; muted: boolean; archived: boolean }>(
+      `${this.apiUrl}/connect/chat/threads/${threadId}/settings/`,
+      payload
+    );
+  }
+
+  blockThreadParticipant(threadId: number, action: 'block' | 'unblock', reason = ''): Observable<{ blocked: boolean; message: string }> {
+    return this.http.post<{ blocked: boolean; message: string }>(
+      `${this.apiUrl}/connect/chat/threads/${threadId}/block/`,
+      { action, reason }
     );
   }
 }
@@ -296,9 +349,21 @@ export interface ConnectThreadDto {
   vehicle_id: number;
   registration_number_masked: string;
   owner_display_name: string;
+  /** Other participant's first name for chat header/inbox — never a phone number. */
+  peer_display_name?: string;
   scanner_user_id?: number;
   is_owner?: boolean;
   other_participant_id?: number;
+  pinned?: boolean;
+  muted?: boolean;
+  archived?: boolean;
+  unread_count?: number;
+  last_read_message_id?: number;
+  last_message_id?: number | null;
+  last_message_preview?: string;
+  last_message_created_at?: string | null;
+  other_online?: boolean;
+  other_typing?: boolean;
 }
 
 export interface ConnectMessageDto {
@@ -306,6 +371,12 @@ export interface ConnectMessageDto {
   sender_id: number;
   message_type: string;
   body: string;
+  metadata?: Record<string, unknown>;
+  client_id?: string;
+  delivery_status?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
+  delivered_at?: string | null;
+  seen_at?: string | null;
+  local_failed?: boolean;
   predefined_code?: string | null;
   created_at: string;
 }

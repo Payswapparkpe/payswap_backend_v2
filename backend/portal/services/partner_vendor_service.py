@@ -94,7 +94,11 @@ class PartnerVendorService:
             if cached == PARTNER_VENDOR_CACHE_NONE:
                 return None
             try:
-                return ApiVendor.objects.get(pk=cached)
+                vendor = ApiVendor.objects.get(pk=cached)
+                if not vendor.is_active:
+                    cache.delete(cache_key)
+                    return None
+                return vendor
             except ApiVendor.DoesNotExist:
                 cache.delete(cache_key)
         assignment = (
@@ -103,6 +107,7 @@ class PartnerVendorService:
                 service_code=service_code,
                 is_active=True,
                 is_primary=True,
+                vendor__is_active=True,
             )
             .select_related('vendor')
             .first()

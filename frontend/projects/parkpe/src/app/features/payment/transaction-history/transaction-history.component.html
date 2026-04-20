@@ -77,6 +77,7 @@
             <th>Type</th>
             <th>Description</th>
             <th>Amount</th>
+            <th>GST</th>
             <th>Credit/Debit</th>
             <th>Status</th>
             <th>Gateway</th>
@@ -92,6 +93,13 @@
               <td>{{ txn.description || '—' }}</td>
               <td class="txn-amount-cell" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">
                 ₹{{ txn.amount | number:'1.2-2' }}
+              </td>
+              <td class="txn-gst-cell">
+                @if (txn.taxSnapshot) {
+                  ₹{{ txn.taxSnapshot.gstTotal | number:'1.2-2' }}
+                } @else {
+                  —
+                }
               </td>
               <td>
                 @if (txn.transactionTypeDirection) {
@@ -135,6 +143,12 @@
             <span class="txn-card-label">Amount</span>
             <span class="txn-card-value txn-card-amount" [class.credit]="txn.transactionTypeDirection === 'credit'">₹{{ txn.amount | number:'1.2-2' }}</span>
           </div>
+          @if (txn.taxSnapshot) {
+            <div class="txn-card-row">
+              <span class="txn-card-label">GST</span>
+              <span class="txn-card-value">₹{{ txn.taxSnapshot.gstTotal | number:'1.2-2' }}</span>
+            </div>
+          }
           <div class="txn-card-row">
             <span class="txn-card-label">Credit/Debit</span>
             <span class="txn-card-value">

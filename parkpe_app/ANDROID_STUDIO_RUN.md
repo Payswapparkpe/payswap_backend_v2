@@ -2,6 +2,8 @@
 
 यह app **सिर्फ Android और iOS** के लिए है। Web / macOS support नहीं है।
 
+**Terminal path:** अगर prompt पर पहले से `parkpe_app` दिख रहा है तो आप इसी folder में हैं — **`cd parkpe_app`** दुबारा चलाने की ज़रूरत नहीं (`cd: no such file or directory` इसी वजह से आता है)। उस स्थिति में सीधे `flutter pub get` और `flutter run -d android` चलाएँ।
+
 ---
 
 ## ⚠️ ज़रूरी: Device Select करें
@@ -51,9 +53,11 @@ python manage.py runserver 0.0.0.0:8000
 
 ## .env (API URL)
 
-- Android emulator: `API_BASE_URL=http://10.0.2.2:8000/api` (already set)
-- Physical Android device (same Wi‑Fi): अपने Mac का IP use करें, जैसे `http://192.168.1.x:8000/api`
-- iOS simulator: `http://localhost:8000/api`
+URL ke end par **`/api/`** (trailing slash) रखें ताकि `auth/...` sahi merge ho (varna `apiauth` jaisa galat path ban sakta hai).
+
+- Android emulator: `API_BASE_URL=http://10.0.2.2:8000/api/`
+- Physical Android device (same Wi‑Fi): जैसे `http://192.168.1.x:8000/api/`
+- iOS simulator / macOS desktop UI test: `API_BASE_URL=http://localhost:8000/api/` (**10.0.2.2** sirf emulator ke liye hai)
 
 ## Supported Platforms
 

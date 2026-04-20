@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { fleetAuthGuard } from './core/guards/fleet-auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
+import { homeEntryGuard } from './core/guards/root-redirect.guard';
 import { sessionLockGuard } from './core/guards/session-lock.guard';
 import { AppLayoutComponent } from './layouts/app-layout/app-layout.component';
 
@@ -11,11 +13,12 @@ import { AppLayoutComponent } from './layouts/app-layout/app-layout.component';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/home',
     pathMatch: 'full',
+    redirectTo: 'home',
   },
   {
     path: 'home',
+    canActivate: [homeEntryGuard],
     loadComponent: () =>
       import('./features/home/home.component').then((m) => m.HomeComponent),
   },
@@ -55,6 +58,14 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'fleet/login',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/login/login.component').then(
+        (m) => m.LoginComponent
+      ),
+  },
+  {
     path: 'unlock',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -68,6 +79,51 @@ export const routes: Routes = [
     canActivate: [authGuard],
     canActivateChild: [sessionLockGuard],
     children: [
+      {
+        path: 'fleet/interest',
+        loadComponent: () =>
+          import('./features/fleet/fleet-interest.component').then((m) => m.FleetInterestComponent),
+      },
+      {
+        path: 'fleet/control-center',
+        canActivate: [fleetAuthGuard],
+        loadComponent: () =>
+          import('./features/fleet/fleet-control-center.component').then(
+            (m) => m.FleetControlCenterComponent
+          ),
+      },
+      {
+        path: 'fleet/vehicles',
+        canActivate: [fleetAuthGuard],
+        loadComponent: () =>
+          import('./features/fleet/fleet-vehicles.component').then(
+            (m) => m.FleetVehiclesComponent
+          ),
+      },
+      {
+        path: 'fleet/drivers',
+        canActivate: [fleetAuthGuard],
+        loadComponent: () =>
+          import('./features/fleet/fleet-drivers.component').then(
+            (m) => m.FleetDriversComponent
+          ),
+      },
+      {
+        path: 'fleet/trips',
+        canActivate: [fleetAuthGuard],
+        loadComponent: () =>
+          import('./features/fleet/fleet-trips.component').then(
+            (m) => m.FleetTripsComponent
+          ),
+      },
+      {
+        path: 'fleet/compliance',
+        canActivate: [fleetAuthGuard],
+        loadComponent: () =>
+          import('./features/fleet/fleet-compliance.component').then(
+            (m) => m.FleetComplianceComponent
+          ),
+      },
       {
         path: 'dashboard',
         loadComponent: () =>
@@ -128,6 +184,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/settings/settings.component').then(
             (m) => m.SettingsComponent
+          ),
+      },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./features/notifications/notification-inbox.component').then(
+            (m) => m.NotificationInboxComponent
           ),
       },
     ],

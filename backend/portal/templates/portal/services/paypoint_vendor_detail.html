@@ -60,7 +60,7 @@
         </div>
         <div class="mt-4 pt-4 border-t border-gray-200">
             <p class="text-sm text-gray-600 mb-2">
-                PayPoint AEPS provides balance enquiry, cash withdrawal, and mini statement using Aadhaar and biometric. Credentials (UserCode, Password, IdentificationCode, Key) are configured in <code class="bg-gray-100 px-1 rounded">.env</code>; UserCode, Password and IdentificationCode are encrypted via PayPoint’s Encrypt API before each request. Docs: <a href="https://docs.paypointindia.co.in/api/paypoint-aeps-api/paypoint/overview" target="_blank" rel="noopener">PayPoint AEPS Overview</a>. Partners use <strong>API v2</strong>: <code class="bg-gray-100 px-1 rounded">/api/v2/aeps/</code>.
+                PayPoint AEPS supports balance enquiry, cash withdrawal, and mini statement via Aadhaar biometric. Credentials in <code class="bg-gray-100 px-1 rounded">.env</code> are encrypted through PayPoint Encrypt API before requests. Use <strong>API v2</strong>: <code class="bg-gray-100 px-1 rounded">/api/v2/aeps/</code>.
             </p>
             {% if vendor.documentation_url %}
             <a href="{{ vendor.documentation_url }}" target="_blank" rel="noopener" class="text-indigo-600 hover:text-indigo-800 text-sm">Documentation <i class="ti ti-external-link"></i></a>

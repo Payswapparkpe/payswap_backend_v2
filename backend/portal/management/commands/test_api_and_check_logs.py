@@ -28,7 +28,6 @@ def _get_api_key_from_env():
 # Endpoints to hit (method, path, optional JSON body for POST)
 API_TESTS = [
     ('GET', '/api/v2/health/', None),
-    ('GET', '/api/v2/public/', None),
     ('POST', '/api/v2/kyc/pan/verify/', {'pan_number': 'ABCDE1234F'}),
     ('GET', '/api/v2/bbps/operators/', None),
     ('GET', '/api/v2/vendors/', None),

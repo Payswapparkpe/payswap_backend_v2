@@ -66,5 +66,92 @@
             <p class="text-xs text-gray-500 mt-1">Assign Dept, Project, Roles to Admin</p>
         </a>
     </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div class="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Inactive Assignments</p>
+            <p class="text-2xl font-bold text-rose-700 mt-1">{{ inactive_assignment_count|default:0 }}</p>
+        </div>
+        <div class="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Orphan Assignments</p>
+            <p class="text-2xl font-bold text-amber-700 mt-1">{{ orphan_assignment_count|default:0 }}</p>
+            <p class="text-[11px] text-amber-700/80 mt-1">Dept/Project inactive but assignment active</p>
+        </div>
+        <div class="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">No-role Assignments</p>
+            <p class="text-2xl font-bold text-sky-700 mt-1">{{ unscoped_assignment_count|default:0 }}</p>
+        </div>
+        <div class="rounded-lg border border-purple-100 bg-purple-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-purple-700">High-risk Roles</p>
+            <p class="text-2xl font-bold text-purple-700 mt-1">{{ high_risk_role_count|default:0 }}</p>
+            <p class="text-[11px] text-purple-700/80 mt-1">Contains delete/user-management perms</p>
+        </div>
+    </div>
+
+    <div class="card-enterprise">
+        <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Effective Access Preview</h2>
+                <p class="text-xs text-gray-500">Select user to inspect active assignments and final permission set.</p>
+            </div>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-3 mb-4">
+            <div class="min-w-[260px]">
+                <label class="block text-xs font-medium text-gray-600 mb-1">User</label>
+                <select name="preview_user_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="">Select user...</option>
+                    {% for u in preview_users %}
+                    <option value="{{ u.id }}" {% if preview_user and preview_user.id == u.id %}selected{% endif %}>
+                        {{ u.username }}{% if u.email %} ({{ u.email }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-enterprise-primary">Preview Access</button>
+            {% if preview_user %}
+            <a href="{% url 'hub_rbac_dashboard' %}" class="btn-enterprise-outline">Clear</a>
+            {% endif %}
+        </form>
+
+        {% if preview_user %}
+        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 mb-3 text-sm">
+            <span class="font-semibold text-gray-900">{{ preview_user.username }}</span>
+            <span class="text-gray-600"> · Effective permissions: </span>
+            <span class="font-semibold text-indigo-700">{{ preview_permission_count }}</span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-gray-200 p-3">
+                <h3 class="text-sm font-semibold text-gray-900 mb-2">Active Assignments</h3>
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    {% for a in preview_assignment_rows %}
+                    <div class="rounded border border-gray-200 px-2 py-1.5 text-xs bg-white">
+                        <p class="font-medium text-gray-800">{{ a.department.name }} / {{ a.project.name }}</p>
+                        <p class="text-gray-500">Roles: {% for r in a.roles.all %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% empty %}None{% endfor %}</p>
+                    </div>
+                    {% empty %}
+                    <p class="text-xs text-gray-500">No active assignments.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="rounded-lg border border-gray-200 p-3">
+                <h3 class="text-sm font-semibold text-gray-900 mb-2">Effective Permissions</h3>
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    {% for group in preview_permissions_grouped %}
+                    <details class="rounded border border-gray-200 bg-white px-2 py-1" {% if forloop.first %}open{% endif %}>
+                        <summary class="cursor-pointer text-xs font-semibold text-gray-700 uppercase">{{ group.app_label }}</summary>
+                        <ul class="mt-1 space-y-1">
+                            {% for perm in group.permissions %}
+                            <li class="text-xs font-mono text-gray-600">{{ perm }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                    {% empty %}
+                    <p class="text-xs text-gray-500">No permissions found.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

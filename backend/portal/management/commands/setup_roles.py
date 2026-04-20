@@ -64,6 +64,34 @@ class Command(BaseCommand):
                 'hierarchy_level': 20,
                 'mfa_required': False,
             },
+            {
+                'name': 'Fleet Admin',
+                'code': 'fleet_admin',
+                'category': 'b2b',
+                'hierarchy_level': 55,
+                'mfa_required': True,
+            },
+            {
+                'name': 'Fleet Manager',
+                'code': 'fleet_manager',
+                'category': 'b2b',
+                'hierarchy_level': 52,
+                'mfa_required': False,
+            },
+            {
+                'name': 'Fleet Operator',
+                'code': 'fleet_operator',
+                'category': 'b2b',
+                'hierarchy_level': 48,
+                'mfa_required': False,
+            },
+            {
+                'name': 'Fleet Dispatcher',
+                'code': 'fleet_dispatcher',
+                'category': 'b2b',
+                'hierarchy_level': 46,
+                'mfa_required': False,
+            },
         ]
         
         # Create roles
@@ -122,6 +150,22 @@ class Command(BaseCommand):
                     'portal.view_profile',
                     'portal.view_wallet', 'portal.view_wallettransaction',
                     'portal.add_kyc', 'portal.view_kyc',
+                ],
+                'fleet_admin': [
+                    'portal.view_profile', 'portal.view_user',
+                    'portal.view_kyc', 'portal.view_wallet', 'portal.view_wallettransaction',
+                ],
+                'fleet_manager': [
+                    'portal.view_profile', 'portal.view_user',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                ],
+                'fleet_operator': [
+                    'portal.view_profile',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                ],
+                'fleet_dispatcher': [
+                    'portal.view_profile',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
                 ],
             }
             

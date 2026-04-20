@@ -196,7 +196,10 @@ class OTPService:
                 )
                 return True, otp
             else:
+                error_code = result.get('error')
                 error_msg = result.get('message', 'Failed to send OTP. Please try again.')
+                if error_code == 'AD400':
+                    error_msg = 'AD400'
                 logger.error(
                     'OTP - Failed to send',
                     user=None,

@@ -115,6 +115,44 @@ export class RealApiService implements ApiBackend {
     return this.http.patch<User>(`${this.apiUrl}/auth/profile`, payload);
   }
 
+  getPasskeyStatus(): Observable<{ supported: boolean; enabled: boolean }> {
+    return this.http.get<{ supported: boolean; enabled: boolean }>(`${this.apiUrl}/auth/passkey/status`);
+  }
+
+  getPasskeyRegisterOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return this.http.post<{ publicKey: Record<string, unknown> }>(`${this.apiUrl}/auth/passkey/register/options`, {});
+  }
+
+  verifyPasskeyRegistration(credential: Record<string, unknown>): Observable<{ success: boolean; enabled: boolean }> {
+    return this.http.post<{ success: boolean; enabled: boolean }>(
+      `${this.apiUrl}/auth/passkey/register/verify`,
+      { credential }
+    );
+  }
+
+  getPasskeyAuthOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return this.http.post<{ publicKey: Record<string, unknown> }>(`${this.apiUrl}/auth/passkey/auth/options`, {});
+  }
+
+  verifyPasskeyAuth(credential: Record<string, unknown>): Observable<{ success: boolean; verified: boolean }> {
+    return this.http.post<{ success: boolean; verified: boolean }>(
+      `${this.apiUrl}/auth/passkey/auth/verify`,
+      { credential }
+    );
+  }
+
+  disablePasskey(): Observable<{ success: boolean; enabled: boolean }> {
+    return this.http.post<{ success: boolean; enabled: boolean }>(`${this.apiUrl}/auth/passkey/disable`, {});
+  }
+
+  getSecurityOverview(): Observable<import('./api-backend.interface').SecurityOverviewResponse> {
+    return this.http.get<import('./api-backend.interface').SecurityOverviewResponse>(`${this.apiUrl}/auth/security-overview`);
+  }
+
+  revokeSessions(payload?: { device_id?: number }): Observable<{ success: boolean; revoked: number }> {
+    return this.http.post<{ success: boolean; revoked: number }>(`${this.apiUrl}/auth/sessions/revoke`, payload || {});
+  }
+
   // Payment API (ParkPe: voucher purchase – no wallet)
   getGateways(): Observable<GatewayConfig[]> {
     return this.http
@@ -192,6 +230,13 @@ export class RealApiService implements ApiBackend {
     );
   }
 
+  claimVoucher(body: { voucherCode: string; pin: string }): Observable<{ success: boolean; message: string; voucherId?: number }> {
+    return this.http.post<{ success: boolean; message: string; voucherId?: number }>(
+      `${this.apiUrl}/voucher/vouchers/claim`,
+      { voucherCode: body.voucherCode, pin: body.pin }
+    );
+  }
+
   getPaymentOrders(params?: {
     page?: number;
     limit?: number;
@@ -212,13 +257,13 @@ export class RealApiService implements ApiBackend {
   getVoucherStatement(params?: {
     page?: number;
     limit?: number;
-  }): Observable<{ entries: VoucherStatementEntry[]; total: number; balance: number }> {
+  }): Observable<{ entries: VoucherStatementEntry[]; total: number }> {
     let httpParams = new HttpParams();
     if (params) {
       if (params.page) httpParams = httpParams.set('page', params.page.toString());
       if (params.limit) httpParams = httpParams.set('limit', params.limit.toString());
     }
-    return this.http.get<{ entries: VoucherStatementEntry[]; total: number; balance: number }>(
+    return this.http.get<{ entries: VoucherStatementEntry[]; total: number }>(
       `${this.apiUrl}/payment/voucher-statement`,
       { params: httpParams }
     );
@@ -234,6 +279,8 @@ export class RealApiService implements ApiBackend {
     type?: string;
     status?: string;
     gateway?: PaymentGateway;
+    dateFrom?: string;
+    dateTo?: string;
   }): Observable<{ transactions: Transaction[]; total: number }> {
     let httpParams = new HttpParams();
     if (params) {
@@ -242,6 +289,8 @@ export class RealApiService implements ApiBackend {
       if (params.type) httpParams = httpParams.set('type', params.type);
       if (params.status) httpParams = httpParams.set('status', params.status);
       if (params.gateway) httpParams = httpParams.set('gateway', params.gateway);
+      if (params.dateFrom) httpParams = httpParams.set('date_from', params.dateFrom);
+      if (params.dateTo) httpParams = httpParams.set('date_to', params.dateTo);
     }
     return this.http.get<{ transactions: Transaction[]; total: number }>(
       `${this.apiUrl}/payment/transactions`,
@@ -260,7 +309,10 @@ export class RealApiService implements ApiBackend {
     );
   }
 
-  downloadReceipt(transactionId: string): Observable<Blob | string> {
+  downloadReceipt(
+    transactionId: string,
+    _options?: { attachment?: boolean; format?: 'pdf' }
+  ): Observable<Blob | string> {
     return this.http.get(`${this.apiUrl}/payment/receipt/${transactionId}`, {
       responseType: 'blob',
     }) as Observable<Blob>;
@@ -317,6 +369,33 @@ export class RealApiService implements ApiBackend {
     );
   }
 
+  payCart(payload: { bills: { billId: string; operatorId: string; consumerId: string; amount: number }[]; voucher_id: number; pin: string }): Observable<{ success: boolean; message: string; total: number; results: { billId: string; operatorId: string; consumerId: string; amount: number; transactionId: string; status: string }[] }> {
+    return this.http.post<{ success: boolean; message: string; total: number; results: { billId: string; operatorId: string; consumerId: string; amount: number; transactionId: string; status: string }[] }>(
+      `${this.apiUrl}/bbps/pay-cart`,
+      payload,
+      { headers: this.bbpsHeaders }
+    );
+  }
+
+  getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]> {
+    return this.http.get<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]>(
+      `${this.apiUrl}/bbps/favorites`,
+      { headers: this.bbpsHeaders }
+    );
+  }
+
+  addBbpsFavorite(body: { operatorId: string; operatorName?: string; category?: string; mobikwikOpId?: string }): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }> {
+    return this.http.post<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }>(
+      `${this.apiUrl}/bbps/favorites`,
+      body,
+      { headers: this.bbpsHeaders }
+    );
+  }
+
+  removeBbpsFavorite(operatorId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/bbps/favorites/${encodeURIComponent(operatorId)}`, { headers: this.bbpsHeaders });
+  }
+
   // FASTag API
   createRechargeOrder(
     payload: FastagRechargeRequest
@@ -368,5 +447,32 @@ export class RealApiService implements ApiBackend {
       fastagBalance: number;
       activeBookings: number;
     }>(`${this.apiUrl}/dashboard/summary`);
+  }
+
+  getNotificationBanners(params?: { slot?: string; screen?: string; service?: string }): Observable<{ banners: import('./api-backend.interface').NotificationBannerItem[] }> {
+    let httpParams = new HttpParams();
+    if (params?.slot) httpParams = httpParams.set('slot', params.slot);
+    if (params?.screen) httpParams = httpParams.set('screen', params.screen);
+    if (params?.service) httpParams = httpParams.set('service', params.service);
+    return this.http.get<{ banners: import('./api-backend.interface').NotificationBannerItem[] }>(`${this.apiUrl}/dashboard/notifications`, { params: httpParams });
+  }
+
+  getNotificationFeed(params?: { limit?: number; offset?: number }): Observable<{ items: import('./api-backend.interface').InboxNotificationItem[]; total: number }> {
+    let httpParams = new HttpParams();
+    if (params?.limit != null) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.offset != null) httpParams = httpParams.set('offset', String(params.offset));
+    return this.http.get<{ items: import('./api-backend.interface').InboxNotificationItem[]; total: number }>(`${this.apiUrl}/dashboard/notifications/feed`, { params: httpParams });
+  }
+
+  getNotificationUnreadCount(): Observable<{ unread: number }> {
+    return this.http.get<{ unread: number }>(`${this.apiUrl}/dashboard/notifications/unread-count`);
+  }
+
+  markNotificationRead(notificationId: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/dashboard/notifications/${notificationId}/read`, {});
+  }
+
+  registerPushToken(payload: { token: string; devicePlatform?: string; appPlatform?: string }): Observable<{ success: boolean; id: number }> {
+    return this.http.post<{ success: boolean; id: number }>(`${this.apiUrl}/dashboard/notifications/push-token`, payload);
   }
 }

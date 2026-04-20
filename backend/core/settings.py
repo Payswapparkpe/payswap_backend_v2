@@ -38,6 +38,11 @@ AUTH_USER_MODEL = 'portal.User'
 SECRET_KEY = payswap_config.get_secret_key()
 DEBUG = payswap_config.DEBUG
 V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', True)
+PARKPE_REQUIRE_BILLING_ADDRESS = getattr(payswap_config, "PARKPE_REQUIRE_BILLING_ADDRESS", False)
+NOTIFICATIONS_ENABLED = getattr(payswap_config, "NOTIFICATIONS_ENABLED", True)
+NOTIFICATIONS_PUSH_ENABLED = getattr(payswap_config, "NOTIFICATIONS_PUSH_ENABLED", False)
+NOTIFICATIONS_ROLLOUT_PERCENT = getattr(payswap_config, "NOTIFICATIONS_ROLLOUT_PERCENT", 100)
+NOTIFICATIONS_RATE_LIMIT_PER_USER = getattr(payswap_config, "NOTIFICATIONS_RATE_LIMIT_PER_USER", 50)
 ALLOWED_HOSTS = list(payswap_config.allowed_hosts_list)
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')  # Django test client / management command tests
@@ -427,6 +432,36 @@ SIMPLE_JWT = {
 # Trusted proxy IPs for client IP resolution (VAPT-002/003). When REMOTE_ADDR is in this list,
 # client IP is taken from X-Forwarded-For; otherwise X-Forwarded-For is ignored.
 TRUSTED_PROXY_IPS = getattr(payswap_config, "trusted_proxy_ips_list", None) or []
+
+# Connect risk controls (chat/call abuse prevention)
+CONNECT_CALL_MAX_PER_USER_HOUR = int(os.getenv("CONNECT_CALL_MAX_PER_USER_HOUR", "8"))
+CONNECT_CALL_MAX_PER_PHONE_HOUR = int(os.getenv("CONNECT_CALL_MAX_PER_PHONE_HOUR", "12"))
+CONNECT_CALL_MAX_PER_OWNER_HOUR = int(os.getenv("CONNECT_CALL_MAX_PER_OWNER_HOUR", "15"))
+CONNECT_CALL_MAX_PER_FINGERPRINT_HOUR = int(os.getenv("CONNECT_CALL_MAX_PER_FINGERPRINT_HOUR", "10"))
+CONNECT_CALL_MAX_UNIQUE_QR_PER_HOUR = int(os.getenv("CONNECT_CALL_MAX_UNIQUE_QR_PER_HOUR", "5"))
+CONNECT_CHAT_MAX_PER_USER_HOUR = int(os.getenv("CONNECT_CHAT_MAX_PER_USER_HOUR", "80"))
+CONNECT_CHAT_MAX_PER_THREAD_HOUR = int(os.getenv("CONNECT_CHAT_MAX_PER_THREAD_HOUR", "35"))
+CONNECT_CHAT_MAX_PER_RECIPIENT_HOUR = int(os.getenv("CONNECT_CHAT_MAX_PER_RECIPIENT_HOUR", "45"))
+CONNECT_CHAT_MAX_PER_FINGERPRINT_HOUR = int(os.getenv("CONNECT_CHAT_MAX_PER_FINGERPRINT_HOUR", "100"))
+CONNECT_CHAT_MAX_BODY_LENGTH = int(os.getenv("CONNECT_CHAT_MAX_BODY_LENGTH", "500"))
+# Comma-separated extra Latin tokens for profanity gate (tests + custom ops list); see api/connect/profanity_filter.py
+CONNECT_PROFANITY_EXTRA_TERMS = os.getenv("CONNECT_PROFANITY_EXTRA_TERMS", "")
+_pprof_msg = os.getenv("CONNECT_PROFANITY_USER_MESSAGE", "").strip()
+CONNECT_PROFANITY_USER_MESSAGE = _pprof_msg if _pprof_msg else None
+_cp_custom = os.getenv("CONNECT_PROFANITY_CUSTOM_FILE", "").strip()
+CONNECT_PROFANITY_CUSTOM_FILE = _cp_custom if _cp_custom else None
+_cp_custom_hi = os.getenv("CONNECT_PROFANITY_CUSTOM_FILE_HI", "").strip()
+CONNECT_PROFANITY_CUSTOM_FILE_HI = _cp_custom_hi if _cp_custom_hi else None
+try:
+    CONNECT_PROFANITY_AUTO_BLOCK_THRESHOLD = int(os.getenv("CONNECT_PROFANITY_AUTO_BLOCK_THRESHOLD", "0"))
+except ValueError:
+    CONNECT_PROFANITY_AUTO_BLOCK_THRESHOLD = 0
+try:
+    CONNECT_PROFANITY_AUTO_BLOCK_MINUTES = int(os.getenv("CONNECT_PROFANITY_AUTO_BLOCK_MINUTES", "60"))
+except ValueError:
+    CONNECT_PROFANITY_AUTO_BLOCK_MINUTES = 60
+_ablk_msg = os.getenv("CONNECT_PROFANITY_AUTO_BLOCK_MESSAGE", "").strip()
+CONNECT_PROFANITY_AUTO_BLOCK_MESSAGE = _ablk_msg if _ablk_msg else None
 
 # API Documentation
 SPECTACULAR_SETTINGS = {

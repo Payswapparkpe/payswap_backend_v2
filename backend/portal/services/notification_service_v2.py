@@ -10,11 +10,19 @@ from portal.tasks.notification_tasks import (
     send_email_task,
     send_otp_sms_task
 )
+from portal.models import ApiVendor, VendorApi
 from portal.utils.phone_utils import normalize_phone_number
 from portal.utils.logging_helper import get_logger
 import traceback
 
 logger = get_logger('portal.services.notifications')
+
+
+def _is_vendor_api_enabled(vendor_code: str, api_code: str) -> bool:
+    vendor = ApiVendor.objects.filter(code=vendor_code, is_active=True).first()
+    if not vendor:
+        return False
+    return VendorApi.objects.filter(vendor=vendor, api_code=api_code, is_active=True).exists()
 
 
 class NotificationServiceV2:
@@ -45,6 +53,13 @@ class NotificationServiceV2:
             Dict with task ID (if async_send) or result (if sync)
         """
         try:
+            if not _is_vendor_api_enabled("kaleyra", "sms"):
+                return {
+                    'success': False,
+                    'error': 'AD400',
+                    'message': 'AD400',
+                }
+
             # Validate and normalize phone number
             normalized_phone = normalize_phone_number(phone_number)
             
@@ -177,6 +192,13 @@ class NotificationServiceV2:
             Dict with task ID (if async_send) or result (if sync)
         """
         try:
+            if not _is_vendor_api_enabled("kaleyra", "sms"):
+                return {
+                    'success': False,
+                    'error': 'AD400',
+                    'message': 'AD400',
+                }
+
             # Validate and normalize phone number
             normalized_phone = normalize_phone_number(phone_number)
             

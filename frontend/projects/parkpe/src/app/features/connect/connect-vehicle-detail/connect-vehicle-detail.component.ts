@@ -9,6 +9,7 @@ import { getVehicleTypeLabel } from '../data/vehicle-types-data';
 import type { VehicleRCData } from '../services/connect.service';
 import type { VoucherListItem } from '../../../core/models/voucher.model';
 import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
+import { Subscription } from 'rxjs';
 
 /** Convert snake_case key to user-friendly label (curated list first, then auto-convert). */
 const RC_LABEL_MAP: Record<string, string> = {
@@ -264,6 +265,13 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
   verifyInProgress = signal(false);
   verifyError = signal<string | null>(null);
 
+  fastagRefreshing = signal(false);
+  showFastagPanel = computed(() => {
+    const v = this.vehicle();
+    if (!v) return false;
+    return v.vehicle_type === 'four_wheeler' || v.vehicle_type === 'commercial';
+  });
+
   /** Scan URL encoded in the QR (same-origin path or absolute scan_url from API). */
   qrData = computed(() => {
     const q = this.qr();
@@ -275,6 +283,8 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
   /** PNG data URL for sticker `<img>` (generated locally from `qrData`, no third-party image API). */
   qrImageUrl = signal<string | null>(null);
   private qrImageGen = 0;
+  private routeParamSub: Subscription | null = null;
+  private vehicleLoadSeq = 0;
 
   constructor() {
     effect(() => {
@@ -307,31 +317,48 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.copyFeedbackTimer) clearTimeout(this.copyFeedbackTimer);
+    this.routeParamSub?.unsubscribe();
   }
 
   ngOnInit() {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
-      this.error.set('Invalid vehicle');
-      this.loading.set(false);
-      return;
-    }
-    const n = parseInt(id, 10);
-    if (isNaN(n)) {
-      this.error.set('Invalid vehicle');
-      this.loading.set(false);
-      return;
-    }
-    this.connect.getVehicle(n).subscribe({
+    this.routeParamSub = this.route.paramMap.subscribe((params) => {
+      const id = params.get('id');
+      if (!id) {
+        this.error.set('Invalid vehicle');
+        this.loading.set(false);
+        return;
+      }
+      const n = parseInt(id, 10);
+      if (isNaN(n)) {
+        this.error.set('Invalid vehicle');
+        this.loading.set(false);
+        return;
+      }
+      this.loadVehicle(n);
+    });
+  }
+
+  private loadVehicle(vehicleId: number): void {
+    const loadSeq = ++this.vehicleLoadSeq;
+    this.loading.set(true);
+    this.error.set(null);
+    this.qr.set(null);
+    this.fastagRefreshing.set(false);
+    this.connect.getVehicle(vehicleId).subscribe({
       next: (v) => {
+        if (loadSeq !== this.vehicleLoadSeq) return;
         this.vehicle.set(v);
-        this.connect.getVehicleQr(n).subscribe({
-          next: (qrData) => this.qr.set(qrData),
+        this.connect.getVehicleQr(vehicleId).subscribe({
+          next: (qrData) => {
+            if (loadSeq !== this.vehicleLoadSeq) return;
+            this.qr.set(qrData);
+          },
           error: () => {},
         });
         this.loading.set(false);
       },
       error: (err) => {
+        if (loadSeq !== this.vehicleLoadSeq) return;
         this.error.set(err?.status === 401 ? 'Session expired. Please log in again.' : 'Vehicle not found');
         this.loading.set(false);
       },
@@ -427,6 +454,32 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
     this.connect.getVehicle(v.id).subscribe({
       next: (updated) => this.vehicle.set(updated),
       error: () => {},
+    });
+  }
+
+  /** BBPS View Bill — requires FASTag issuer on vehicle (set under Edit). */
+  refreshFastagBalance(): void {
+    const v = this.vehicle();
+    if (!v || !v.fastag_biller_id?.trim() || this.fastagRefreshing()) return;
+    this.fastagRefreshing.set(true);
+    this.connect.refreshVehicleFastagBalance(v.id).subscribe({
+      next: (updated) => {
+        this.vehicle.set(updated);
+        const cur = this.store.connectVehicles();
+        const idx = cur.findIndex((x) => x.id === updated.id);
+        const norm = { ...updated, rc_data: updated.vehicle_rc ?? updated.rc_data };
+        const next = idx >= 0 ? cur.map((x, i) => (i === idx ? norm : x)) : [...cur, norm];
+        this.store.setConnectVehicles(next);
+        const ds = this.store.dashboardSummary();
+        if (updated.is_primary && updated.fastag_balance != null) {
+          this.store.setDashboardSummary({ ...ds, fastagBalance: updated.fastag_balance });
+        }
+        this.store.notifyConnectVehicleListChanged();
+        this.fastagRefreshing.set(false);
+      },
+      error: () => {
+        this.fastagRefreshing.set(false);
+      },
     });
   }
 
@@ -610,16 +663,161 @@ export class ConnectVehicleDetailComponent implements OnInit, OnDestroy {
     return null;
   }
 
-  /** Save generated QR PNG (same image as on the sticker). */
-  downloadConnectQr() {
+  /** Save full Connect sticker PNG (not only the QR block). */
+  async downloadConnectQr() {
     const dataUrl = this.qrImageUrl();
     const v = this.vehicle();
     if (!dataUrl || !v?.registration_number) return;
     const safe = v.registration_number.replace(/[^a-zA-Z0-9_-]/g, '_');
+    try {
+      const stickerDataUrl = await this.buildStickerImage(dataUrl, v.registration_number);
+      this.triggerDownload(stickerDataUrl, `parkpe-connect-sticker-${safe}.png`);
+    } catch {
+      // Fallback: if sticker composition fails, at least download QR image.
+      this.triggerDownload(dataUrl, `parkpe-connect-qr-${safe}.png`);
+    }
+  }
+
+  private triggerDownload(url: string, filename: string) {
     const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `parkpe-connect-qr-${safe}.png`;
+    a.href = url;
+    a.download = filename;
     a.rel = 'noopener';
     a.click();
+  }
+
+  private async buildStickerImage(qrDataUrl: string, registrationNumber: string): Promise<string> {
+    const width = 1400;
+    const height = 680;
+    const stripeHeight = 24;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not available');
+
+    // Rounded outer sticker with blue gradient background.
+    this.roundRect(ctx, 0, 0, width, height, 28);
+    const bg = ctx.createLinearGradient(0, 0, width, height);
+    bg.addColorStop(0, '#0f2d6b');
+    bg.addColorStop(0.5, '#1a3d7a');
+    bg.addColorStop(1, '#0d2563');
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    // Top content area (exclude safety stripe).
+    const contentBottom = height - stripeHeight;
+    const leftPad = 58;
+    const topPad = 56;
+
+    // Logo (best effort). If logo fails, fallback title text is drawn.
+    let drewLogo = false;
+    try {
+      const logo = await this.loadImage('assets/parkpe-logo-dark-bg.svg');
+      ctx.drawImage(logo, leftPad, topPad, 210, 100);
+      drewLogo = true;
+    } catch {
+      drewLogo = false;
+    }
+    if (!drewLogo) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 54px Inter, Arial, sans-serif';
+      ctx.fillText('Park Pe', leftPad + 6, topPad + 72);
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 58px Inter, Arial, sans-serif';
+    ctx.fillText('Scan to contact owner', leftPad, 340);
+
+    // Icon row (text approximation for portable canvas render).
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.font = '700 64px Inter, Arial, sans-serif';
+    ctx.fillText('P', leftPad + 10, 452);
+    ctx.font = '700 50px Inter, Arial, sans-serif';
+    ctx.fillText('TRUCK', leftPad + 104, 450);
+    ctx.fillText('NO CALL', leftPad + 310, 450);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.font = '500 44px Inter, Arial, sans-serif';
+    ctx.fillText('Privacy Protected • No Number Sharing', leftPad, 535);
+
+    // QR block area.
+    const qrCardSize = 370;
+    const qrCardX = width - leftPad - qrCardSize;
+    const qrCardY = 58;
+    this.roundRect(ctx, qrCardX, qrCardY, qrCardSize, qrCardSize, 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    const qrImage = await this.loadImage(qrDataUrl);
+    const qrInnerPad = 24;
+    ctx.drawImage(
+      qrImage,
+      qrCardX + qrInnerPad,
+      qrCardY + qrInnerPad,
+      qrCardSize - qrInnerPad * 2,
+      qrCardSize - qrInnerPad * 2
+    );
+
+    // Registration number under QR.
+    const reg = registrationNumber.toUpperCase();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 66px Inter, Arial, sans-serif';
+    const regWidth = ctx.measureText(reg).width;
+    ctx.fillText(reg, qrCardX + (qrCardSize - regWidth) / 2, contentBottom - 56);
+
+    // Bottom yellow-black stripe.
+    let x = 0;
+    const stripeW = 34;
+    while (x < width + stripeW) {
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.moveTo(x, contentBottom);
+      ctx.lineTo(x + stripeW, contentBottom);
+      ctx.lineTo(x + stripeW - 12, height);
+      ctx.lineTo(x - 12, height);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#1f2937';
+      ctx.beginPath();
+      ctx.moveTo(x + stripeW, contentBottom);
+      ctx.lineTo(x + stripeW * 2, contentBottom);
+      ctx.lineTo(x + stripeW * 2 - 12, height);
+      ctx.lineTo(x + stripeW - 12, height);
+      ctx.closePath();
+      ctx.fill();
+      x += stripeW * 2;
+    }
+
+    return canvas.toDataURL('image/png');
+  }
+
+  private loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+      img.src = src;
+    });
+  }
+
+  private roundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
   }
 }

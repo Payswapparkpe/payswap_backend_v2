@@ -13,10 +13,20 @@ from rest_framework.permissions import AllowAny
 from rest_framework.parsers import JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from portal.models import VehicleQRCode, User, Profile, Wallet
+from api.utils.client_ip import get_client_ip
+
+from portal.models import (
+    Vehicle,
+    VehicleQRCode,
+    User,
+    Profile,
+    Wallet,
+    ConnectQrOnboardLog,
+)
 from portal.services.otp_service import OTPService
 from portal.utils.phone_utils import safe_normalize_phone, phone_lookup_candidates
 from portal.utils.masking import mask_phone_for_log
+from portal.utils.user_utils import generate_username, get_role_prefix
 from api.auth_parkpe.serializers import user_to_angular
 
 from api.throttling import ConnectScannerVerifyThrottle
@@ -47,11 +57,13 @@ class ConnectScannerSendOTPView(APIView):
                 {"detail": "Invalid mobile number. Use 10-digit Indian mobile (e.g. 9876543210)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if qr_code and not VehicleQRCode.objects.filter(code=qr_code.strip()).exists():
-            return Response(
-                {"detail": "Invalid QR code."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if qr_code:
+            qr = VehicleQRCode.objects.select_related("vehicle").filter(code=qr_code.strip()).first()
+            if not qr or qr.vehicle.connect_scope != Vehicle.SCOPE_CONSUMER:
+                return Response(
+                    {"detail": "Invalid QR code."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         rate_key = f"{CONNECT_SCANNER_OTP_RATE_LIMIT_KEY}{normalized_phone}"
         timestamps = cache.get(rate_key) or []
         now = timezone.now().timestamp()
@@ -113,6 +125,18 @@ class ConnectScannerVerifyOTPView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         cache.delete(fail_key)  # reset on success
+        cache.set(f"connect_recent_call_verify:{normalized_phone}", 1, timeout=900)
+
+        vehicle_for_onboard = None
+        if qr_code:
+            qr = VehicleQRCode.objects.select_related("vehicle").filter(code=qr_code.strip()).first()
+            if not qr or qr.vehicle.connect_scope != Vehicle.SCOPE_CONSUMER:
+                return Response(
+                    {"detail": "Invalid QR code."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            vehicle_for_onboard = qr.vehicle
+
         candidates = phone_lookup_candidates(normalized_phone)
         profile = Profile.objects.filter(phone__in=candidates).select_related("user").first()
         if profile:
@@ -128,7 +152,8 @@ class ConnectScannerVerifyOTPView(APIView):
                     {"detail": "Registration is not configured. Contact support."},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
-            username = f"connect_{normalized_phone[-6:]}_{secrets.token_hex(2)}"
+            # User.username max_length is 15 (e.g. C00XXXXXXXX); do not use a long "connect_..." string.
+            username = generate_username(get_role_prefix("customer"))
             placeholder_email = f"connect_{normalized_phone}@parkpe.connect"
             try:
                 with transaction.atomic():
@@ -157,6 +182,18 @@ class ConnectScannerVerifyOTPView(APIView):
                 )
             is_new_user = True
             vehicle_log(request, "INFO", "connect_scanner_verify_otp_new_user", {"user_id": user.pk})
+        if qr_code and vehicle_for_onboard:
+            try:
+                ConnectQrOnboardLog.objects.create(
+                    user=user,
+                    qr_code=qr_code.strip()[:128],
+                    vehicle=vehicle_for_onboard,
+                    is_new_user=is_new_user,
+                    ip_address=get_client_ip(request),
+                )
+            except Exception:
+                vehicle_log(request, "ERROR", "connect_qr_onboard_log_failed", {"user_id": user.pk})
+
         refresh = RefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)

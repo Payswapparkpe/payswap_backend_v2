@@ -194,7 +194,7 @@ export class PaymentGatewayService {
     return this.api.requestRefund(transactionId, amount, reason);
   }
 
-  downloadReceipt(transactionId: string) {
-    return this.api.downloadReceipt(transactionId);
+  downloadReceipt(transactionId: string, options?: { attachment?: boolean; format?: 'pdf' }) {
+    return this.api.downloadReceipt(transactionId, options);
   }
 }

@@ -1,7 +1,7 @@
 /** Production: always use HTTPS for app and apiUrl. See docs/AUTH_STORAGE_SECURITY.md */
 export const environment = {
   production: true,
-  appName: 'PARKPE',
+  appName: 'Payswap',
   appVersion: '1.0.0',
   apiUrl: 'https://api.parkpe.com',
   apiTimeout: 30000,

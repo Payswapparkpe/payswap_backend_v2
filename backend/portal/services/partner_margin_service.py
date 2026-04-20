@@ -7,7 +7,13 @@ from typing import Dict, Any, List, Optional
 from django.utils import timezone
 from django.db.models import Sum, Q
 
-from portal.models import ResellerPartner, ResellerPartnerTransaction, ResellerPartnerPricing, HubVendorCostRecord
+from portal.models import (
+    ResellerPartner,
+    ResellerPartnerTransaction,
+    ResellerPartnerPricing,
+    HubVendorCostRecord,
+    BillingDocument,
+)
 
 
 class PartnerMarginService:
@@ -59,6 +65,13 @@ class PartnerMarginService:
         )
         by_service = [x for x in by_service if (x.get("revenue") or 0) != 0]
 
+        gst_sum = BillingDocument.objects.filter(
+            partner=partner,
+            document_type=BillingDocument.DOC_B2B_COMMISSION,
+            issued_at__gte=start_date,
+            issued_at__lte=end_date,
+        ).aggregate(s=Sum("gst_total"))["s"] or Decimal("0")
+
         return {
             "partner_id": partner.id,
             "partner_code": partner.partner_code,
@@ -66,7 +79,7 @@ class PartnerMarginService:
             "gross": gross,
             "vendor_cost": vendor_cost,
             "commission": commission,
-            "gst": Decimal("0"),  # extend when GST tracked
+            "gst": gst_sum,
             "net_margin": net_margin,
             "by_service": by_service,
         }

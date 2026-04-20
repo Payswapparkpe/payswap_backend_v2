@@ -197,7 +197,7 @@
         </a>
         
         <!-- Create Brand -->
-        {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+        {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
         <a href="{% url 'voucherx_admin_onboard' %}" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-green-300 hover:shadow-lg transition-all group bg-gradient-to-br from-green-50 to-green-100/50">
             <div class="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-green-100 group-hover:scale-110 transition-all duration-300">
                 <i class="ti ti-building-store text-2xl text-green-600"></i>
@@ -208,7 +208,7 @@
         {% endif %}
         
         <!-- Review Onboarding -->
-        {% if user.role_code in 'super_admin,admin' or user.is_staff %}
+        {% if user.role_code == 'super_admin' or user.role_code == 'admin' or user.is_staff %}
         <a href="{% url 'brand_onboarding_admin_list' %}?from=voucherx" class="flex flex-col items-center p-6 border border-gray-200 rounded-xl hover:border-amber-300 hover:shadow-lg transition-all group bg-gradient-to-br from-amber-50 to-amber-100/50 relative">
             {% if pending_tasks.onboarding_reviews > 0 %}
             <span class="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{{ pending_tasks.onboarding_reviews }}</span>

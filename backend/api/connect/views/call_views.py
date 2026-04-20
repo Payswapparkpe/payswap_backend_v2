@@ -12,12 +12,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.parsers import JSONParser
 
 from api.throttling import ConnectCallRateThrottle
-from portal.models import VehicleQRCode, ConnectCallLog, Profile
+from portal.models import Vehicle, VehicleQRCode, ConnectCallLog, Profile
 from portal.services.otp_service import OTPService
 from portal.utils.phone_utils import safe_normalize_phone
 from portal.utils.masking import mask_phone_for_log
 
 from ._common import vehicle_log, CONNECT_CALL_TOKEN_PREFIX, CONNECT_CALL_TOKEN_TTL
+from ..risk_controls import check_call_abuse
+from .vehicle_views import _mask_registration as _format_vehicle_registration
 
 
 def _resolve_scanner_phone_for_call(request) -> tuple[str | None, str | None, Response | None]:
@@ -84,7 +86,8 @@ class ConnectCallTokenView(APIView):
                 {"detail": "Invalid mobile number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not VehicleQRCode.objects.filter(code=qr_code).exists():
+        qr_precheck = VehicleQRCode.objects.select_related("vehicle").filter(code=qr_code).first()
+        if not qr_precheck or qr_precheck.vehicle.connect_scope != Vehicle.SCOPE_CONSUMER:
             return Response({"detail": "Invalid or expired QR code."}, status=status.HTTP_404_NOT_FOUND)
         otp_service = OTPService()
         ok, _ = otp_service.verify_otp(normalized_phone, otp_code)
@@ -97,6 +100,7 @@ class ConnectCallTokenView(APIView):
         token_id = secrets.token_urlsafe(32)
         cache_key = f"{CONNECT_CALL_TOKEN_PREFIX}{token_id}"
         cache.set(cache_key, {"phone": normalized_phone, "qr_code": qr_code}, timeout=CONNECT_CALL_TOKEN_TTL)
+        cache.set(f"connect_recent_call_verify:{normalized_phone}", 1, timeout=900)
         vehicle_log(request, "INFO", "connect_call_token_issued", {"phone_masked": mask_phone_for_log(normalized_phone)})
         return Response({"call_token": token_id, "expires_in": CONNECT_CALL_TOKEN_TTL})
 
@@ -132,9 +136,65 @@ class ConnectCallInitiateView(APIView):
         if not qr:
             return Response({"detail": "Invalid or expired QR code."}, status=status.HTTP_404_NOT_FOUND)
         vehicle = qr.vehicle
+        if vehicle.connect_scope != Vehicle.SCOPE_CONSUMER:
+            return Response({"detail": "Invalid or expired QR code."}, status=status.HTTP_404_NOT_FOUND)
         owner = vehicle.user
         owner_id = owner.pk
         scanner_masked = mask_phone_for_log(scanner_phone)
+        scanner_user_id = request.user.pk if getattr(request.user, "is_authenticated", False) else None
+
+        risk_decision = check_call_abuse(
+            request,
+            scanner_user_id=scanner_user_id,
+            scanner_phone=scanner_phone,
+            owner_id=owner_id,
+            qr_code=qr_code,
+        )
+        if not risk_decision.allowed:
+            vehicle_log(
+                request,
+                "WARNING",
+                "connect_call_blocked_by_risk_engine",
+                {
+                    "owner_id": owner_id,
+                    "scanner_user_id": scanner_user_id,
+                    "scanner_phone_masked": scanner_masked,
+                    "risk_score": risk_decision.score,
+                    "risk_reasons": risk_decision.reasons,
+                },
+            )
+            ConnectCallLog.objects.create(
+                qr_code=qr_code[:128],
+                vehicle_id=vehicle.pk,
+                scanner_phone_masked=scanner_masked,
+                owner_id=owner_id,
+                success=False,
+            )
+            return Response(
+                {
+                    "detail": "Call request blocked for safety due to unusual activity. Try again later.",
+                    "code": "connect_risk_block",
+                    "risk_reasons": risk_decision.reasons,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        if risk_decision.challenge_required and not token_qr_code:
+            verified_recently = cache.get(f"connect_recent_call_verify:{scanner_phone}") is not None
+            if verified_recently:
+                vehicle_log(
+                    request,
+                    "INFO",
+                    "connect_call_step_up_satisfied",
+                    {"scanner_phone_masked": scanner_masked, "owner_id": owner_id},
+                )
+            else:
+                return Response(
+                    {
+                        "detail": "Additional verification required before placing more calls.",
+                        "code": "connect_step_up_required",
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         phone_candidates = [scanner_phone, scanner_phone[-10:] if len(scanner_phone) >= 10 else scanner_phone]
         scanner_profile = Profile.objects.filter(phone__in=phone_candidates).only("connect_blocked_until").first()
@@ -180,7 +240,12 @@ class ConnectCallInitiateView(APIView):
                 request,
                 "INFO",
                 "connect_call_initiate_ok",
-                {"vehicle_id": vehicle.pk, "kaleyra_call_id": kaleyra_call_id or None},
+                {
+                    "vehicle_id": vehicle.pk,
+                    "kaleyra_call_id": kaleyra_call_id or None,
+                    "risk_score": risk_decision.score,
+                    "risk_reasons": risk_decision.reasons,
+                },
             )
             ConnectCallLog.objects.create(
                 qr_code=qr_code[:128],
@@ -198,10 +263,10 @@ class ConnectCallInitiateView(APIView):
             # Notify owner via SMS so they have context before the bridge call rings
             try:
                 from portal.tasks.notification_tasks import send_sms_task
-                masked_reg = vehicle.registration_number[:4] + "****"
+                display_reg = _format_vehicle_registration(vehicle.registration_number or "")
                 send_sms_task.delay(
                     phone_number=owner_phone,
-                    message=f"Someone scanned your ParkPe Connect QR ({masked_reg}) and is trying to call you. Please answer the incoming call.",
+                    message=f"Someone scanned your ParkPe Connect QR ({display_reg}) and is trying to call you. Please answer the incoming call.",
                 )
             except Exception:
                 pass

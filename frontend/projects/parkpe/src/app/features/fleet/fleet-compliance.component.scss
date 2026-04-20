@@ -1,0 +1,155 @@
+.fleet-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.fleet-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.7rem;
+}
+
+.summary-grid > div {
+  background: #fff;
+  border: 1px solid #e5eaf3;
+  border-radius: 10px;
+  padding: 0.7rem;
+  display: grid;
+}
+
+.summary-grid strong {
+  font-size: 1.1rem;
+}
+
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.7rem;
+}
+
+.command-grid article {
+  border: 1px solid #dce7f8;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #fff, #f7fbff);
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.command-grid p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.command-grid strong {
+  font-size: 1.3rem;
+  color: #0f172a;
+}
+
+.command-grid span {
+  color: #4e607d;
+  font-size: 0.77rem;
+}
+
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+select {
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #d6dce8;
+}
+
+button,
+.ghost-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: #1f4f94;
+  color: #fff;
+  text-decoration: none;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid #e5eaf3;
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.compliant {
+  background: #e6f8ec;
+  color: #0f7a3a;
+}
+
+.expiring {
+  background: #fff6dd;
+  color: #9a6a00;
+}
+
+.expired,
+.missing_rc {
+  background: #ffe7e7;
+  color: #b11f1f;
+}
+
+.pager {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.error {
+  color: #b11f1f;
+}
+
+.risk-band {
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.good {
+  background: #e6f8ec;
+  color: #0f7a3a;
+}
+
+.watch {
+  background: #fff6dd;
+  color: #9a6a00;
+}
+
+.critical {
+  background: #ffe7e7;
+  color: #b11f1f;
+}

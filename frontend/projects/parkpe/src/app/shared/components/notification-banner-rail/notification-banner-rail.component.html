@@ -1,0 +1,28 @@
+<aside class="bbps-banner-rail">
+  @if (items().length === 0) {
+    <div class="banner-rail-empty">
+      <p class="banner-rail-empty-title">{{ emptyTitle() }}</p>
+      <p class="banner-rail-empty-subtitle">{{ emptySubtitle() }}</p>
+    </div>
+  } @else {
+    @for (item of items(); track item.id) {
+      <article
+        class="banner-card"
+        [style.background]="item.bgColor || '#1f4f94'"
+        [style.color]="item.textColor || '#ffffff'"
+      >
+        @if (item.imageUrl) {
+          <img class="banner-card-image" [src]="item.imageUrl" [alt]="item.title" loading="lazy" />
+        }
+        <p class="banner-card-kicker">ParkPe update</p>
+        <h4 class="banner-card-title">{{ item.title }}</h4>
+        <p class="banner-card-message">{{ item.message }}</p>
+        @if (item.ctaUrl && item.ctaText) {
+          <a class="banner-card-cta" [href]="item.ctaUrl">{{ item.ctaText }}</a>
+        } @else if (item.ctaText) {
+          <span class="banner-card-cta">{{ item.ctaText }}</span>
+        }
+      </article>
+    }
+  }
+</aside>

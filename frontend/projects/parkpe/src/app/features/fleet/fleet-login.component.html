@@ -1,0 +1,26 @@
+<div class="fleet-login">
+  <div class="fleet-login__card">
+    <h1>Fleet Login</h1>
+    <p>Sign in with your fleet account to access the control center.</p>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()">
+      <label for="fleet-email">Work Email</label>
+      <input id="fleet-email" type="email" formControlName="email" placeholder="ops@fleet-company.com" />
+      @if (form.controls.email.touched && form.controls.email.invalid) {
+        <small>Email is required and must be valid.</small>
+      }
+
+      <label for="fleet-password">Password</label>
+      <input id="fleet-password" type="password" formControlName="password" placeholder="Enter password" />
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <small>Password must be at least 6 characters.</small>
+      }
+
+      <button type="submit" [disabled]="loading">
+        {{ loading ? 'Signing in...' : 'Login to Fleet' }}
+      </button>
+    </form>
+
+    <a routerLink="/auth/login">Individual login</a>
+  </div>
+</div>

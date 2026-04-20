@@ -1,0 +1,56 @@
+<section class="fleet-page">
+  <div class="fleet-page__header">
+    <div>
+      <h2>Fleet Drivers</h2>
+      <p>Driver roster with risk and activity indicators.</p>
+    </div>
+    <a routerLink="/fleet/control-center" class="ghost-btn">Back to Control Center</a>
+  </div>
+
+  <div class="filters">
+    <input [(ngModel)]="search" placeholder="Search driver name, phone or email..." />
+    <button (click)="applyFilters()">Apply</button>
+  </div>
+
+  <section class="insight-grid">
+    <article>
+      <p>Avg Safety Score</p>
+      <strong>{{ avgSafetyScore }}%</strong>
+      <span>Composite risk score from warnings/reports/block events.</span>
+    </article>
+    <article>
+      <p>High Risk Drivers</p>
+      <strong>{{ highRiskDrivers }}</strong>
+      <span>Needs counseling, monitoring, or intervention workflow.</span>
+    </article>
+    <article>
+      <p>Temporarily Blocked</p>
+      <strong>{{ blockedDrivers }}</strong>
+      <span>Currently under policy block till review completion.</span>
+    </article>
+  </section>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p class="loading" *ngIf="loading">Syncing live drivers...</p>
+
+  <div class="cards">
+    <article class="driver-card" *ngFor="let item of items">
+      <h3>{{ item.name }}</h3>
+      <p>{{ item.phone }} | {{ item.email }}</p>
+      <p>City: {{ item.city || 'n/a' }}</p>
+      <p>Vehicles: {{ item.vehiclesCount }} | Scans(24h): {{ item.scans24h }}</p>
+      <p>Reports(24h): {{ item.reportsAgainst24h }} | Warnings: {{ item.warningCount }}</p>
+      <p>
+        Safety Score:
+        <span class="tier" [class]="getDriverTier(item)">{{ getSafetyScore(item) }}%</span>
+      </p>
+      <p *ngIf="item.blockedUntil" class="blocked">Blocked until {{ item.blockedUntil | date:'short' }}</p>
+    </article>
+  </div>
+
+  <div class="pager">
+    <button (click)="prevPage()" [disabled]="page <= 1">Previous</button>
+    <span>Page {{ page }} (Total {{ total }})</span>
+    <button (click)="nextPage()" [disabled]="page * limit >= total">Next</button>
+  </div>
+</section>

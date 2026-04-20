@@ -86,9 +86,6 @@ API_V1_TESTS = [
 API_V2_TESTS = [
     # Public
     ("GET", "/api/v2/health/", None),
-    ("GET", "/api/v2/public/", None),
-    # Partner (needs key)
-    ("GET", "/api/v2/partner/", None),
     # Vouchers
     ("POST", "/api/v2/vouchers/issue/", {"brand_id": 1, "amount": "500.00", "mobile_number": "9876543210"}),
     ("POST", "/api/v2/vouchers/bulk-issue/", {"brand_id": 1, "denominations": {"500": {"quantity": 1}}}),

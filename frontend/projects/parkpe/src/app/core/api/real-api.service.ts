@@ -53,7 +53,25 @@ import {
   ChallanPaymentRequest,
   ChallanPaymentResponse,
 } from '../models/challan.model';
-import type { BbpsSavedBillApi, BbpsSavedBillAdd, BbpsPayCartResponse } from './api-backend.interface';
+import type {
+  BbpsSavedBillApi,
+  BbpsSavedBillAdd,
+  BbpsPayCartResponse,
+  NotificationBannerItem,
+  InboxNotificationItem,
+  FleetControlCenterResponse,
+  FleetListResponse,
+  FleetVehicleItem,
+  FleetVehicleCreatePayload,
+  FleetVehiclesListResponse,
+  FleetRosterDriverItem,
+  FleetDriverItem,
+  FleetTripItem,
+  FleetTripManualCreatePayload,
+  FleetComplianceResponse,
+  FleetTrendsResponse,
+  FleetInterestStatus,
+} from './api-backend.interface';
 
 /**
  * Real API Service
@@ -92,6 +110,10 @@ export class RealApiService implements ApiBackend {
   // Auth API
   login(credentials: LoginRequest): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, credentials);
+  }
+
+  fleetLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/auth/fleet/login`, credentials);
   }
 
   requestLoginOtp(phone: string): Observable<OtpRequestResponse> {
@@ -139,6 +161,105 @@ export class RealApiService implements ApiBackend {
 
   updateProfile(payload: Partial<User>): Observable<User> {
     return this.http.patch<User>(`${this.apiUrl}/auth/profile`, payload);
+  }
+
+  getPinStatus(): Observable<{ hasPin: boolean; pinSetAt?: string | null; pinLockedUntil?: string | null; isLocked: boolean; fullAuthFresh: boolean }> {
+    return this.http.get<{ hasPin: boolean; pinSetAt?: string | null; pinLockedUntil?: string | null; isLocked: boolean; fullAuthFresh: boolean }>(
+      `${this.apiUrl}/auth/pin/status`
+    );
+  }
+
+  setSessionPin(payload: { pin: string; currentPin?: string; forceReset?: boolean }): Observable<{ success: boolean; hasPin: boolean }> {
+    return this.http.post<{ success: boolean; hasPin: boolean }>(`${this.apiUrl}/auth/pin/set`, payload);
+  }
+
+  verifySessionPin(pin: string): Observable<{ success: boolean; verified: boolean; remainingAttempts?: number }> {
+    return this.http.post<{ success: boolean; verified: boolean; remainingAttempts?: number }>(
+      `${this.apiUrl}/auth/pin/verify`,
+      { pin }
+    );
+  }
+
+  getPasskeyStatus(): Observable<{ supported: boolean; enabled: boolean }> {
+    return this.http.get<{ supported: boolean; enabled: boolean }>(`${this.apiUrl}/auth/passkey/status`);
+  }
+
+  getPasskeyRegisterOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return this.http.post<{ publicKey: Record<string, unknown> }>(`${this.apiUrl}/auth/passkey/register/options`, {});
+  }
+
+  verifyPasskeyRegistration(credential: Record<string, unknown>): Observable<{ success: boolean; enabled: boolean }> {
+    return this.http.post<{ success: boolean; enabled: boolean }>(
+      `${this.apiUrl}/auth/passkey/register/verify`,
+      { credential }
+    );
+  }
+
+  getPasskeyAuthOptions(): Observable<{ publicKey: Record<string, unknown> }> {
+    return this.http.post<{ publicKey: Record<string, unknown> }>(`${this.apiUrl}/auth/passkey/auth/options`, {});
+  }
+
+  verifyPasskeyAuth(credential: Record<string, unknown>): Observable<{ success: boolean; verified: boolean }> {
+    return this.http.post<{ success: boolean; verified: boolean }>(
+      `${this.apiUrl}/auth/passkey/auth/verify`,
+      { credential }
+    );
+  }
+
+  disablePasskey(): Observable<{ success: boolean; enabled: boolean }> {
+    return this.http.post<{ success: boolean; enabled: boolean }>(`${this.apiUrl}/auth/passkey/disable`, {});
+  }
+
+  getPasskeyCredentials(): Observable<{ items: import('./api-backend.interface').PasskeyCredentialItem[] }> {
+    return this.http.get<{ items: import('./api-backend.interface').PasskeyCredentialItem[] }>(
+      `${this.apiUrl}/auth/passkey/credentials`
+    );
+  }
+
+  updatePasskeyCredential(credentialId: number, label: string): Observable<{ success: boolean; id: number; label: string }> {
+    return this.http.patch<{ success: boolean; id: number; label: string }>(
+      `${this.apiUrl}/auth/passkey/credentials/${credentialId}`,
+      { label }
+    );
+  }
+
+  deletePasskeyCredential(credentialId: number): Observable<{ success: boolean; enabled: boolean }> {
+    return this.http.delete<{ success: boolean; enabled: boolean }>(
+      `${this.apiUrl}/auth/passkey/credentials/${credentialId}`
+    );
+  }
+
+  requestPasskeyRecoveryOtp(): Observable<{ message: string; expires_in: number }> {
+    return this.http.post<{ message: string; expires_in: number }>(
+      `${this.apiUrl}/auth/passkey/recovery/request-otp`,
+      {}
+    );
+  }
+
+  verifyPasskeyRecoveryOtp(otp: string): Observable<{ success: boolean; revoked: number; enabled: boolean }> {
+    return this.http.post<{ success: boolean; revoked: number; enabled: boolean }>(
+      `${this.apiUrl}/auth/passkey/recovery/verify-otp`,
+      { otp }
+    );
+  }
+
+  getSecurityOverview(): Observable<import('./api-backend.interface').SecurityOverviewResponse> {
+    return this.http.get<import('./api-backend.interface').SecurityOverviewResponse>(
+      `${this.apiUrl}/auth/security-overview`
+    );
+  }
+
+  revokeSessions(payload?: { device_id?: number }): Observable<{ success: boolean; revoked: number }> {
+    return this.http.post<{ success: boolean; revoked: number }>(
+      `${this.apiUrl}/auth/sessions/revoke`,
+      payload || {}
+    );
+  }
+
+  getSecurityActivity(): Observable<{ items: import('./api-backend.interface').SecurityActivityItem[] }> {
+    return this.http.get<{ items: import('./api-backend.interface').SecurityActivityItem[] }>(
+      `${this.apiUrl}/auth/security-activity`
+    );
   }
 
   // Payment API (ParkPe: voucher purchase – no wallet)
@@ -314,8 +435,21 @@ export class RealApiService implements ApiBackend {
     return throwError(() => new Error(UNSUPPORTED));
   }
 
-  downloadReceipt(_transactionId: string): Observable<Blob | string> {
-    return throwError(() => new Error(UNSUPPORTED));
+  downloadReceipt(
+    transactionId: string,
+    options?: { attachment?: boolean; format?: 'pdf' }
+  ): Observable<Blob> {
+    const id = encodeURIComponent(transactionId);
+    let params = new HttpParams();
+    if (options?.format === 'pdf') {
+      params = params.set('format', 'pdf');
+    } else if (options?.attachment) {
+      params = params.set('download', '1');
+    }
+    return this.http.get(`${this.apiUrl}/payment/transactions/${id}/receipt/`, {
+      params,
+      responseType: 'blob',
+    });
   }
 
   // Parking API – backend routes not yet implemented
@@ -578,5 +712,156 @@ export class RealApiService implements ApiBackend {
           activeBookings: number;
         }>(`${this.apiUrl}/dashboard/summary`)
     );
+  }
+
+  getNotificationBanners(params?: { slot?: string; screen?: string; service?: string }): Observable<{ banners: NotificationBannerItem[] }> {
+    let httpParams = new HttpParams();
+    if (params?.slot) httpParams = httpParams.set('slot', params.slot);
+    if (params?.screen) httpParams = httpParams.set('screen', params.screen);
+    if (params?.service) httpParams = httpParams.set('service', params.service);
+    const key = `dashboard:notifications:${params?.slot ?? ''}:${params?.screen ?? ''}:${params?.service ?? ''}`;
+    return this.getCached(
+      key,
+      RealApiService.CACHE_TTL_SHORT_MS,
+      () =>
+        this.http.get<{ banners: NotificationBannerItem[] }>(`${this.apiUrl}/dashboard/notifications`, {
+          params: httpParams,
+        })
+    );
+  }
+
+  getNotificationFeed(params?: { limit?: number; offset?: number }): Observable<{ items: InboxNotificationItem[]; total: number }> {
+    let httpParams = new HttpParams();
+    if (params?.limit != null) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.offset != null) httpParams = httpParams.set('offset', String(params.offset));
+    return this.http.get<{ items: InboxNotificationItem[]; total: number }>(`${this.apiUrl}/dashboard/notifications/feed`, {
+      params: httpParams,
+    });
+  }
+
+  getNotificationUnreadCount(): Observable<{ unread: number }> {
+    return this.http.get<{ unread: number }>(`${this.apiUrl}/dashboard/notifications/unread-count`);
+  }
+
+  markNotificationRead(notificationId: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/dashboard/notifications/${notificationId}/read`, {});
+  }
+
+  registerPushToken(payload: { token: string; devicePlatform?: string; appPlatform?: string }): Observable<{ success: boolean; id: number }> {
+    return this.http.post<{ success: boolean; id: number }>(`${this.apiUrl}/dashboard/notifications/push-token`, payload);
+  }
+
+  getFleetControlCenter(): Observable<FleetControlCenterResponse> {
+    return this.http.get<FleetControlCenterResponse>(`${this.apiUrl}/dashboard/fleet/control-center`);
+  }
+
+  getFleetVehicles(params?: { page?: number; limit?: number; search?: string; vehicleType?: string }): Observable<FleetVehiclesListResponse> {
+    let httpParams = new HttpParams();
+    if (params?.page) httpParams = httpParams.set('page', String(params.page));
+    if (params?.limit) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.search) httpParams = httpParams.set('search', params.search);
+    if (params?.vehicleType) httpParams = httpParams.set('vehicle_type', params.vehicleType);
+    return this.http.get<FleetVehiclesListResponse>(`${this.apiUrl}/dashboard/fleet/vehicles`, {
+      params: httpParams,
+    });
+  }
+
+  createFleetVehicle(payload: FleetVehicleCreatePayload): Observable<FleetVehicleItem> {
+    const body: Record<string, unknown> = {
+      vehicle_type: payload.vehicleType,
+      registration_number: payload.registrationNumber.trim().toUpperCase(),
+      brand: payload.brand.trim(),
+      model: payload.model.trim(),
+      accept_ownership_declaration: payload.acceptOwnershipDeclaration,
+    };
+    if (payload.year != null && typeof payload.year === 'number') {
+      body['year'] = payload.year;
+    }
+    if (payload.ownerUserId != null && typeof payload.ownerUserId === 'number') {
+      body['owner_user_id'] = payload.ownerUserId;
+    }
+    return this.http.post<FleetVehicleItem>(`${this.apiUrl}/dashboard/fleet/vehicles`, body);
+  }
+
+  getFleetRoster(): Observable<{ canDelegateToDrivers: boolean; rosterDrivers: FleetRosterDriverItem[] }> {
+    return this.http.get<{ canDelegateToDrivers: boolean; rosterDrivers: FleetRosterDriverItem[] }>(
+      `${this.apiUrl}/dashboard/fleet/roster`
+    );
+  }
+
+  linkFleetRosterDriver(payload: { driverUserId?: number; username?: string; phone?: string }): Observable<FleetRosterDriverItem> {
+    const body: Record<string, unknown> = {};
+    if (payload.driverUserId != null) body['driver_user_id'] = payload.driverUserId;
+    if (payload.username != null && payload.username.trim()) body['username'] = payload.username.trim();
+    if (payload.phone != null && payload.phone.trim()) body['phone'] = payload.phone.trim();
+    return this.http.post<FleetRosterDriverItem>(`${this.apiUrl}/dashboard/fleet/roster`, body);
+  }
+
+  unlinkFleetRosterDriver(driverUserId: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/dashboard/fleet/roster/${driverUserId}`);
+  }
+
+  getFleetDrivers(params?: { page?: number; limit?: number; search?: string }): Observable<FleetListResponse<FleetDriverItem>> {
+    let httpParams = new HttpParams();
+    if (params?.page) httpParams = httpParams.set('page', String(params.page));
+    if (params?.limit) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.search) httpParams = httpParams.set('search', params.search);
+    return this.http.get<FleetListResponse<FleetDriverItem>>(`${this.apiUrl}/dashboard/fleet/drivers`, {
+      params: httpParams,
+    });
+  }
+
+  getFleetTrips(params?: { page?: number; limit?: number; dateFrom?: string; dateTo?: string }): Observable<FleetListResponse<FleetTripItem>> {
+    let httpParams = new HttpParams();
+    if (params?.page) httpParams = httpParams.set('page', String(params.page));
+    if (params?.limit) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.dateFrom) httpParams = httpParams.set('date_from', params.dateFrom);
+    if (params?.dateTo) httpParams = httpParams.set('date_to', params.dateTo);
+    return this.http.get<FleetListResponse<FleetTripItem>>(`${this.apiUrl}/dashboard/fleet/trips`, {
+      params: httpParams,
+    });
+  }
+
+  createFleetTripManual(payload: FleetTripManualCreatePayload): Observable<FleetTripItem> {
+    const body: Record<string, unknown> = { vehicle_id: payload.vehicleId };
+    const notes = payload.notes?.trim();
+    if (notes) body['notes'] = notes;
+    return this.http.post<FleetTripItem>(`${this.apiUrl}/dashboard/fleet/trips`, body);
+  }
+
+  getFleetCompliance(params?: { page?: number; limit?: number; status?: string }): Observable<FleetComplianceResponse> {
+    let httpParams = new HttpParams();
+    if (params?.page) httpParams = httpParams.set('page', String(params.page));
+    if (params?.limit) httpParams = httpParams.set('limit', String(params.limit));
+    if (params?.status) httpParams = httpParams.set('status', params.status);
+    return this.http.get<FleetComplianceResponse>(`${this.apiUrl}/dashboard/fleet/compliance`, {
+      params: httpParams,
+    });
+  }
+
+  getFleetTrends(params?: { days?: number }): Observable<FleetTrendsResponse> {
+    let httpParams = new HttpParams();
+    if (params?.days) httpParams = httpParams.set('days', String(params.days));
+    return this.http.get<FleetTrendsResponse>(`${this.apiUrl}/dashboard/fleet/trends`, {
+      params: httpParams,
+    });
+  }
+
+  getFleetInterestStatus(): Observable<FleetInterestStatus> {
+    return this.http.get<FleetInterestStatus>(`${this.apiUrl}/dashboard/fleet/interest/status`);
+  }
+
+  submitFleetInterest(payload: { companyName?: string; message?: string }): Observable<{
+    success: boolean;
+    status: string;
+    submittedAt?: string;
+    message?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      status: string;
+      submittedAt?: string;
+      message?: string;
+    }>(`${this.apiUrl}/dashboard/fleet/interest`, payload);
   }
 }

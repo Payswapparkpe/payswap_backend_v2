@@ -4,33 +4,34 @@
 {% block page_title %}Super Dashboard{% endblock %}
 
 {% block content %}
-<!-- Mobikwik Balance Card -->
-<div id="mobikwik-balance-card" class="mb-8">
-    <div class="stat-card-enterprise rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6" style="border-left-color: #f59e0b;">
-        <div class="flex items-start justify-between">
-            <div class="flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                    <p class="stat-label text-amber-800 font-semibold">Mobikwik Retailer Balance</p>
-                    <button type="button" id="mobikwik-balance-refresh" class="p-1 rounded hover:bg-amber-200/60 text-amber-700" title="Refresh balance" aria-label="Refresh">
-                        <i class="ti ti-refresh text-lg"></i>
-                    </button>
-                </div>
-                <div id="mobikwik-balance-value">
-                    {% if mobikwik_balance_available %}
-                        <p class="stat-value text-2xl font-bold text-amber-900">₹{{ mobikwik_balance|floatformat:2 }}</p>
-                        <p class="text-xs text-amber-600 mt-1">BBPS wallet – refreshed on page load</p>
-                    {% elif mobikwik_balance_error %}
-                        <p class="text-sm text-amber-800">{{ mobikwik_balance_error }}</p>
-                        <p class="text-xs text-amber-600 mt-1">Enable Mobikwik BBPS in .env to fetch</p>
+<!-- Vendor Pool Balance Cards -->
+<div class="mb-8">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-900">Vendor Pool Balance</h3>
+        <button type="button" id="vendor-balance-refresh" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors" title="Refresh all balances" aria-label="Refresh all balances">
+            <i class="ti ti-refresh text-sm"></i>
+            <span class="text-sm font-medium">Refresh All</span>
+        </button>
+    </div>
+    <div id="vendor-balance-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% for item in vendor_pool_balances %}
+        <div class="stat-card-enterprise rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4" data-vendor="{{ item.vendor_code }}">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">{{ item.vendor_name }}</p>
+                    {% if item.available %}
+                        <p class="text-2xl font-bold text-amber-900 mt-1">₹{{ item.balance|floatformat:2 }}</p>
                     {% else %}
-                        <p class="text-sm text-amber-700">—</p>
+                        <p class="text-sm font-semibold text-amber-900 mt-1">Unavailable</p>
                     {% endif %}
+                    <p class="text-xs text-amber-700 mt-1">{{ item.message }}</p>
                 </div>
-            </div>
-            <div class="stat-icon" style="color: #f59e0b;">
-                <i class="ti ti-wallet text-3xl"></i>
+                <div class="stat-icon text-amber-600">
+                    <i class="ti ti-wallet text-2xl"></i>
+                </div>
             </div>
         </div>
+        {% endfor %}
     </div>
 </div>
 
@@ -169,32 +170,42 @@
 {% block extra_js %}
 <script>
 (function() {
-    var btn = document.getElementById('mobikwik-balance-refresh');
-    var valueEl = document.getElementById('mobikwik-balance-value');
-    if (!btn || !valueEl) return;
+    var btn = document.getElementById('vendor-balance-refresh');
+    var grid = document.getElementById('vendor-balance-grid');
+    if (!btn || !grid) return;
     var icon = btn.querySelector('i');
+    function renderCard(item) {
+        var amountHtml = item.available
+            ? '<p class="text-2xl font-bold text-amber-900 mt-1">₹' + Number(item.balance).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '</p>'
+            : '<p class="text-sm font-semibold text-amber-900 mt-1">Unavailable</p>';
+        return '' +
+            '<div class="stat-card-enterprise rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4" data-vendor="' + item.vendor_code + '">' +
+                '<div class="flex items-start justify-between">' +
+                    '<div class="flex-1">' +
+                        '<p class="text-xs font-semibold uppercase tracking-wide text-amber-700">' + item.vendor_name + '</p>' +
+                        amountHtml +
+                        '<p class="text-xs text-amber-700 mt-1">' + (item.message || '') + '</p>' +
+                    '</div>' +
+                    '<div class="stat-icon text-amber-600"><i class="ti ti-wallet text-2xl"></i></div>' +
+                '</div>' +
+            '</div>';
+    }
     btn.addEventListener('click', function() {
         icon.classList.add('animate-spin');
         btn.disabled = true;
-        valueEl.innerHTML = '<p class="text-sm text-amber-700">Refreshing…</p>';
-        fetch('{% url "dashboard_mobikwik_balance" %}', {
+        fetch('{% url "dashboard_vendor_balances" %}', {
             method: 'GET',
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (data.success && data.balance != null) {
-                var bal = Number(data.balance).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                valueEl.innerHTML = '<p class="stat-value text-2xl font-bold text-amber-900">₹' + bal + '</p>' +
-                    '<p class="text-xs text-amber-600 mt-1">BBPS wallet – refreshed just now</p>';
-            } else {
-                valueEl.innerHTML = '<p class="text-sm text-amber-800">' + (data.error || 'Balance fetch failed') + '</p>' +
-                    '<p class="text-xs text-amber-600 mt-1">Enable Mobikwik BBPS in .env to fetch</p>';
+            if (data.success && Array.isArray(data.vendors)) {
+                grid.innerHTML = data.vendors.map(renderCard).join('');
             }
         })
         .catch(function() {
-            valueEl.innerHTML = '<p class="text-sm text-amber-800">Network error. Refresh the page to retry.</p>';
+            // Keep existing cards if refresh fails.
         })
         .finally(function() {
             icon.classList.remove('animate-spin');

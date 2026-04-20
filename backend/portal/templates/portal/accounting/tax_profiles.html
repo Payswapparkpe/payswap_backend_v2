@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Tax profiles | Accounting{% endblock %}
+{% block page_title %}Tax service profiles{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-wrap justify-between gap-3">
+      <h2 class="text-lg font-semibold text-slate-900">GST / TDS configuration</h2>
+      <a href="{% url 'accounting_dashboard' %}" class="text-sm text-indigo-600 hover:underline">← Accounting</a>
+    </div>
+    <form method="post" class="mt-6 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      {% csrf_token %}
+      <h3 class="font-medium text-slate-800">Add profile</h3>
+      <div class="grid gap-2 md:grid-cols-2">
+        <label class="text-xs text-slate-600">service_code <input name="service_code" class="w-full rounded border px-2 py-1" placeholder="bbps" required /></label>
+        <label class="text-xs text-slate-600">document_subtype
+          <select name="document_subtype" class="w-full rounded border px-2 py-1">
+            <option value="b2c_receipt">b2c_receipt</option>
+            <option value="b2b_commission">b2b_commission</option>
+          </select>
+        </label>
+        <label class="text-xs text-slate-600">SAC/HSN <input name="sac_or_hsn" class="w-full rounded border px-2 py-1" /></label>
+        <label class="text-xs text-slate-600">GST % <input name="gst_rate" type="number" step="0.0001" value="0" class="w-full rounded border px-2 py-1" /></label>
+        <label class="text-xs text-slate-600">TDS % (optional) <input name="tds_rate" type="number" step="0.0001" class="w-full rounded border px-2 py-1" /></label>
+        <label class="text-xs text-slate-600">effective_from <input name="effective_from" type="date" class="w-full rounded border px-2 py-1" /></label>
+      </div>
+      <div class="flex flex-wrap gap-4 text-sm">
+        <label><input type="checkbox" name="gst_inclusive" checked /> gst_inclusive</label>
+        <label><input type="checkbox" name="is_gst_exempt" checked /> is_gst_exempt</label>
+        <label><input type="checkbox" name="is_pass_through" /> is_pass_through</label>
+        <label><input type="checkbox" name="is_active" checked /> is_active</label>
+      </div>
+      <label class="block text-xs text-slate-600">notes<textarea name="notes" rows="2" class="mt-1 w-full rounded border px-2 py-1"></textarea></label>
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Create</button>
+    </form>
+  </section>
+  <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50"><tr>
+          <th class="px-3 py-2 text-left">ID</th><th class="px-3 py-2 text-left">service</th><th class="px-3 py-2 text-left">subtype</th>
+          <th class="px-3 py-2 text-right">GST%</th><th class="px-3 py-2 text-center">exempt</th><th class="px-3 py-2 text-center">pass</th><th class="px-3 py-2 text-right">Actions</th>
+        </tr></thead>
+        <tbody>
+          {% for p in profiles %}
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2">{{ p.id }}</td>
+            <td class="px-3 py-2 font-mono text-xs">{{ p.service_code }}</td>
+            <td class="px-3 py-2 text-xs">{{ p.document_subtype }}</td>
+            <td class="px-3 py-2 text-right">{{ p.gst_rate }}</td>
+            <td class="px-3 py-2 text-center">{% if p.is_gst_exempt %}Y{% else %}N{% endif %}</td>
+            <td class="px-3 py-2 text-center">{% if p.is_pass_through %}Y{% else %}N{% endif %}</td>
+            <td class="px-3 py-2 text-right">
+              <a href="{% url 'accounting_tax_profile_edit' p.pk %}" class="text-indigo-600 hover:underline">Edit</a>
+              <form method="post" class="inline" onsubmit="return confirm('Delete this profile?');">
+                {% csrf_token %}<input type="hidden" name="action" value="delete" /><input type="hidden" name="pk" value="{{ p.pk }}" />
+                <button type="submit" class="ml-2 text-rose-600 hover:underline">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No profiles. Run: python manage.py seed_tax_profiles</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

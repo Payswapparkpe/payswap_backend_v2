@@ -78,7 +78,7 @@
     {% elif brand.onboarding_status == 'SUBMITTED' %}
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
         <h4 class="font-semibold text-blue-900 mb-2">Under Review</h4>
-        <p class="text-sm text-blue-800">Your onboarding application has been submitted and is currently under review by our team. You will be notified once a decision is made.</p>
+        <p class="text-sm text-blue-800">Your onboarding application is under review. You will be notified once a decision is made.</p>
         <p class="text-xs text-blue-600 mt-2">Submitted on: {{ brand.updated_at|date:"M d, Y H:i" }}</p>
     </div>
     {% endif %}

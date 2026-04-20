@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Edit tax profile | Accounting{% endblock %}
+{% block page_title %}Edit tax profile{% endblock %}
+{% block content %}
+<div class="max-w-2xl space-y-6">
+  <a href="{% url 'accounting_tax_profiles' %}" class="text-sm text-indigo-600 hover:underline">← Tax profiles</a>
+  <form method="post" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+    {% csrf_token %}
+    <label class="block text-xs text-slate-600">service_code<input name="service_code" value="{{ profile.service_code }}" class="mt-1 w-full rounded border px-2 py-1" /></label>
+    <label class="block text-xs text-slate-600">document_subtype
+      <select name="document_subtype" class="mt-1 w-full rounded border px-2 py-1">
+        <option value="b2c_receipt" {% if profile.document_subtype == 'b2c_receipt' %}selected{% endif %}>b2c_receipt</option>
+        <option value="b2b_commission" {% if profile.document_subtype == 'b2b_commission' %}selected{% endif %}>b2b_commission</option>
+      </select>
+    </label>
+    <label class="block text-xs text-slate-600">sac_or_hsn<input name="sac_or_hsn" value="{{ profile.sac_or_hsn }}" class="mt-1 w-full rounded border px-2 py-1" /></label>
+    <label class="block text-xs text-slate-600">gst_rate<input name="gst_rate" type="number" step="0.0001" value="{{ profile.gst_rate }}" class="mt-1 w-full rounded border px-2 py-1" /></label>
+    <label class="block text-xs text-slate-600">tds_rate (blank = none)<input name="tds_rate" type="number" step="0.0001" value="{{ profile.tds_rate|default:'' }}" class="mt-1 w-full rounded border px-2 py-1" /></label>
+    <label class="block text-xs text-slate-600">effective_from<input name="effective_from" type="date" value="{{ profile.effective_from|date:'Y-m-d' }}" class="mt-1 w-full rounded border px-2 py-1" /></label>
+    <div class="flex flex-wrap gap-4 text-sm">
+      <label><input type="checkbox" name="gst_inclusive" {% if profile.gst_inclusive %}checked{% endif %} /> gst_inclusive</label>
+      <label><input type="checkbox" name="is_gst_exempt" {% if profile.is_gst_exempt %}checked{% endif %} /> is_gst_exempt</label>
+      <label><input type="checkbox" name="is_pass_through" {% if profile.is_pass_through %}checked{% endif %} /> is_pass_through</label>
+      <label><input type="checkbox" name="is_active" {% if profile.is_active %}checked{% endif %} /> is_active</label>
+    </div>
+    <label class="block text-xs text-slate-600">notes<textarea name="notes" rows="3" class="mt-1 w-full rounded border px-2 py-1">{{ profile.notes }}</textarea></label>
+    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
+  </form>
+</div>
+{% endblock %}

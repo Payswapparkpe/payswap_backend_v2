@@ -6,6 +6,7 @@
     "start": "ng serve",
     "start:parkpe:lan": "ng serve --project parkpe --host 0.0.0.0 --configuration=development",
     "build": "ng build",
+    "copy:check": "node scripts/check-microcopy.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

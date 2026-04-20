@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications | Payswap{% endblock %}
+{% block page_title %}Notification Center{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Unified Notification Command Center</h2>
+    <p class="mt-1 text-sm text-slate-500">One window for campaigns, in-app feed, banners, templates and delivery analytics.</p>
+    <div class="mt-3 flex flex-wrap gap-2 text-sm">
+      <a href="?tab=campaigns" class="rounded-full px-3 py-1 {% if active_tab == 'campaigns' %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">Campaigns</a>
+      <a href="?tab=banners" class="rounded-full px-3 py-1 {% if active_tab == 'banners' %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">Banners</a>
+      <a href="?tab=inbox" class="rounded-full px-3 py-1 {% if active_tab == 'inbox' %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">In-app Feed</a>
+      <a href="?tab=templates" class="rounded-full px-3 py-1 {% if active_tab == 'templates' %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">Templates</a>
+      <a href="?tab=analytics" class="rounded-full px-3 py-1 {% if active_tab == 'analytics' %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">Delivery Logs + Analytics</a>
+    </div>
+  </section>
+
+  {% if active_tab == 'campaigns' %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Create Campaign</h3>
+    <form method="post" action="{% url 'notification_campaign_create' %}" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+      {% csrf_token %}
+      <input type="text" name="name" required placeholder="Campaign name" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <select name="campaign_type" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        {% for value, label in campaign_type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="event_key" placeholder="event key (for event campaigns)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="channels" placeholder="channels: in_app,push,sms,email,banner" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="text" name="description" placeholder="description" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="audience_role_code" placeholder="audience role code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="audience_user_ids" placeholder="audience user ids (comma separated)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <select name="audience_platform" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        {% for value, label in platform_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="audience_service_code" placeholder="audience service code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="audience_screen_code" placeholder="audience screen code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <select name="platform" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        {% for value, label in platform_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="slot" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        {% for value, label in slot_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="service_code" placeholder="service code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="screen_code" placeholder="screen code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="in_app_title" placeholder="In-app title" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="in_app_body" placeholder="In-app body" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="text" name="sms_body" placeholder="SMS body" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="text" name="email_subject" placeholder="Email subject" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="email_body" placeholder="Email body" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="text" name="push_title" placeholder="Push title" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="push_body" placeholder="Push body" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="text" name="banner_title" placeholder="Banner title" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="banner_body" placeholder="Banner body" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <input type="number" name="priority" value="100" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <select name="status" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        {% for value, label in campaign_status_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 md:col-span-3">Create campaign</button>
+    </form>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Campaign Operations</h3>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left">Campaign</th>
+            <th class="px-3 py-2 text-left">Type</th>
+            <th class="px-3 py-2 text-left">Status</th>
+            <th class="px-3 py-2 text-left">Channels</th>
+            <th class="px-3 py-2 text-right">Quick actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for c in campaigns %}
+          <tr>
+            <td class="px-3 py-2">
+              <p class="font-semibold text-slate-900">{{ c.name }}</p>
+              <p class="text-xs text-slate-500">{{ c.event_key|default:'manual trigger' }}</p>
+            </td>
+            <td class="px-3 py-2">{{ c.campaign_type }}</td>
+            <td class="px-3 py-2">{{ c.status }}</td>
+            <td class="px-3 py-2">{{ c.channels|join:', ' }}</td>
+            <td class="px-3 py-2 text-right">
+              <div class="inline-flex flex-wrap items-center gap-2">
+                <form method="post" action="{% url 'notification_campaign_send_now' c.id %}">{% csrf_token %}<button class="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700" type="submit">Send now</button></form>
+                <form method="post" action="{% url 'notification_campaign_toggle' c.id %}">{% csrf_token %}<button class="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700" type="submit">{% if c.status == 'paused' %}Resume{% else %}Pause{% endif %}</button></form>
+                <form method="post" action="{% url 'notification_campaign_duplicate' c.id %}">{% csrf_token %}<button class="rounded-md border border-indigo-300 px-2 py-1 text-xs text-indigo-700" type="submit">Duplicate</button></form>
+                <a href="{% url 'notification_campaign_audience_preview' c.id %}" class="rounded-md border border-sky-300 px-2 py-1 text-xs text-sky-700">Audience preview</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No campaigns yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'banners' %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Banner slot manager</h3>
+    <form method="post" action="{% url 'notification_banner_create' %}" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="Internal name" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="title" placeholder="Banner title" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+      <input type="text" name="message" placeholder="Banner message" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" required />
+      <select name="platform" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">{% for value, label in platform_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      <select name="slot" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">{% for value, label in slot_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      <input type="text" name="service_code" placeholder="service code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="screen_code" placeholder="screen code" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <button type="submit" class="md:col-span-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Publish Banner</button>
+    </form>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Banner</th><th class="px-3 py-2 text-left">Target</th><th class="px-3 py-2 text-left">Campaign</th><th class="px-3 py-2 text-right">Actions</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for b in banners %}
+          <tr>
+            <td class="px-3 py-2"><p class="font-semibold">{{ b.title }}</p><p class="text-xs text-slate-500">{{ b.message }}</p></td>
+            <td class="px-3 py-2">{{ b.platform }} / {{ b.slot }} / {{ b.service_code|default:'-' }} / {{ b.screen_code|default:'-' }}</td>
+            <td class="px-3 py-2">{{ b.campaign.name|default:'-' }}</td>
+            <td class="px-3 py-2 text-right"><div class="inline-flex gap-2"><form method="post" action="{% url 'notification_banner_toggle' b.id %}">{% csrf_token %}<input type="hidden" name="enabled" value="{% if b.is_active %}0{% else %}1{% endif %}"><button class="rounded-md border border-slate-300 px-2 py-1 text-xs" type="submit">{% if b.is_active %}Pause{% else %}Activate{% endif %}</button></form><form method="post" action="{% url 'notification_banner_delete' b.id %}">{% csrf_token %}<button class="rounded-md border border-rose-300 px-2 py-1 text-xs text-rose-600" type="submit">Delete</button></form></div></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No banners yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'inbox' %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">In-app feed</h3>
+    <p class="text-sm text-slate-500">Unread notifications across users: {{ unread_total }}</p>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">User</th><th class="px-3 py-2 text-left">Message</th><th class="px-3 py-2 text-left">Read</th><th class="px-3 py-2 text-left">Time</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for item in inbox_items %}
+          <tr><td class="px-3 py-2">{{ item.user.username }}</td><td class="px-3 py-2"><p class="font-semibold">{{ item.title }}</p><p class="text-xs text-slate-500">{{ item.message }}</p></td><td class="px-3 py-2">{% if item.is_read %}Yes{% else %}No{% endif %}</td><td class="px-3 py-2">{{ item.created_at }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No in-app notifications yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'templates' %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Push/SMS/Email templates</h3>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Campaign</th><th class="px-3 py-2 text-left">Channel</th><th class="px-3 py-2 text-left">Subject / Title</th><th class="px-3 py-2 text-left">Body</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for t in templates %}
+          <tr><td class="px-3 py-2">{{ t.campaign.name }}</td><td class="px-3 py-2">{{ t.channel }}</td><td class="px-3 py-2">{{ t.subject|default:t.title }}</td><td class="px-3 py-2">{{ t.body|truncatechars:120 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No templates yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'analytics' %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Delivery analytics</h3>
+    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+      {% for s in delivery_stats %}
+      <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <p class="text-xs text-slate-500 uppercase">{{ s.status }}</p>
+        <p class="text-lg font-semibold text-slate-900">{{ s.total }}</p>
+      </div>
+      {% empty %}
+      <p class="text-sm text-slate-500">No delivery stats yet.</p>
+      {% endfor %}
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Time</th><th class="px-3 py-2 text-left">Campaign</th><th class="px-3 py-2 text-left">Channel</th><th class="px-3 py-2 text-left">Status</th><th class="px-3 py-2 text-left">Error</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for log in delivery_logs %}
+          <tr><td class="px-3 py-2">{{ log.created_at }}</td><td class="px-3 py-2">{{ log.campaign.name|default:'-' }}</td><td class="px-3 py-2">{{ log.channel }}</td><td class="px-3 py-2">{{ log.status }}</td><td class="px-3 py-2">{{ log.error_message|default:'-'|truncatechars:80 }}</td></tr>
+          {% empty %}
+          <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No delivery logs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

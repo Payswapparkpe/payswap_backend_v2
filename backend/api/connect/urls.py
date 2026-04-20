@@ -7,6 +7,7 @@ from . import views
 urlpatterns = [
     path('vehicles/', views.VehicleListCreateView.as_view(), name='connect-vehicles-list-create'),
     path('vehicles/<int:pk>/', views.VehicleDetailView.as_view(), name='connect-vehicle-detail'),
+    path('vehicles/<int:pk>/fastag-balance/', views.VehicleFastagBalanceRefreshView.as_view(), name='connect-vehicle-fastag-balance'),
     path('vehicles/<int:pk>/delete-request/', views.VehicleDeleteRequestView.as_view(), name='connect-vehicle-delete-request'),
     path('vehicles/<int:pk>/delete/', views.VehicleDeleteConfirmView.as_view(), name='connect-vehicle-delete-confirm'),
     path('vehicles/<int:pk>/unlock-rc/', views.VehicleUnlockRCView.as_view(), name='connect-vehicle-unlock-rc'),
@@ -23,5 +24,9 @@ urlpatterns = [
     path('chat/threads/', views.ConnectThreadListCreateView.as_view(), name='connect-chat-threads'),
     path('chat/threads/<int:pk>/', views.ConnectThreadDetailView.as_view(), name='connect-chat-thread-detail'),
     path('chat/threads/<int:pk>/messages/', views.ConnectThreadMessagesView.as_view(), name='connect-chat-thread-messages'),
+    path('chat/threads/<int:pk>/mark-read/', views.ConnectThreadMarkReadView.as_view(), name='connect-chat-thread-mark-read'),
+    path('chat/threads/<int:pk>/presence/', views.ConnectThreadPresenceView.as_view(), name='connect-chat-thread-presence'),
+    path('chat/threads/<int:pk>/settings/', views.ConnectThreadSettingsView.as_view(), name='connect-chat-thread-settings'),
+    path('chat/threads/<int:pk>/block/', views.ConnectThreadBlockView.as_view(), name='connect-chat-thread-block'),
     path('report/', views.ConnectReportCreateView.as_view(), name='connect-report-create'),
 ]

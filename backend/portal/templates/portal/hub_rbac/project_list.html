@@ -20,6 +20,19 @@
         </div>
     </div>
 
+    <form method="get" class="card-enterprise">
+        <div class="flex gap-2">
+            <input
+                type="text"
+                name="q"
+                value="{{ request.GET.q|default:'' }}"
+                placeholder="Search by code or name"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <button type="submit" class="btn-enterprise-primary">Search</button>
+        </div>
+    </form>
+
     <div class="table-enterprise">
         <table class="w-full">
             <thead class="bg-gray-50">
@@ -46,5 +59,19 @@
             </tbody>
         </table>
     </div>
+
+    {% if is_paginated %}
+    <div class="card-enterprise flex items-center justify-between text-sm">
+        <p class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        <div class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

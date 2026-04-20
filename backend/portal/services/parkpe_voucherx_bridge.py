@@ -10,8 +10,50 @@ from portal.models import GiftVoucher, GiftVoucherBrand
 from portal.services.voucher_service import VoucherService
 from portal.utils.encryption import decrypt_data
 from portal.utils.logging_helper import get_logger
+from portal.utils.voucher_utils import VOUCHER_CODE_LENGTH, format_voucher_code
 
 logger = get_logger(__name__)
+
+
+def display_voucher_code_for_api(code) -> str:
+    """
+    Same rule as GET /api/voucher/vouchers/<id> detail: hyphenate plain 16-char codes;
+    otherwise return stored value unchanged (often already XXXX-XXXX-XXXX-XXXX).
+    """
+    if code is None:
+        return ""
+    s = str(code).strip()
+    if not s:
+        return ""
+    if len(s) == VOUCHER_CODE_LENGTH and "-" not in s:
+        return format_voucher_code(s)
+    return s
+
+
+def get_parkpe_purchase_voucher_summary(*, parkpe_reference_id: str, parkpe_user_id: int):
+    """
+    Lookup GiftVoucher issued for a ParkPe Cashfree order (metadata.parkpe_reference_id).
+    Used when verify is idempotent (order already completed).
+    """
+    if not parkpe_reference_id:
+        return None
+    v = (
+        GiftVoucher.objects.filter(
+            metadata__parkpe_reference_id=parkpe_reference_id,
+            metadata__parkpe_user_id=parkpe_user_id,
+        )
+        .order_by("-id")
+        .first()
+    )
+    if not v:
+        return None
+    return {
+        "voucher_id": v.id,
+        "reference_number": v.reference_number,
+        "voucher_code": display_voucher_code_for_api(v.voucher_code),
+        "amount": float(v.original_amount),
+        "currency": (v.currency or "INR"),
+    }
 
 
 def get_parkpe_brand_id():
@@ -83,7 +125,13 @@ def credit_voucher_balance(
             "voucher_id": result.get("voucher_id"),
         },
     )
-    return None, None
+    return {
+        "voucher_id": result.get("voucher_id"),
+        "reference_number": result.get("reference_number"),
+        "voucher_code": str(result.get("voucher_code") or ""),
+        "amount": float(amount),
+        "currency": "INR",
+    }
 
 
 def debit_voucher_balance(

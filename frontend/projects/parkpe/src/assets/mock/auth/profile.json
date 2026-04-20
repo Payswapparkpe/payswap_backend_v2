@@ -8,5 +8,13 @@
   "emailVerified": true,
   "phoneVerified": true,
   "createdAt": "2024-01-15T10:30:00Z",
-  "updatedAt": "2024-02-01T14:20:00Z"
+  "updatedAt": "2024-02-01T14:20:00Z",
+  "addressLine1": "221B Baker Street",
+  "addressLine2": "",
+  "city": "New Delhi",
+  "state": "Delhi",
+  "pincode": "110001",
+  "countryOfResidence": "India",
+  "gstNumber": "",
+  "billingAddressComplete": true
 }

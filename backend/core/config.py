@@ -173,8 +173,8 @@ class PayswapConfig(BaseSettings):
         description='Mobikwik public key (PEM) for encrypting session key when MOBIKWIK_BBPS_USE_ENCRYPTION=True'
     )
     MOBIKWIK_BBPS_PUBLIC_KEY_PATH: Optional[str] = Field(
-        default=None,
-        description='Path to Mobikwik public key PEM file (e.g. Mobikwik/public_key.pem); used if MOBIKWIK_BBPS_PUBLIC_KEY not set'
+        default='Mobikwik/public_key.pem',
+        description='Path to Mobikwik public key PEM (relative to backend BASE_DIR, or absolute). Gitignored folder Mobikwik/ — copy PEM from onboarding zip. Used if MOBIKWIK_BBPS_PUBLIC_KEY not set.'
     )
     MOBIKWIK_BBPS_KEY_VERSION: str = Field(default='1.0', description='Key version for encrypted payload (match Mobikwik README, e.g. 1.0)')
     MOBIKWIK_BBPS_TOKEN_PATH: Optional[str] = Field(
@@ -183,11 +183,11 @@ class PayswapConfig(BaseSettings):
     )
     MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION: bool = Field(
         default=False,
-        description='When True, Token API uses encrypted body. B2B host rapi-b2b.mobikwik.com also enables this automatically unless MOBIKWIK_BBPS_TOKEN_PLAIN_JSON=True.',
+        description='When True, Token API POST body uses encryptedSessionKey/encryptedPayload (same as bill APIs). Default False: plain clientId/clientSecret JSON per Mobikwik UAT Postman (works for many rapi-b2b token calls).',
     )
     MOBIKWIK_BBPS_TOKEN_PLAIN_JSON: bool = Field(
         default=False,
-        description='When True, Token API sends plain JSON even on rapi-b2b (only if Mobikwik confirms). Default False.',
+        description='When True, never encrypt Token API body (overrides MOBIKWIK_BBPS_TOKEN_USE_ENCRYPTION). Use only if Mobikwik explicitly requires it.',
     )
     MOBIKWIK_BBPS_TOKEN_EXPIRY_TIMEZONE: str = Field(
         default='Asia/Kolkata',
@@ -284,6 +284,10 @@ class PayswapConfig(BaseSettings):
         default=None,
         description="Gift Voucher Brand ID for ParkPe (VoucherX). When set, ParkPe buy-voucher uses this brand to issue vouchers.",
     )
+    PARKPE_REQUIRE_BILLING_ADDRESS: bool = Field(
+        default=False,
+        description="When True, ParkPe blocks voucher PG create-order, BBPS pay, and Connect RC-view pay until profile billing address is complete.",
+    )
     PARKPE_BACKEND_SECRET: Optional[SecretStr] = Field(
         default=None,
         description="Secret for Parkpe backend service-to-service auth (register order, webhook relay). Send as Authorization: Bearer <secret> or X-Parkpe-Backend-Key.",
@@ -304,6 +308,10 @@ class PayswapConfig(BaseSettings):
     INSTANTPAY_CLIENT_ID: Optional[SecretStr] = Field(default=None, description="Instantpay API Client Id")
     INSTANTPAY_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Instantpay API Client Secret")
     INSTANTPAY_ENCRYPTION_KEY: Optional[SecretStr] = Field(default=None, description="Instantpay API Encryption Key")
+    INSTANTPAY_AUTH_CODE: Optional[SecretStr] = Field(default=None, description="Instantpay X-Ipay-Auth-Code header value")
+    INSTANTPAY_ENDPOINT_IP: Optional[str] = Field(default=None, description="Instantpay X-Ipay-Endpoint-Ip header value")
+    INSTANTPAY_REPORT_BANK_PROFILE_ID: Optional[str] = Field(default="0", description="Instantpay reports bankProfileId")
+    INSTANTPAY_REPORT_ACCOUNT_NUMBER: Optional[str] = Field(default=None, description="Instantpay reports accountNumber")
     INSTANTPAY_ENVIRONMENT: Literal["SANDBOX", "PRODUCTION"] = Field(
         default="SANDBOX", description="Instantpay environment: SANDBOX or PRODUCTION"
     )
@@ -311,6 +319,14 @@ class PayswapConfig(BaseSettings):
         default=None,
         description="Instantpay API base URL (e.g. https://api.instantpay.in). Defaults by environment if not set.",
     )
+
+    # ============================================================================
+    # NOTIFICATIONS ORCHESTRATOR
+    # ============================================================================
+    NOTIFICATIONS_ENABLED: bool = Field(default=True, description="Master switch for unified notification center dispatch.")
+    NOTIFICATIONS_PUSH_ENABLED: bool = Field(default=False, description="Enable real push provider dispatch (FCM/APNS).")
+    NOTIFICATIONS_ROLLOUT_PERCENT: int = Field(default=100, description="Progressive rollout percentage (0-100).")
+    NOTIFICATIONS_RATE_LIMIT_PER_USER: int = Field(default=50, description="Max non-failed notifications per user per hour.")
 
     # ============================================================================
     # AWS S3 (optional for local/dev; required when using S3 storage)
@@ -503,6 +519,18 @@ class PayswapConfig(BaseSettings):
 
     def get_instantpay_encryption_key(self) -> str:
         return self.INSTANTPAY_ENCRYPTION_KEY.get_secret_value() if self.INSTANTPAY_ENCRYPTION_KEY else ""
+
+    def get_instantpay_auth_code(self) -> str:
+        return self.INSTANTPAY_AUTH_CODE.get_secret_value() if self.INSTANTPAY_AUTH_CODE else ""
+
+    def get_instantpay_endpoint_ip(self) -> str:
+        return self.INSTANTPAY_ENDPOINT_IP or ""
+
+    def get_instantpay_report_bank_profile_id(self) -> str:
+        return self.INSTANTPAY_REPORT_BANK_PROFILE_ID or "0"
+
+    def get_instantpay_report_account_number(self) -> str:
+        return self.INSTANTPAY_REPORT_ACCOUNT_NUMBER or ""
 
     def is_instantpay_configured(self) -> bool:
         return bool(

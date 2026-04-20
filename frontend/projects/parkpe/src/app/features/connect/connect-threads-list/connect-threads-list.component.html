@@ -3,8 +3,23 @@
     @if (!embedded()) {
       <a routerLink="/connect" class="back-link">← Connect</a>
     }
-    <h1>Chats</h1>
+    <h1>Inbox</h1>
     <p class="page-subtitle">Threads where you are the vehicle owner or the scanner.</p>
+  </div>
+  <div class="thread-toolbar">
+    <input
+      type="text"
+      [value]="search()"
+      (input)="onSearchInput($event)"
+      placeholder="Search chats"
+      class="thread-search-input"
+    />
+    <button type="button" class="thread-filter" [class.thread-filter--active]="filterUnreadOnly()" (click)="toggleUnreadOnly()">
+      Unread
+    </button>
+    <button type="button" class="thread-filter" [class.thread-filter--active]="includeArchived()" (click)="toggleArchived()">
+      {{ includeArchived() ? 'Hide archived' : 'Show archived' }}
+    </button>
   </div>
 
   @if (loading()) {
@@ -12,7 +27,7 @@
   } @else if (error(); as err) {
     <p class="error">{{ err }}</p>
     <button type="button" class="btn btn-outline" (click)="load()">Retry</button>
-  } @else if (threads().length === 0) {
+  } @else if (visibleThreads().length === 0) {
     <div class="empty-state">
       <span class="material-icons">chat_bubble_outline</span>
       <p>No chats yet. Scan a vehicle QR to start a conversation with an owner.</p>
@@ -20,16 +35,57 @@
     </div>
   } @else {
     <ul class="thread-list">
-      @for (t of threads(); track t.id) {
-        <li>
-          <a [routerLink]="['/connect/chats', t.id]" class="thread-row">
-            <span class="material-icons">chat</span>
-            <div class="thread-info">
-              <span class="thread-vehicle">{{ t.registration_number_masked }}</span>
-              <span class="thread-role">{{ t.is_owner ? 'You are owner' : 'You scanned' }} · {{ t.owner_display_name }}</span>
+      @for (t of visibleThreads(); track t.id) {
+        <li class="thread-item">
+          <a
+            [routerLink]="['/connect/chats', t.id]"
+            routerLinkActive="thread-row--active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            class="thread-row"
+          >
+            <div class="thread-avatar" aria-hidden="true">{{ threadInitial(t) }}</div>
+            <div class="thread-core">
+              <div class="thread-line1">
+                <span class="thread-reg">{{ t.registration_number_masked }}</span>
+                @if (t.pinned) {
+                  <span class="thread-badge" title="Pinned"><span class="material-icons">push_pin</span></span>
+                }
+                @if (t.muted) {
+                  <span class="thread-badge" title="Muted"><span class="material-icons">notifications_off</span></span>
+                }
+                @if (t.archived) {
+                  <span class="thread-badge" title="Archived"><span class="material-icons">inventory_2</span></span>
+                }
+                @if ((t.unread_count || 0) > 0) {
+                  <span class="thread-unread">{{ t.unread_count }}</span>
+                }
+              </div>
+              <div class="thread-line2">{{ t.is_owner ? 'You · owner' : 'You · scanned' }} · {{ t.peer_display_name || t.owner_display_name }}</div>
+              @if (t.last_message_preview) {
+                <div class="thread-preview">{{ t.last_message_preview }}</div>
+              }
             </div>
-            <span class="material-icons thread-arrow">chevron_right</span>
+            <span class="material-icons thread-chevron">chevron_right</span>
           </a>
+          <details class="thread-kebab">
+            <summary class="thread-kebab__btn" aria-label="Thread actions">
+              <span class="material-icons" aria-hidden="true">more_vert</span>
+            </summary>
+            <div class="thread-kebab__menu" role="menu">
+              <button type="button" class="thread-kebab__item" (click)="toggleThreadSetting(t, 'pinned', $event)">
+                <span class="material-icons" aria-hidden="true">{{ t.pinned ? 'keep_off' : 'push_pin' }}</span>
+                {{ t.pinned ? 'Unpin' : 'Pin' }}
+              </button>
+              <button type="button" class="thread-kebab__item" (click)="toggleThreadSetting(t, 'muted', $event)">
+                <span class="material-icons" aria-hidden="true">{{ t.muted ? 'notifications_active' : 'notifications_off' }}</span>
+                {{ t.muted ? 'Unmute' : 'Mute' }}
+              </button>
+              <button type="button" class="thread-kebab__item" (click)="toggleThreadSetting(t, 'archived', $event)">
+                <span class="material-icons" aria-hidden="true">inventory_2</span>
+                {{ t.archived ? 'Unarchive' : 'Archive' }}
+              </button>
+            </div>
+          </details>
         </li>
       }
     </ul>

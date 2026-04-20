@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 
@@ -25,6 +25,7 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private notification = inject(NotificationService);
   private cdr = inject(ChangeDetectorRef);
 
@@ -45,7 +46,6 @@ export class LoginComponent {
       otp: ['', []],
       rememberMe: [false],
     });
-    // Default: mobile login (primary) – set validators for phone, not email/password
     this.setLoginMode('mobile');
   }
 
@@ -139,6 +139,24 @@ export class LoginComponent {
     return v.slice(0, 2) + '****' + v.slice(-4);
   }
 
+  /**
+   * After login: deep-link if auth guard stored returnUrl, else customer dashboard
+   * (or fleet control center for fleet accounts — see AuthService.getPostLoginRoute).
+   */
+  private navigateAfterLogin(): void {
+    const raw = this.route.snapshot.queryParamMap.get('returnUrl')?.trim() ?? '';
+    if (
+      raw.length > 0 &&
+      raw.startsWith('/') &&
+      !raw.startsWith('//') &&
+      !raw.includes('://')
+    ) {
+      void this.router.navigateByUrl(raw);
+      return;
+    }
+    void this.router.navigateByUrl(this.authService.getPostLoginRoute());
+  }
+
   /** Back from OTP step to change mobile number */
   backToMobileInput() {
     this.otpSent = false;
@@ -168,7 +186,7 @@ export class LoginComponent {
           this.loading = false;
           this.cdr.detectChanges();
           this.notification.showSuccess('Login successful!');
-          this.router.navigate(['/dashboard']);
+          this.navigateAfterLogin();
         },
         error: (err) => {
           this.loading = false;
@@ -197,12 +215,14 @@ export class LoginComponent {
       rememberMe: raw.rememberMe,
     };
 
-    this.authService.login(credentials).subscribe({
+    const login$ = this.authService.login(credentials);
+
+    login$.subscribe({
       next: () => {
         this.loading = false;
         this.cdr.detectChanges();
         this.notification.showSuccess('Login successful!');
-        this.router.navigate(['/dashboard']);
+        this.navigateAfterLogin();
       },
       error: (error) => {
         this.loading = false;

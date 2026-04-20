@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MobilityStateStore } from '../../../core/stores/mobility-state.store';
 import { RealtimeStatusService } from '../../../core/services/realtime-status.service';
 import { Subscription } from 'rxjs';
+import type { PaymentGateway, PaymentStatus, TransactionType } from 'shared';
 
 type Tone = 'success' | 'error' | 'warning';
 
@@ -14,12 +15,14 @@ type Tone = 'success' | 'error' | 'warning';
   template: `
     <div class="status-container">
       <div class="status-card card scale-in" [ngClass]="toneClass">
-        @if (tone === 'success') {
+        @if (tone === 'success' && showBbpsComplianceLogo) {
           <img
             class="b-assured-logo"
             src="assets/bbps/b-assured-logo.png"
             alt="B Assured"
           />
+        } @else if (tone === 'success') {
+          <div class="parkpe-mark" aria-hidden="true">ParkPe</div>
         }
 
         <div class="status-icon" [class.error]="tone === 'error'" [class.warning]="tone === 'warning'">
@@ -88,7 +91,7 @@ type Tone = 'success' | 'error' | 'warning';
             <button type="button" class="btn btn-primary" routerLink="/dashboard">Back to Dashboard</button>
           }
           <a class="btn btn-outline" routerLink="/vouchers">Vouchers</a>
-          @if (tone === 'success') {
+          @if (tone === 'success' && showBbpsComplianceLogo) {
             <a class="btn btn-outline" routerLink="/bbps">Pay another bill</a>
           }
           <button type="button" class="btn btn-outline" routerLink="/payment/history">View History</button>
@@ -119,6 +122,13 @@ type Tone = 'success' | 'error' | 'warning';
         margin: 0 auto 0.75rem;
         padding: 12px;
         object-fit: contain;
+      }
+      .parkpe-mark {
+        font-weight: 800;
+        font-size: 1.125rem;
+        letter-spacing: 0.06em;
+        color: var(--primary-700);
+        margin: 0 auto 0.75rem;
       }
     }
     .status-card.success .status-icon .material-icons {
@@ -293,6 +303,11 @@ export class PaymentStatusComponent implements OnInit, OnDestroy {
     return 'Failed';
   }
 
+  /** B Assured is required only for Bharat Billpay (BBPS) flows, not voucher top-up or other rails. */
+  get showBbpsComplianceLogo(): boolean {
+    return this.gatewayLabel === 'BBPS';
+  }
+
   get amountLabel(): string {
     if (this.amount != null && !Number.isNaN(this.amount)) {
       return '₹' + this.amount.toFixed(2);
@@ -378,16 +393,17 @@ export class PaymentStatusComponent implements OnInit, OnDestroy {
 
   viewInvoice() {
     if (!this.orderRef) return;
+    const isBbps = this.showBbpsComplianceLogo;
     const transaction = {
       id: this.orderRef,
       transactionId: this.orderRef,
       orderId: this.orderRef,
       amount: this.amount ?? 0,
-      description: 'BBPS Bill Payment',
-      gateway: 'bbps' as const,
+      description: isBbps ? 'BBPS bill payment' : 'Voucher wallet top-up',
+      gateway: (isBbps ? 'bbps' : 'cashfree') as PaymentGateway,
       timestamp: this.currentDate.toISOString(),
-      status: 'success' as const,
-      transactionType: 'bbps' as const,
+      status: 'success' as PaymentStatus,
+      transactionType: (isBbps ? 'bbps' : 'voucher_purchase') as TransactionType,
       currency: 'INR',
       customer: { name: '', email: '', phone: '' },
     };

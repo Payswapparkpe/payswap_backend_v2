@@ -27,8 +27,15 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       const willRetryWithRefresh =
         error?.status === 401 && !isAuthRequest && !isRefreshRequest && !alreadyRetried && !!authService.getRefreshToken();
 
+      const isConnectChatPollThrottle =
+        error?.status === 429 &&
+        req.method === 'GET' &&
+        typeof req.url === 'string' &&
+        req.url.includes('/connect/chat/threads/') &&
+        req.url.includes('/messages/');
+
       // Don't log 401 as error when we're about to retry with refresh (token expired is normal)
-      if (!willRetryWithRefresh) {
+      if (!willRetryWithRefresh && !isConnectChatPollThrottle) {
         logger.error('HTTP request failed', {
           service: 'http',
           url: req.url,
@@ -76,7 +83,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       } else if (error.status === 404) {
         errorMessage = 'Resource not found.';
       } else if (error.status >= 500) {
-        errorMessage = 'Server error. Please try again later.';
+        errorMessage =
+          (typeof error.error?.detail === 'string' && error.error.detail) ||
+          error.error?.message ||
+          'Server error. Please try again later.';
       } else if (error.status === 0) {
         errorMessage = 'Network error. Please check your connection.';
       } else if (error.error?.detail) {
@@ -86,7 +96,31 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
 
       // Let login/register components show their own message to avoid duplicate toasts
-      if (!isAuthRequest) {
+      // RC paywall: vehicle detail shows inline copy for fetch-rc payment required (402)
+      const skipToastForHandledRcPaywall =
+        error.status === 402 &&
+        typeof req.url === 'string' &&
+        req.url.includes('/connect/vehicles/') &&
+        req.url.includes('/fetch-rc/');
+      // Chat message polling uses a separate throttle bucket; transient 429 should not spam global error toasts.
+      const skipToastForConnectChatPollThrottle =
+        error.status === 429 &&
+        req.method === 'GET' &&
+        typeof req.url === 'string' &&
+        req.url.includes('/connect/chat/threads/') &&
+        req.url.includes('/messages/');
+      // Chat send shows inline toast in ConnectChatService (avoid duplicate global toasts)
+      const skipToastForConnectChatMessageSend =
+        req.method === 'POST' &&
+        typeof req.url === 'string' &&
+        req.url.includes('/connect/chat/threads/') &&
+        req.url.includes('/messages/');
+      if (
+        !isAuthRequest &&
+        !skipToastForHandledRcPaywall &&
+        !skipToastForConnectChatPollThrottle &&
+        !skipToastForConnectChatMessageSend
+      ) {
         notification.showError(errorMessage);
       }
 

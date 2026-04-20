@@ -1,0 +1,16 @@
+# Whole-word match for Latin letters A–Z only (case-insensitive). One word per line.
+asshole
+bastard
+bitch
+bullshit
+cock
+cunt
+damn
+dick
+fuck
+motherfucker
+piss
+pussy
+shit
+slut
+whore

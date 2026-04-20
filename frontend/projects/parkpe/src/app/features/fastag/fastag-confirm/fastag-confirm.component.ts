@@ -48,10 +48,13 @@ import type { BBPSOperator } from '../../../core/models/bbps.model';
                     [disabled]="loading"
                   >
                     <div class="operator-row">
-                      <img class="operator-icon" [src]="getOperatorIconUrl(op)" [alt]="op.name" loading="lazy" />
+                      @if (getOperatorIconUrl(op)) {
+                        <img class="operator-icon" [src]="getOperatorIconUrl(op)" [alt]="op.name" loading="lazy" />
+                      } @else {
+                        <span class="material-icons operator-icon-fallback" aria-hidden="true">account_balance</span>
+                      }
                       <div class="operator-meta">
                         <span class="op-name">{{ op.name }}</span>
-                        <span class="op-code">{{ op.code }}</span>
                       </div>
                     </div>
                   </button>
@@ -65,17 +68,34 @@ import type { BBPSOperator } from '../../../core/models/bbps.model';
               <span>Operator:</span>
               <span class="summary-operator">
                 @if (selectedOperator) {
-                  <img class="summary-operator-icon" [src]="getOperatorIconUrl(selectedOperator)" [alt]="selectedOperator.name" loading="lazy" />
+                  @if (getOperatorIconUrl(selectedOperator)) {
+                    <img class="summary-operator-icon" [src]="getOperatorIconUrl(selectedOperator)" [alt]="selectedOperator.name" loading="lazy" />
+                  } @else {
+                    <span class="material-icons summary-operator-icon-fallback" aria-hidden="true">account_balance</span>
+                  }
                 }
                 <span>{{ selectedOperator?.name || 'Select FASTag operator' }}</span>
               </span>
             </div>
             <div class="detail-row"><span>Vehicle Number:</span><span>{{ recharge.vehicleNumber }}</span></div>
+            <div class="detail-row">
+              <span>Biller Validation:</span>
+              @if (validatingBiller) {
+                <span>Validating...</span>
+              } @else if (billerValidated) {
+                <span class="validation-ok">Validated</span>
+              } @else {
+                <span class="validation-fail">Not validated</span>
+              }
+            </div>
+            @if (validationMessage) {
+              <p class="validation-message">{{ validationMessage }}</p>
+            }
             <div class="detail-row highlight">
               <span>Recharge Amount:</span><span class="amount">₹{{ recharge.amount }}</span>
             </div>
 
-            <button class="btn btn-primary btn-block" (click)="confirmRecharge()" [disabled]="loading">
+            <button class="btn btn-primary btn-block" (click)="confirmRecharge()" [disabled]="loading || validatingBiller || !billerValidated">
               @if (loading) {
                 <span class="spinner"></span> Processing...
               } @else {
@@ -118,15 +138,33 @@ import type { BBPSOperator } from '../../../core/models/bbps.model';
       width: 2.8rem;
       height: 1.45rem;
       object-fit: contain;
-      border: 1px solid var(--border-light);
-      border-radius: 0.3rem;
-      background: #fff;
-      padding: 0.08rem;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
       flex-shrink: 0;
+    }
+    .operator-icon-fallback,
+    .summary-operator-icon-fallback {
+      width: 2.8rem;
+      height: 1.45rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      color: var(--primary-600);
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      flex-shrink: 0;
+    }
+    .summary-operator-icon-fallback {
+      width: 2rem;
+      height: 1rem;
+      font-size: 1rem;
     }
     .operator-item.active { border-color: var(--primary-500); background: var(--primary-50); }
     .op-name { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); }
-    .op-code { font-size: 0.75rem; color: var(--text-secondary); }
     .operator-empty { font-size: 0.86rem; color: var(--text-secondary); padding: 0.5rem 0.25rem; }
     .confirm-card { padding: 2rem; }
     .detail-row {
@@ -144,6 +182,9 @@ import type { BBPSOperator } from '../../../core/models/bbps.model';
       }
     }
     .amount { font-size: 1.5rem; font-weight: 700; color: var(--primary-700); }
+    .validation-ok { color: #166534; font-weight: 600; }
+    .validation-fail { color: #b91c1c; font-weight: 600; }
+    .validation-message { margin: 0.35rem 0 0.8rem; font-size: 0.875rem; color: var(--text-secondary); }
     .summary-operator {
       display: inline-flex;
       align-items: center;
@@ -154,10 +195,10 @@ import type { BBPSOperator } from '../../../core/models/bbps.model';
       width: 2rem;
       height: 1rem;
       object-fit: contain;
-      border: 1px solid var(--border-light);
-      border-radius: 0.25rem;
-      background: #fff;
-      padding: 0.06rem;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
       flex-shrink: 0;
     }
     .btn-block { width: 100%; padding: 1rem; margin-top: 1rem; }
@@ -178,6 +219,9 @@ export class FastagConfirmComponent implements OnInit {
   customer = { name: 'User', email: '', phone: '+919876543210' };
   loading = false;
   loadingOperators = false;
+  validatingBiller = false;
+  billerValidated = false;
+  validationMessage = '';
   operators: BBPSOperator[] = [];
   searchTerm = '';
   selectedOperatorId = '';
@@ -213,6 +257,9 @@ export class FastagConfirmComponent implements OnInit {
 
   onOperatorChange(value: string) {
     this.selectedOperatorId = String(value || '').trim();
+    this.billerValidated = false;
+    this.validationMessage = '';
+    this.validateVehicleForSelectedBiller();
   }
 
   private loadFastagOperators() {
@@ -221,11 +268,14 @@ export class FastagConfirmComponent implements OnInit {
       next: (ops) => {
         this.operators = Array.isArray(ops) ? ops : [];
         this.loadingOperators = false;
-        if (this.operators.length === 1) {
+        if (this.recharge?.operatorId) {
+          this.selectedOperatorId = this.recharge.operatorId;
+        } else if (this.operators.length === 1) {
           this.selectedOperatorId = this.operators[0].id;
         } else if (this.operators.length === 0) {
           this.notification.showError('FASTag operators not configured. Please import Mobikwik operators sheet.');
         }
+        this.validateVehicleForSelectedBiller();
       },
       error: () => {
         this.loadingOperators = false;
@@ -238,6 +288,10 @@ export class FastagConfirmComponent implements OnInit {
     if (!this.recharge) return;
     if (!this.selectedOperatorId) {
       this.notification.showError('Please select FASTag operator');
+      return;
+    }
+    if (!this.billerValidated) {
+      this.notification.showError('Please validate FASTag with selected biller first');
       return;
     }
     const selectedOp = this.operators.find((o) => o.id === this.selectedOperatorId);
@@ -262,6 +316,36 @@ export class FastagConfirmComponent implements OnInit {
       },
       error: (err) => {
         this.notification.showError(this.getRechargeErrorMessage(err));
+      },
+    });
+  }
+
+  private validateVehicleForSelectedBiller() {
+    if (!this.recharge || !this.selectedOperatorId) return;
+    const vehicleNumber = String(this.recharge.vehicleNumber || '').trim().toUpperCase();
+    if (!vehicleNumber) return;
+    const selectedOp = this.operators.find((o) => o.id === this.selectedOperatorId);
+    this.validatingBiller = true;
+    this.billerValidated = false;
+    this.validationMessage = '';
+    this.api.fetchBill({
+      operatorId: this.selectedOperatorId,
+      operatorCode: selectedOp?.code || this.selectedOperatorId,
+      parameters: {
+        consumerId: vehicleNumber,
+      },
+    }).pipe(
+      finalize(() => {
+        this.validatingBiller = false;
+      })
+    ).subscribe({
+      next: () => {
+        this.billerValidated = true;
+        this.validationMessage = 'Vehicle validated successfully for selected biller.';
+      },
+      error: (err) => {
+        this.billerValidated = false;
+        this.validationMessage = this.getRechargeErrorMessage(err);
       },
     });
   }
@@ -292,6 +376,7 @@ export class FastagConfirmComponent implements OnInit {
     if (/^op\d+$/i.test(raw)) {
       return `${this.mobikwikOperatorIconBase}/${raw.toLowerCase()}.png`;
     }
-    return 'assets/bbps/bharat-connect-logo.png';
+    /* FASTag is not BBPS — do not use Bharat Billpay / NPCI marks as a generic placeholder. */
+    return '';
   }
 }

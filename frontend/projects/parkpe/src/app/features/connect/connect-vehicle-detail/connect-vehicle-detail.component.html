@@ -87,21 +87,61 @@
         </div>
       }
 
+      @if (showFastagPanel()) {
+        <section class="vd-fastag-panel" aria-labelledby="vd-fastag-title">
+          <h2 id="vd-fastag-title" class="vd-fastag-panel__title">FASTag balance</h2>
+          <p class="vd-fastag-panel__desc">
+            Balance comes from your bank&rsquo;s FASTag via BBPS (same as Pay Bills). Choose issuer under Edit if not set.
+          </p>
+          @if (!v.fastag_biller_id) {
+            <p class="vd-fastag-panel__hint">
+              <a [routerLink]="['/connect/vehicles', v.id, 'edit']">Add FASTag issuer</a> to load balance.
+            </p>
+          } @else {
+            <div class="vd-fastag-panel__row">
+              <span class="vd-fastag-panel__label">Balance</span>
+              <div class="vd-fastag-panel__value-wrap">
+                <span class="vd-fastag-panel__value">
+                  @if (v.fastag_balance != null && v.fastag_balance !== undefined) {
+                    ₹{{ v.fastag_balance | number: '1.0-0' }}
+                  } @else {
+                    —
+                  }
+                </span>
+                <button
+                  type="button"
+                  class="vd-fastag-panel__refresh-icon"
+                  (click)="refreshFastagBalance()"
+                  [disabled]="fastagRefreshing()"
+                  [attr.aria-label]="fastagRefreshing() ? 'Refreshing FASTag balance' : 'Refresh FASTag balance'"
+                  title="Refresh FASTag balance">
+                  <span class="material-icons" [class.vd-fastag-panel__refresh-icon-spin]="fastagRefreshing()" aria-hidden="true">refresh</span>
+                </button>
+              </div>
+            </div>
+            @if (v.fastag_balance_fetched_at) {
+              <p class="vd-fastag-panel__meta">Last updated {{ v.fastag_balance_fetched_at | date: 'medium' }}</p>
+            }
+          }
+        </section>
+      }
+
       <!-- ── QR + QUICK ACTIONS ── -->
+      <div class="vd-qr-actions-meta">
+        <div>
+          <h2 class="vd-qr-actions-meta__title">Connect QR</h2>
+          <p class="vd-qr-actions-meta__desc">People scan to chat or call — your number stays private.</p>
+        </div>
+        @if (qrImageUrl()) {
+          <button type="button" class="vd-qr-actions-meta__save" (click)="downloadConnectQr()">
+            <span class="material-icons" aria-hidden="true">download</span> Save
+          </button>
+        }
+      </div>
+
       <div class="vd-qr-actions-row">
 
         <div class="vd-qr-panel">
-          <div class="vd-qr-panel__head">
-            <div>
-              <h2 class="vd-qr-panel__title">Connect QR</h2>
-              <p class="vd-qr-panel__desc">People scan to chat or call — your number stays private.</p>
-            </div>
-            @if (qrImageUrl()) {
-              <button type="button" class="vd-qr-panel__save" (click)="downloadConnectQr()">
-                <span class="material-icons" aria-hidden="true">download</span> Save
-              </button>
-            }
-          </div>
           <section class="qr-sticker-card" aria-label="Your Connect QR sticker">
             <div class="qr-sticker-inner">
               <div class="qr-sticker-left">
@@ -146,11 +186,11 @@
           <div class="detail-qa-grid">
             <button type="button" class="detail-qa-tile detail-qa-tile--primary" (click)="openChat()">
               <span class="material-icons detail-qa-tile__icon" aria-hidden="true">chat</span>
-              <span class="detail-qa-tile__label">Chat</span>
+              <span class="detail-qa-tile__label">New Chat</span>
             </button>
             <a [routerLink]="['/connect/chats']" class="detail-qa-tile">
               <span class="material-icons detail-qa-tile__icon" aria-hidden="true">forum</span>
-              <span class="detail-qa-tile__label">Chats</span>
+              <span class="detail-qa-tile__label">Inbox</span>
             </a>
             <a [routerLink]="['/connect/scan']" class="detail-qa-tile">
               <span class="material-icons detail-qa-tile__icon" aria-hidden="true">qr_code_scanner</span>
@@ -197,39 +237,46 @@
             }
           </div>
         </section>
-      } @else if (v.rc_locked) {
+      } @else if (v.rc_locked || v.rc_payment_required_before_fetch) {
         <section class="rc-paywall card">
           <div class="rc-paywall-icon"><span class="material-icons">lock</span></div>
-          <h2 class="rc-paywall-title">View full RC information</h2>
-          <p class="rc-paywall-text">Pay ₹50 from your voucher or verify ownership to see full RC details.</p>
+          @if (v.rc_payment_required_before_fetch) {
+            <h2 class="rc-paywall-title">Pay to fetch RC for this vehicle</h2>
+            <p class="rc-paywall-text">Your first Connect vehicle includes a free RC fetch. For additional vehicles, pay ₹50 from a voucher here, then use &ldquo;Get your vehicle information&rdquo; to pull verified RC data.</p>
+          } @else {
+            <h2 class="rc-paywall-title">View full RC information</h2>
+            <p class="rc-paywall-text">Pay ₹50 from your voucher or verify ownership to see full RC details.</p>
+          }
           @if (payRcError(); as err) { <p class="rc-paywall-error">{{ err }}</p> }
           <button type="button" class="btn btn-primary rc-paywall-btn" (click)="openPayModal()">Pay ₹50 from voucher</button>
-          <details class="rc-verify-details">
-            <summary>Verify ownership instead (free)</summary>
-            <form [formGroup]="verifyOwnershipForm" (ngSubmit)="verifyOwnership()" class="rc-verify-form">
-              <div class="field">
-                <label for="verify-owner-name">Owner name (as on RC)</label>
-                <input id="verify-owner-name" type="text" formControlName="owner_name" placeholder="e.g. JOHN DOE" />
-              </div>
-              <div class="field">
-                <label for="verify-chassis">Chassis number</label>
-                <input id="verify-chassis" type="text" formControlName="chassis_number" placeholder="Chassis number" />
-              </div>
-              <div class="field">
-                <label for="verify-engine">Engine number</label>
-                <input id="verify-engine" type="text" formControlName="engine_number" placeholder="Engine number" />
-              </div>
-              @if (verifyError(); as err) { <p class="rc-verify-error">{{ err }}</p> }
-              <button type="submit" class="btn btn-outline btn-sm" [disabled]="verifyOwnershipForm.invalid || verifyInProgress()">
-                {{ verifyInProgress() ? 'Verifying…' : 'Verify' }}
-              </button>
-            </form>
-          </details>
+          @if (v.rc_locked) {
+            <details class="rc-verify-details">
+              <summary>Verify ownership instead (free)</summary>
+              <form [formGroup]="verifyOwnershipForm" (ngSubmit)="verifyOwnership()" class="rc-verify-form">
+                <div class="field">
+                  <label for="verify-owner-name">Owner name (as on RC)</label>
+                  <input id="verify-owner-name" type="text" formControlName="owner_name" placeholder="e.g. JOHN DOE" />
+                </div>
+                <div class="field">
+                  <label for="verify-chassis">Chassis number</label>
+                  <input id="verify-chassis" type="text" formControlName="chassis_number" placeholder="Chassis number" />
+                </div>
+                <div class="field">
+                  <label for="verify-engine">Engine number</label>
+                  <input id="verify-engine" type="text" formControlName="engine_number" placeholder="Engine number" />
+                </div>
+                @if (verifyError(); as err) { <p class="rc-verify-error">{{ err }}</p> }
+                <button type="submit" class="btn btn-outline btn-sm" [disabled]="verifyOwnershipForm.invalid || verifyInProgress()">
+                  {{ verifyInProgress() ? 'Verifying…' : 'Verify' }}
+                </button>
+              </form>
+            </details>
+          }
         </section>
       } @else {
         <section class="rc-get-more card">
           <h2 class="rc-get-more-title">Get your vehicle information</h2>
-          <p class="rc-get-more-text">Pay ₹50 to fetch verified RC data (1st vehicle free). After payment we fetch and show details on your dashboard.</p>
+          <p class="rc-get-more-text">Pay ₹50 to fetch verified RC data (first vehicle free). Details appear here instantly after payment.</p>
           @if (rcError(); as err) {
             <p class="rc-get-more-error">{{ err }}</p>
             <p class="rc-get-more-hint">You can try again after some time.</p>

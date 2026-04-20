@@ -18,9 +18,9 @@ export interface QuickAction {
     <div class="card-section">
       <div class="section-header">
         <h3 class="section-title">Quick Actions</h3>
-        <a routerLink="/services" class="link-blue">View all</a>
+        <a routerLink="/services" class="link-blue">View All</a>
       </div>
-      <p class="quick-actions-subtitle">Jump back into your most used services.</p>
+      <p class="quick-actions-subtitle">Your most-used services, in one place.</p>
       <div class="quick-actions-grid">
         @for (action of actions(); track action.route) {
           @if (action.comingSoon) {
@@ -55,11 +55,12 @@ export interface QuickAction {
       justify-content: flex-start;
       gap: 0.5rem;
       padding: 0.75rem 1rem;
-      height: 88px;
-      min-height: 88px;
+      height: 96px;
+      min-height: 96px;
       border-radius: 12px;
-      background: #f8fafc !important;
-      border: 1px solid #e2e8f0 !important;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
+      border: 1px solid rgba(203, 213, 225, 0.85) !important;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
       box-sizing: border-box;
       overflow: hidden;
       cursor: default;

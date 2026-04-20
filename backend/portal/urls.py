@@ -13,9 +13,6 @@ urlpatterns = [
     path('signup/otp/', views.SignUpView.as_view(), name='signup_otp'),
     path('logout/', views.sign_out_view, name='logout'),
     
-    # Social Auth
-    path('accounts/social/callback/', views.social_callback_view, name='social_callback'),
-    
     # Profile Completion
     path('profile/complete/', views.ProfileCompletionView.as_view(), name='profile_complete'),
     
@@ -38,6 +35,7 @@ urlpatterns = [
     # Dashboard
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
     path('dashboard/mobikwik-balance/', views.MobikwikBalanceApiView.as_view(), name='dashboard_mobikwik_balance'),
+    path('dashboard/vendor-balances/', views.VendorBalancesApiView.as_view(), name='dashboard_vendor_balances'),
     path('dashboard/business/', views.BusinessOverviewView.as_view(), name='dashboard_business'),
     path('dashboard/hub-pnl/', views.HubPnlView.as_view(), name='dashboard_hub_pnl'),
     path('dashboard/system-map/', RedirectView.as_view(url='/dashboard/', permanent=False), name='system_map'),
@@ -65,6 +63,7 @@ urlpatterns = [
     path('dashboard/hub/assignments/', views.UserHubAssignmentListView.as_view(), name='hub_rbac_assignment_list'),
     path('dashboard/hub/assignments/add/', views.UserHubAssignmentCreateView.as_view(), name='hub_rbac_assignment_create'),
     path('dashboard/hub/assignments/<int:pk>/edit/', views.UserHubAssignmentUpdateView.as_view(), name='hub_rbac_assignment_edit'),
+    path('dashboard/hub/roles/options/', views.HubRoleOptionsView.as_view(), name='hub_rbac_role_options'),
     # Project Management (Admin / Super Admin) – Parkpe & Payswap
     path('dashboard/projects/', views.ProjectManagementView.as_view(), name='project_management'),
     path('dashboard/projects/create-api-key/', views.CreateProjectAPIKeyView.as_view(), name='project_management_create_api_key'),
@@ -117,6 +116,21 @@ urlpatterns = [
 
     # Services Management
     path('services/', views.ServicesIntegratedView.as_view(), name='services_list'),
+    path('notifications/', views.NotificationCenterView.as_view(), name='notification_center'),
+    path('notifications/create/', views.notification_banner_create_view, name='notification_banner_create'),
+    path('notifications/<int:banner_id>/toggle/', views.notification_banner_toggle_view, name='notification_banner_toggle'),
+    path('notifications/<int:banner_id>/delete/', views.notification_banner_delete_view, name='notification_banner_delete'),
+    path('notifications/campaigns/create/', views.notification_campaign_create_view, name='notification_campaign_create'),
+    path('notifications/campaigns/<int:campaign_id>/toggle/', views.notification_campaign_toggle_view, name='notification_campaign_toggle'),
+    path('notifications/campaigns/<int:campaign_id>/duplicate/', views.notification_campaign_duplicate_view, name='notification_campaign_duplicate'),
+    path('notifications/campaigns/<int:campaign_id>/send-now/', views.notification_campaign_send_now_view, name='notification_campaign_send_now'),
+    path('notifications/campaigns/<int:campaign_id>/audience-preview/', views.notification_campaign_audience_preview_view, name='notification_campaign_audience_preview'),
+    path('notifications/analytics/', views.notification_analytics_view, name='notification_analytics'),
+    path('connect/ops/', views.ConnectOpsCenterView.as_view(), name='connect_ops_center'),
+    path('connect/ops/moderation-action/', views.connect_moderation_action_view, name='connect_moderation_action'),
+    path('connect/ops/analytics/', views.connect_ops_analytics_view, name='connect_ops_analytics'),
+    path('services/vendors/<str:vendor_code>/toggle/', views.toggle_vendor_status_view, name='toggle_vendor_status'),
+    path('services/vendors/<str:vendor_code>/apis/<str:api_code>/toggle/', views.toggle_vendor_api_status_view, name='toggle_vendor_api_status'),
     # API Vendors: redirect to Services (API Explorer removed)
     path('services/api-vendors/', RedirectView.as_view(url='/services/', permanent=False), name='api_vendor_list'),
     path('services/api-vendors/postman-sync/', views.postman_sync_view, name='postman_sync'),
@@ -197,13 +211,36 @@ urlpatterns = [
     path('partner/dashboard/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='partner_console'),
     path('partner/<path:subpath>', RedirectView.as_view(url='/dashboard/projects/', permanent=False)),
 
-    # ParkPe App Management – removed; redirect to dashboard
-    path('parkpe/app-management/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_app_management'),
-    path('parkpe/connect/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_connect_dashboard'),
-    path('parkpe/app-management/service-config/add/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_service_config_add'),
-    path('parkpe/app-management/service-config/<int:pk>/edit/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_service_config_edit'),
-    path('parkpe/app-management/gateway-config/add/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_gateway_config_add'),
-    path('parkpe/app-management/gateway-config/<int:pk>/edit/', RedirectView.as_view(url='/dashboard/', permanent=False), name='parkpe_gateway_config_edit'),
+    # ParkPe App Management – dedicated control center
+    path('parkpe/app-management/', views.ParkPeControlCenterView.as_view(), name='parkpe_app_management'),
+    path('parkpe/fleet-access/', views.ParkPeFleetAccessRequestsView.as_view(), name='parkpe_fleet_access_requests'),
+    path(
+        'parkpe/service-voucher-refunds/',
+        views.ServiceVoucherRefundQueueView.as_view(),
+        name='service_voucher_refund_queue',
+    ),
+    path('accounting/', views.AccountingDashboardView.as_view(), name='accounting_dashboard'),
+    path('accounting/reports/', views.AccountingReportsView.as_view(), name='accounting_reports'),
+    path('accounting/documents/', views.AccountingDocumentsView.as_view(), name='accounting_documents'),
+    path(
+        'accounting/billing-documents/<int:pk>/html/',
+        views.AccountingBillingDocumentHtmlView.as_view(),
+        name='accounting_billing_document_html',
+    ),
+    path(
+        'accounting/billing-documents/<int:pk>/download/',
+        views.AccountingBillingDocumentDownloadView.as_view(),
+        name='accounting_billing_document_download',
+    ),
+    path('accounting/tax-profiles/', views.AccountingTaxProfilesView.as_view(), name='accounting_tax_profiles'),
+    path('accounting/tax-profiles/<int:pk>/edit/', views.AccountingTaxProfileEditView.as_view(), name='accounting_tax_profile_edit'),
+    path('parkpe/connect/', views.ParkPeControlCenterView.as_view(), name='parkpe_connect_dashboard'),
+    path('parkpe/settings-governance/', views.ParkPeSettingsGovernanceView.as_view(), name='parkpe_settings_governance'),
+    path('parkpe/settings-governance/analytics/', views.parkpe_settings_governance_analytics_view, name='parkpe_settings_governance_analytics'),
+    path('parkpe/app-management/service-config/add/', views.ParkPeControlCenterView.as_view(), name='parkpe_service_config_add'),
+    path('parkpe/app-management/service-config/<int:pk>/edit/', views.ParkPeControlCenterView.as_view(), name='parkpe_service_config_edit'),
+    path('parkpe/app-management/gateway-config/add/', views.ParkPeControlCenterView.as_view(), name='parkpe_gateway_config_add'),
+    path('parkpe/app-management/gateway-config/<int:pk>/edit/', views.ParkPeControlCenterView.as_view(), name='parkpe_gateway_config_edit'),
 
     # API registry removed (internal apps – no external partners)
     path('dashboard/admin/api-registry/', RedirectView.as_view(url='/dashboard/projects/', permanent=False), name='api_product_list'),

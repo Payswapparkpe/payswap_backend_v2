@@ -45,13 +45,14 @@ class ParkPeActionAuditMiddleware(MiddlewareMixin):
             if isinstance(start, (int, float)):
                 elapsed_ms = int((time.time() - start) * 1000)
 
+            mask_sensitive = category not in ("parkpe_bbps", "parkpe_fastag")
             extra_data: Dict[str, Any] = {
                 "source": "ParkPe",
                 "api_url": path,
                 "request_method": method,
-                "request_body": self._sanitize(request_payload),
+                "request_body": self._sanitize(request_payload, mask_sensitive=mask_sensitive),
                 "response_status": status_code,
-                "response_body": self._sanitize(response_payload),
+                "response_body": self._sanitize(response_payload, mask_sensitive=mask_sensitive),
             }
             if elapsed_ms is not None:
                 extra_data["duration_ms"] = elapsed_ms
@@ -145,14 +146,15 @@ class ParkPeActionAuditMiddleware(MiddlewareMixin):
             return ""
 
     @staticmethod
-    def _sanitize(data: Any) -> str:
+    def _sanitize(data: Any, mask_sensitive: bool = True) -> str:
         try:
             if isinstance(data, dict):
                 masked = dict(data)
-                for k in list(masked.keys()):
-                    key = str(k).lower()
-                    if any(s in key for s in ("pin", "password", "secret", "token", "otp")):
-                        masked[k] = "***"
+                if mask_sensitive:
+                    for k in list(masked.keys()):
+                        key = str(k).lower()
+                        if any(s in key for s in ("pin", "password", "secret", "token", "otp")):
+                            masked[k] = "***"
                 value = json.dumps(masked, default=str, ensure_ascii=False)
             elif isinstance(data, (list, tuple)):
                 value = json.dumps(data, default=str, ensure_ascii=False)

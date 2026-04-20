@@ -4,6 +4,7 @@ ParkPe Connect API – view package. Re-exports all view classes for URL config.
 from .vehicle_views import (
     VehicleListCreateView,
     VehicleDetailView,
+    VehicleFastagBalanceRefreshView,
     VehicleDeleteRequestView,
     VehicleDeleteConfirmView,
     VehicleUnlockRCView,
@@ -26,12 +27,17 @@ from .chat_views import (
     ConnectThreadListCreateView,
     ConnectThreadDetailView,
     ConnectThreadMessagesView,
+    ConnectThreadMarkReadView,
+    ConnectThreadPresenceView,
+    ConnectThreadSettingsView,
+    ConnectThreadBlockView,
     ConnectReportCreateView,
 )
 
 __all__ = [
     "VehicleListCreateView",
     "VehicleDetailView",
+    "VehicleFastagBalanceRefreshView",
     "VehicleDeleteRequestView",
     "VehicleDeleteConfirmView",
     "VehicleUnlockRCView",
@@ -48,5 +54,9 @@ __all__ = [
     "ConnectThreadListCreateView",
     "ConnectThreadDetailView",
     "ConnectThreadMessagesView",
+    "ConnectThreadMarkReadView",
+    "ConnectThreadPresenceView",
+    "ConnectThreadSettingsView",
+    "ConnectThreadBlockView",
     "ConnectReportCreateView",
 ]

@@ -3,6 +3,7 @@ Cashfree Payment Gateway (PG) API client
 Based on Cashfree PG SDK: https://github.com/cashfree/cashfree-pg-sdk-python
 Documentation: https://docs.cashfree.com/reference/pg-new-apis-endpoint
 """
+import time
 from typing import Optional, Dict, Any, List
 from core.config import payswap_config
 
@@ -101,7 +102,23 @@ class CashfreePGClient:
         )
         
         self.api_version = "2023-08-01"  # Default API version
-    
+
+    @staticmethod
+    def _is_transient_cashfree_network_error(exc: BaseException) -> bool:
+        """Retry PGCreateOrder on flaky TLS / CDN drops (common in dev)."""
+        msg = str(exc).lower()
+        needles = (
+            "connection reset",
+            "connection aborted",
+            "timed out",
+            "timeout",
+            "temporarily unavailable",
+            "errno 54",
+            "broken pipe",
+            "remote end closed connection",
+        )
+        return any(n in msg for n in needles)
+
     def create_order(
         self,
         order_amount: float,
@@ -153,15 +170,28 @@ class CashfreePGClient:
                 order_id=order_id,
                 **kwargs
             )
-            
-            # Call API
-            api_response = self.client.PGCreateOrder(
-                self.api_version,
-                order_request,
-                None,
-                None
-            )
-            
+
+            # Call API (retry transient network failures to Cashfree)
+            api_response = None
+            last_call_error: Optional[BaseException] = None
+            for attempt in range(3):
+                try:
+                    api_response = self.client.PGCreateOrder(
+                        self.api_version,
+                        order_request,
+                        None,
+                        None,
+                    )
+                    break
+                except Exception as call_err:
+                    last_call_error = call_err
+                    if attempt < 2 and self._is_transient_cashfree_network_error(call_err):
+                        time.sleep(0.35 * (2**attempt))
+                        continue
+                    raise
+            if api_response is None:
+                raise last_call_error if last_call_error else RuntimeError("Cashfree PGCreateOrder returned no response")
+
             # Convert response to dict
             if hasattr(api_response, 'data') and api_response.data:
                 if hasattr(api_response.data, 'to_dict'):

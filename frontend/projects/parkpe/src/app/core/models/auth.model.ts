@@ -4,12 +4,27 @@ export interface User {
   name: string;
   email: string;
   phone: string;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'admin' | 'fleet';
+  roleCode?: string;
   avatar?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  languagePreference?: string;
+  timezone?: string;
+  currencyPreference?: string;
+  notificationPreferences?: {
+    push?: boolean;
+    email?: boolean;
+    sms?: boolean;
+    in_app?: boolean;
+    quiet_hours_enabled?: boolean;
+    quiet_hours_start?: string;
+    quiet_hours_end?: string;
+    critical_alert_override?: boolean;
+  };
+  settings?: Record<string, unknown>;
 }
 
 // Auth Requests – login by email + password or phone + password

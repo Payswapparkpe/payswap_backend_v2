@@ -70,7 +70,7 @@ import type { VoucherListItem } from '../../../core/models/voucher.model';
                 <span class="material-icons">link</span>
                 Link existing voucher
               </h3>
-              <p class="section-desc">If you received a voucher from us (e.g. bulk issue) without buying here, enter the code and PIN to add it to your account.</p>
+              <p class="section-desc">Received a voucher elsewhere? Enter code and PIN to link it to your account.</p>
               <form [formGroup]="claimForm" (ngSubmit)="submitClaim()" class="claim-form">
                 <div class="form-group">
                   <label>Voucher code</label>

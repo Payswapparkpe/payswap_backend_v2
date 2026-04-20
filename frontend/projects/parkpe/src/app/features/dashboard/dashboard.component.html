@@ -1,35 +1,46 @@
 <div class="dashboard-landing fade-in">
   <div class="dashboard-container">
-
     <app-dashboard-welcome-banner />
+
+    @if (showBillingAddressBanner()) {
+      <div class="workspace-switch-card dashboard-billing-nudge" role="status">
+        <div class="workspace-switch-text">
+          <h3>Complete your billing address</h3>
+          <p>Add PIN code, state, and address line so receipts and invoices show the correct place of supply.</p>
+        </div>
+        <a routerLink="/settings" class="link-blue">Open Settings</a>
+      </div>
+    }
 
     <div class="dashboard-columns">
 
       <!-- Left Column: Vehicles + Overview -->
       <div class="dashboard-main">
+        <section class="mobility-unified-panel">
 
         <!-- SECTION ONE: YOUR VEHICLES -->
-        <div class="section-header vehicles-section-head">
+        <div class="section-header section-header--inside-panel vehicles-section-head">
           <div class="vehicles-section-head-text">
             <h3 class="section-title-large section-title-large--tight">Your Vehicles</h3>
             @if (connectVehicles.length > 0 && !connectVehiclesLoading) {
               <p class="vehicles-section-subtitle">
-                {{ connectVehicles.length }} vehicle{{ connectVehicles.length === 1 ? '' : 's' }} saved — shortcuts for FASTag, Connect & compliance
+                {{ connectVehicles.length }} vehicle{{ connectVehicles.length === 1 ? '' : 's' }} saved
               </p>
             } @else if (!connectVehiclesLoading && !connectVehiclesError && connectVehicles.length === 0) {
               <p class="vehicles-section-subtitle vehicles-section-subtitle--muted">
-                Add a vehicle when you need FASTag & Connect; everything else works without one.
+                Add a vehicle to enable FASTag and Connect shortcuts.
               </p>
             }
           </div>
           <div class="section-links">
+            <a routerLink="/connect/scan" class="link-blue">Scan a vehicle QR</a>
             <a routerLink="/connect/vehicles/add" class="link-blue">Add Vehicle</a>
             <a routerLink="/connect" class="link-blue">View All</a>
           </div>
         </div>
 
         @if (connectVehiclesLoading) {
-          <div class="vehicles-section mb-8" aria-busy="true" aria-label="Loading vehicles">
+          <div class="vehicles-section" aria-busy="true" aria-label="Loading vehicles">
             <div class="vehicles-loading-skeleton">
               <div class="vsk-line vsk-line--title"></div>
               <div class="vsk-line vsk-line--meta"></div>
@@ -45,63 +56,77 @@
             </div>
           </div>
         } @else if (connectVehiclesError) {
-          <div class="vehicle-cards-error mb-8">
+          <div class="vehicle-cards-error">
             <span class="vehicle-cards-error-text">{{ connectVehiclesError }}</span>
             <button type="button" class="btn-retry" (click)="loadConnectVehicles()">Retry</button>
           </div>
         } @else if (dashboardVehicles.length === 0) {
-          <div class="vehicle-empty-state vehicle-empty-state--dashboard mb-8">
-            <span class="material-icons vehicle-empty-icon" aria-hidden="true">directions_car</span>
-            <p class="vehicle-empty-title">No vehicle added yet</p>
-            <p class="vehicle-empty-desc">
-              You can still use Pay Bills, Vouchers, and more from Quick Actions. Add a vehicle when you are ready for FASTag, Connect, and RC-based services.
-            </p>
-            <div class="vehicle-empty-ctas">
-              <a routerLink="/connect/vehicles/add" class="btn-view-more btn-view-more--inline">Add vehicle</a>
-              <a routerLink="/bbps" class="link-blue vehicle-empty-link">Pay bills</a>
-            </div>
-            <div class="vehicle-empty-quick-links" aria-label="Popular services">
-              <span class="vehicle-empty-quick-label">Try now</span>
-              <a routerLink="/bbps" class="vehicle-empty-pill">
-                <span class="material-icons" aria-hidden="true">receipt_long</span>
-                Bills
-              </a>
-              <a routerLink="/vouchers" class="vehicle-empty-pill">
-                <span class="material-icons" aria-hidden="true">card_giftcard</span>
-                Vouchers
-              </a>
-              <a routerLink="/connect" class="vehicle-empty-pill">
-                <span class="material-icons" aria-hidden="true">qr_code_2</span>
-                Connect
-              </a>
-            </div>
+          <div class="vehicles-primary-wrap">
+            <article class="vehicle-placeholder-card">
+              <div class="vehicle-placeholder-card__top">
+                <div class="vehicle-placeholder-card__icon-wrap">
+                  <span class="material-icons" aria-hidden="true">directions_car</span>
+                </div>
+                <div class="vehicle-placeholder-card__text">
+                  <p class="vehicle-placeholder-card__title">Add Your Vehicle</p>
+                  <p class="vehicle-placeholder-card__desc">
+                    Add one vehicle to unlock FASTag shortcuts, Connect alerts and RC-powered services.
+                  </p>
+                </div>
+              </div>
+
+              <div class="vehicle-placeholder-card__actions">
+                <a routerLink="/connect/vehicles/add" class="vehicle-placeholder-card__btn vehicle-placeholder-card__btn--primary">
+                  <span class="material-icons" aria-hidden="true">add_circle</span>
+                  Add Vehicle
+                </a>
+                <a routerLink="/connect/scan" class="vehicle-placeholder-card__btn">
+                  <span class="material-icons" aria-hidden="true">qr_code_scanner</span>
+                  Scan a vehicle QR
+                </a>
+                <a routerLink="/connect" class="vehicle-placeholder-card__btn">
+                  <span class="material-icons" aria-hidden="true">qr_code_2</span>
+                  Open Connect
+                </a>
+              </div>
+            </article>
           </div>
         } @else {
-          <div class="vehicles-primary-wrap mb-8">
+          <div class="vehicles-primary-wrap">
             <div class="vehicles-carousel">
               @for (vehicle of dashboardVehicles; track vehicle.id) {
                 <app-connect-vehicle-card
                   [vehicle]="vehicle"
                   [fastagBalance]="summary.fastagBalance"
+                  [fastagRefreshing]="isVehicleFastagRefreshing(vehicle.id)"
                   [showViewLink]="true"
                   [variant]="'dashboard'"
                   [dashboardSingleRow]="dashboardVehicles.length === 1"
+                  (fastagRefreshRequested)="onVehicleFastagRefresh($event)"
                   class="vehicle-card-carousel-item" />
               }
             </div>
           </div>
         }
 
+        <div class="mobility-unified-panel__divider"></div>
+
         <!-- SECTION TWO: OVERVIEW / THIS MONTH -->
-        <div class="section-header">
+        <div class="section-header section-header--inside-panel">
           <h3 class="section-title-large">Overview</h3>
           <p class="section-subtitle">This Month</p>
         </div>
 
-        <app-dashboard-overview-cards [summary]="summary" />
+        <app-dashboard-overview-cards
+          [summary]="summary"
+          [challansComingSoon]="overviewTilesComingSoon.challans"
+          [fastagComingSoon]="overviewTilesComingSoon.fastag"
+          [parkingComingSoon]="overviewTilesComingSoon.parking"
+        />
+        </section>
 
         <!-- Analytics Graph -->
-        <div class="analytics-section mt-6">
+        <div class="analytics-section mt-4">
           <div class="card-section">
             <div class="section-header">
               <h3 class="section-title">Spending Trends</h3>

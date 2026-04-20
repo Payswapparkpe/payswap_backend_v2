@@ -20,6 +20,12 @@ from portal.services.bbps_operators_loader import (
     load_bbps_operators_from_excel,
 )
 from portal.utils.logging_helper import get_logger
+from portal.models import Profile
+from portal.services.billing_party_service import (
+    billing_address_error_payload,
+    parkpe_billing_address_required,
+    profile_billing_address_complete,
+)
 
 from api.parkpe_logging import log_parkpe
 from portal.utils.transaction_id import generate_transaction_id
@@ -580,6 +586,11 @@ class BBPSPayBillView(APIView):
         ref_id = bill_id
         user = request.user
 
+        if parkpe_billing_address_required():
+            prof = getattr(user, "profile", None) or Profile.objects.filter(user=user).first()
+            if not profile_billing_address_complete(prof):
+                return Response(billing_address_error_payload(), status=status.HTTP_400_BAD_REQUEST)
+
         # Check BBPS service config (voucher / pg allowed)
         try:
             from portal.models import ParkPeServiceConfig
@@ -677,7 +688,7 @@ class BBPSPayBillView(APIView):
                 )
                 voucher_redeemed = True
                 with db_transaction.atomic():
-                    ParkPeVoucherTransaction.objects.create(
+                    pp_txn = ParkPeVoucherTransaction.objects.create(
                         user=user,
                         amount=amount_decimal,
                         transaction_type=ParkPeVoucherTransaction.DEBIT,
@@ -686,6 +697,9 @@ class BBPSPayBillView(APIView):
                         service_code="BBPS",
                         description=BBPS_PAY_DESCRIPTION,
                     )
+                from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+                schedule_billing_from_parkpe_voucher_transaction(pp_txn)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         else:
@@ -777,7 +791,7 @@ class BBPSPayBillView(APIView):
                                     "type": "BBPS_ROLLBACK",
                                 },
                             )
-                            ParkPeVoucherTransaction.objects.create(
+                            rb_txn = ParkPeVoucherTransaction.objects.create(
                                 user=user,
                                 amount=amount_decimal,
                                 transaction_type=ParkPeVoucherTransaction.CREDIT,
@@ -786,6 +800,9 @@ class BBPSPayBillView(APIView):
                                 service_code="BBPS",
                                 description=BBPS_ROLLBACK_DESCRIPTION,
                             )
+                        from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+                        schedule_billing_from_parkpe_voucher_transaction(rb_txn)
                     except Exception:
                         logger.exception("parkpe_bbps_pay rollback_failed_service_unavailable", extra_data={"ref_id": ref_id})
                 return Response(
@@ -851,7 +868,7 @@ class BBPSPayBillView(APIView):
                                     "type": "BBPS_ROLLBACK",
                                 },
                             )
-                            ParkPeVoucherTransaction.objects.create(
+                            rb2_txn = ParkPeVoucherTransaction.objects.create(
                                 user=user,
                                 amount=amount_decimal,
                                 transaction_type=ParkPeVoucherTransaction.CREDIT,
@@ -860,6 +877,9 @@ class BBPSPayBillView(APIView):
                                 service_code="BBPS",
                                 description=BBPS_ROLLBACK_DESCRIPTION,
                             )
+                        from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+                        schedule_billing_from_parkpe_voucher_transaction(rb2_txn)
                     except Exception:
                         logger.exception("parkpe_bbps_pay rollback_failed_vendor_failed", extra_data={"ref_id": ref_id})
                 logger.warning(
@@ -958,7 +978,7 @@ class BBPSPayBillView(APIView):
                                 "type": "BBPS_ROLLBACK",
                             },
                         )
-                        ParkPeVoucherTransaction.objects.create(
+                        rb3_txn = ParkPeVoucherTransaction.objects.create(
                             user=user,
                             amount=amount_decimal,
                             transaction_type=ParkPeVoucherTransaction.CREDIT,
@@ -967,6 +987,9 @@ class BBPSPayBillView(APIView):
                             service_code="BBPS",
                             description=BBPS_ROLLBACK_DESCRIPTION,
                         )
+                    from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+                    schedule_billing_from_parkpe_voucher_transaction(rb3_txn)
                 except Exception:
                     logger.exception("parkpe_bbps_pay rollback_failed_unexpected_error", extra_data={"ref_id": ref_id})
             return Response(
@@ -1191,7 +1214,7 @@ class BBPSPayCartView(APIView):
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         with db_transaction.atomic():
-            ParkPeVoucherTransaction.objects.create(
+            cart_pp_txn = ParkPeVoucherTransaction.objects.create(
                 user=user,
                 amount=amount_decimal,
                 transaction_type=ParkPeVoucherTransaction.DEBIT,
@@ -1200,6 +1223,9 @@ class BBPSPayCartView(APIView):
                 service_code="BBPS",
                 description=f"BBPS pay-cart {len(normalised)} bills",
             )
+        from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+        schedule_billing_from_parkpe_voucher_transaction(cart_pp_txn)
 
         logger.info(
             "parkpe_bbps_pay_cart success",

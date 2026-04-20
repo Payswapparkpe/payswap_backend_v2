@@ -43,3 +43,4 @@ factory-boy>=3.3.0
 faker>=20.0.0
 beautifulsoup4>=4.12.0
 xhtml2pdf>=0.2.13
+webauthn

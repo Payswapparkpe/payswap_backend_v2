@@ -14,9 +14,10 @@ from django.http import JsonResponse
 from django.db.models import Sum, Q, Count, Case, When, DecimalField, Value
 from django.db.models.functions import Coalesce
 
-from portal.models import User, Profile, KYC, Wallet, ParkPeVoucherTransaction, ParkPePaymentOrder
+from portal.models import User, Profile, KYC, Wallet, ParkPeVoucherTransaction, ParkPePaymentOrder, ApiVendor
 from portal.decorators import log_view_action
 from portal.utils.logging_helper import get_logger
+from core.config import payswap_config
 
 logger = get_logger('portal.views')
 
@@ -73,25 +74,7 @@ class SuperDashboardView(TemplateView):
         context['pending_kyc'] = KYC.objects.filter(status='pending').count()
         context['total_wallets'] = Wallet.objects.count()
         context['active_profiles'] = Profile.objects.filter(status='active').count()
-        # Mobikwik BBPS Retailer Balance – auto-fetched on every page load/refresh
-        context['mobikwik_balance'] = None
-        context['mobikwik_balance_error'] = None
-        context['mobikwik_balance_available'] = False
-        try:
-            from portal.services.bbps_service import BBPSService
-            service = BBPSService(vendor='mobikwik')
-            if service.is_available():
-                result = service.balance_check()
-                if result.get('success') and result.get('balance') is not None:
-                    context['mobikwik_balance'] = result['balance']
-                    context['mobikwik_balance_available'] = True
-                else:
-                    context['mobikwik_balance_error'] = result.get('message') or 'Balance fetch failed'
-            else:
-                context['mobikwik_balance_error'] = 'Mobikwik BBPS not configured'
-        except Exception as e:
-            logger.warning(f'Mobikwik balance fetch failed: {e}')
-            context['mobikwik_balance_error'] = str(e)[:100]
+        context['vendor_pool_balances'] = _get_vendor_pool_balances()
         try:
             from portal.models import ResellerPartner, ResellerPartnerTransaction
             partners = ResellerPartner.objects.all()
@@ -118,6 +101,106 @@ class SuperDashboardView(TemplateView):
             context['partner_commission_30d'] = 0
             context['recent_partners'] = []
         return context
+
+
+def _get_vendor_pool_balances():
+    """Fetch vendor pool balance cards for dashboard."""
+    def _extract_instantpay_business_balance(payload):
+        """Extract business wallet balance (strict closingBalance first)."""
+        if not isinstance(payload, dict):
+            return None
+
+        # Strict preference: closing balance from statement response.
+        direct_keys = ('closingBalance', 'closing_balance')
+        for key in direct_keys:
+            value = payload.get(key)
+            if value not in (None, ''):
+                return value
+
+        # Nested wrappers that vendors commonly use
+        for container_key in ('data', 'result', 'statement', 'account', 'wallet'):
+            nested = payload.get(container_key)
+            if isinstance(nested, dict):
+                value = _extract_instantpay_business_balance(nested)
+                if value not in (None, ''):
+                    return value
+
+        # Statement rows fallback.
+        entries = payload.get('entries') or payload.get('transactions') or payload.get('statementRows')
+        if isinstance(entries, list) and entries:
+            first = entries[0]
+            if isinstance(first, dict):
+                for key in ('closingBalance', 'closing_balance'):
+                    value = first.get(key)
+                    if value not in (None, ''):
+                        return value
+        return None
+
+    vendor_rows = []
+    for vendor in ApiVendor.objects.filter(is_active=True).order_by('name'):
+        row = {
+            'vendor_code': vendor.code,
+            'vendor_name': vendor.name,
+            'balance': None,
+            'available': False,
+            'message': 'Pool balance endpoint not integrated for this vendor yet.',
+            'currency': 'INR',
+        }
+        try:
+            if vendor.code == 'mobikwik':
+                from portal.services.bbps_service import BBPSService
+                service = BBPSService(vendor='mobikwik')
+                if service.is_available():
+                    result = service.balance_check()
+                    if result.get('success') and result.get('balance') is not None:
+                        row['balance'] = result['balance']
+                        row['available'] = True
+                        row['message'] = 'Live Mobikwik BBPS pool balance'
+                    else:
+                        row['message'] = result.get('message') or 'Balance fetch failed'
+                else:
+                    row['message'] = 'Mobikwik BBPS not configured'
+            elif vendor.code == 'instantpay':
+                from portal.services.vendors.instantpay import InstantpayClient
+                client = InstantpayClient()
+                if client.is_configured():
+                    account_number = payswap_config.get_instantpay_report_account_number()
+                    if not account_number:
+                        row['message'] = 'Set INSTANTPAY_REPORT_ACCOUNT_NUMBER in .env'
+                        vendor_rows.append(row)
+                        continue
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    result = client.request(
+                        'account_statement',
+                        {
+                            'bankProfileId': payswap_config.get_instantpay_report_bank_profile_id(),
+                            'accountNumber': account_number,
+                            'externalRef': f"DB{int(datetime.now().timestamp())}",
+                            'pagination': {'pageNumber': 1, 'recordsPerPage': 1},
+                            'filters': {'txnDateFrom': today, 'txnDateTo': today},
+                        },
+                    )
+                    if result.get('success'):
+                        payload = result.get('json') or {}
+                        extracted_balance = _extract_instantpay_business_balance(payload)
+                        if extracted_balance not in (None, ''):
+                            try:
+                                row['balance'] = float(Decimal(str(extracted_balance)))
+                            except Exception:
+                                row['balance'] = extracted_balance
+                        if row['balance'] is not None:
+                            row['available'] = True
+                            row['message'] = 'Live Instantpay business wallet balance (from account statement)'
+                        else:
+                            row['message'] = 'Instantpay account statement received, but business wallet balance not found'
+                    else:
+                        row['message'] = result.get('message') or result.get('error') or 'Account statement fetch failed'
+                else:
+                    row['message'] = 'Instantpay not configured'
+        except Exception as e:
+            row['message'] = str(e)[:140]
+        vendor_rows.append(row)
+    return vendor_rows
 
 
 class DistributorDashboardView(TemplateView):
@@ -161,6 +244,14 @@ class MobikwikBalanceApiView(View):
             logger.warning(f'Mobikwik balance API failed: {e}')
             result['error'] = str(e)[:100]
         return JsonResponse(result)
+
+
+class VendorBalancesApiView(View):
+    """JSON API for all vendor pool balances (dashboard cards refresh)."""
+
+    @method_decorator(login_required)
+    def get(self, request):
+        return JsonResponse({'success': True, 'vendors': _get_vendor_pool_balances()})
 
 
 class CustomerDashboardView(TemplateView):

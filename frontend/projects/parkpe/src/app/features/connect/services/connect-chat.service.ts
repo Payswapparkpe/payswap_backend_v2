@@ -1,7 +1,9 @@
 import { Injectable, inject, signal, computed, OnDestroy } from '@angular/core';
 import { ConnectService, ConnectMessageDto, ConnectPredefinedMessageDto } from './connect.service';
 import { Subject, interval, Subscription, of } from 'rxjs';
-import { switchMap, catchError, filter, takeUntil, map } from 'rxjs/operators';
+import { switchMap, catchError, filter, takeUntil } from 'rxjs/operators';
+import { AuthService } from '@core/services/auth.service';
+import { ToastService } from '../../../ui/toast/toast.service';
 
 /**
  * Service to manage Chat State for a specific thread.
@@ -12,14 +14,24 @@ import { switchMap, catchError, filter, takeUntil, map } from 'rxjs/operators';
 })
 export class ConnectChatService implements OnDestroy {
     private connect = inject(ConnectService);
+    private auth = inject(AuthService);
+    private toast = inject(ToastService);
     private pollingSub: Subscription | null = null;
+    private presenceSub: Subscription | null = null;
     private destroy$ = new Subject<void>();
+    private consecutivePollErrors = 0;
+    private pollIntervalMs = 2500;
+    private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
 
     // State
     private _threadId = signal<number | null>(null);
     private _messages = signal<ConnectMessageDto[]>([]);
     private _loading = signal<boolean>(false);
+    private _sending = signal<boolean>(false);
     private _error = signal<string | null>(null);
+    private _reconnectState = signal<'connected' | 'reconnecting'>('connected');
+    private _otherOnline = signal<boolean>(false);
+    private _otherTyping = signal<boolean>(false);
 
     // Sound (Embedded Base64 "Ting" - short notification beep)
     // This avoids need for external asset file for now.
@@ -29,14 +41,24 @@ export class ConnectChatService implements OnDestroy {
     readonly threadId = computed(() => this._threadId());
     readonly messages = computed(() => this._messages());
     readonly loading = computed(() => this._loading());
+    readonly sending = computed(() => this._sending());
     readonly error = computed(() => this._error());
+    readonly reconnectState = computed(() => this._reconnectState());
+    readonly otherOnline = computed(() => this._otherOnline());
+    readonly otherTyping = computed(() => this._otherTyping());
 
     // Setup Thread
     loadThread(threadId: number, otherParticipantId: number | null) {
         this._threadId.set(threadId);
         this._messages.set([]);
         this._loading.set(true);
+        this._sending.set(false);
         this._error.set(null);
+        this._reconnectState.set('connected');
+        this._otherOnline.set(false);
+        this._otherTyping.set(false);
+        this.consecutivePollErrors = 0;
+        this.pollIntervalMs = 2500;
 
         // Initial load
         this.connect.getThreadMessages(threadId).subscribe({
@@ -44,6 +66,8 @@ export class ConnectChatService implements OnDestroy {
                 this._messages.set(list);
                 this._loading.set(false);
                 this.startPolling(threadId);
+                this.startPresenceSync(threadId);
+                this.markRead();
             },
             error: (err) => {
                 this._error.set(err?.error?.detail || 'Failed to load messages.');
@@ -60,9 +84,23 @@ export class ConnectChatService implements OnDestroy {
     clearThread() {
         this._threadId.set(null);
         this._messages.set([]);
+        this._error.set(null);
+        this._loading.set(false);
+        this._sending.set(false);
+        this._reconnectState.set('connected');
+        this._otherOnline.set(false);
+        this._otherTyping.set(false);
         if (this.pollingSub) {
             this.pollingSub.unsubscribe();
             this.pollingSub = null;
+        }
+        if (this.presenceSub) {
+            this.presenceSub.unsubscribe();
+            this.presenceSub = null;
+        }
+        if (this.typingStopTimer) {
+            clearTimeout(this.typingStopTimer);
+            this.typingStopTimer = null;
         }
     }
 
@@ -70,18 +108,158 @@ export class ConnectChatService implements OnDestroy {
     sendMessage(body: string, isPredefined = false, predefinedCode?: string) {
         const tid = this._threadId();
         if (!tid) return;
+        const clientId = `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const currentUserId = Number(this.auth.userSignal()?.id || 0);
+        const optimisticId = -Date.now();
 
         const payload = isPredefined
-            ? { message_type: 'predefined' as const, predefined_code: predefinedCode! }
-            : { message_type: 'text' as const, body };
+            ? { message_type: 'predefined' as const, predefined_code: predefinedCode!, client_id: clientId }
+            : { message_type: 'text' as const, body, client_id: clientId };
 
+        this._sending.set(true);
+        this._messages.update((prev) => [
+            ...prev,
+            {
+                id: optimisticId,
+                sender_id: currentUserId,
+                message_type: payload.message_type,
+                body: isPredefined ? body || 'Quick message' : body,
+                created_at: new Date().toISOString(),
+                client_id: clientId,
+                delivery_status: 'sending',
+            },
+        ]);
         this.connect.sendMessage(tid, payload).subscribe({
             next: (msg) => {
-                this._messages.update((prev) => [...prev, msg]);
+                this._messages.update((prev) => {
+                    const idx = prev.findIndex((m) => m.client_id === clientId || m.id === optimisticId);
+                    if (idx >= 0) {
+                        const next = [...prev];
+                        next[idx] = msg;
+                        return next;
+                    }
+                    return [...prev, msg];
+                });
+                this._sending.set(false);
+                this.markRead();
             },
             error: (err) => {
-                console.error('Send failed', err);
-                // Ideally show toast or transient error
+                this._sending.set(false);
+                const detail = err?.error?.detail || 'Message send failed. Please retry.';
+                const code = err?.error?.code as string | undefined;
+                this._error.set(detail);
+                this._messages.update((prev) =>
+                    prev.map((m) =>
+                        m.client_id === clientId || m.id === optimisticId
+                            ? { ...m, delivery_status: 'failed', local_failed: true }
+                            : m
+                    )
+                );
+                if (code === 'connect_profanity') {
+                    this.toast.warning(detail);
+                } else {
+                    this.toast.error(detail);
+                }
+            },
+        });
+    }
+
+    retryFailedMessage(messageId: number) {
+        const msg = this._messages().find((m) => m.id === messageId);
+        if (!msg) return;
+        if (msg.message_type === 'predefined' && msg.predefined_code) {
+            this.sendMessage('', true, msg.predefined_code);
+            return;
+        }
+        if (msg.message_type === 'attachment' || msg.message_type === 'voice') {
+            const metadata = msg.metadata ?? {};
+            this.sendRichMessage(msg.message_type as 'attachment' | 'voice', msg.body, metadata);
+            return;
+        }
+        this.sendMessage(msg.body);
+    }
+
+    sendAttachment(file: File) {
+        if (file.size > 512 * 1024) {
+            this.toast.error('Attachment too large. Max 512KB.');
+            return;
+        }
+        const fr = new FileReader();
+        fr.onload = () => {
+            this.sendRichMessage('attachment', file.name, {
+                file_name: file.name,
+                mime_type: file.type || 'application/octet-stream',
+                size: file.size,
+                data_url: String(fr.result || ''),
+            });
+        };
+        fr.readAsDataURL(file);
+    }
+
+    sendVoiceNote(blob: Blob, durationSec: number) {
+        const fr = new FileReader();
+        fr.onload = () => {
+            this.sendRichMessage('voice', `Voice note (${Math.max(1, Math.round(durationSec))}s)`, {
+                mime_type: blob.type || 'audio/webm',
+                duration_sec: Math.max(1, Math.round(durationSec)),
+                data_url: String(fr.result || ''),
+            });
+        };
+        fr.readAsDataURL(blob);
+    }
+
+    notifyTyping(isTyping: boolean) {
+        const tid = this._threadId();
+        if (!tid) return;
+        this.connect.sendThreadPresence(tid, isTyping).pipe(catchError(() => of({ ok: false }))).subscribe();
+        if (this.typingStopTimer) clearTimeout(this.typingStopTimer);
+        if (isTyping) {
+            this.typingStopTimer = setTimeout(() => {
+                const currentTid = this._threadId();
+                if (!currentTid) return;
+                this.connect.sendThreadPresence(currentTid, false).pipe(catchError(() => of({ ok: false }))).subscribe();
+            }, 2200);
+        }
+    }
+
+    markRead() {
+        const tid = this._threadId();
+        if (!tid) return;
+        this.connect.markThreadRead(tid).pipe(catchError(() => of({ ok: false, last_read_message_id: 0 }))).subscribe();
+    }
+
+    private sendRichMessage(type: 'attachment' | 'voice', body: string, metadata: Record<string, unknown>) {
+        const tid = this._threadId();
+        if (!tid) return;
+        const clientId = `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const currentUserId = Number(this.auth.userSignal()?.id || 0);
+        const optimisticId = -Date.now();
+        this._messages.update((prev) => [
+            ...prev,
+            {
+                id: optimisticId,
+                sender_id: currentUserId,
+                message_type: type,
+                body,
+                metadata,
+                created_at: new Date().toISOString(),
+                client_id: clientId,
+                delivery_status: 'sending',
+            },
+        ]);
+        this.connect.sendMessage(tid, { message_type: type, body, client_id: clientId, metadata }).subscribe({
+            next: (msg) => {
+                this._messages.update((prev) => prev.map((m) => (m.id === optimisticId ? msg : m)));
+                this.markRead();
+            },
+            error: (err) => {
+                const detail = err?.error?.detail || 'Failed to send media message.';
+                this._error.set(detail);
+                this._messages.update((prev) =>
+                    prev.map((m) =>
+                        m.id === optimisticId ? { ...m, delivery_status: 'failed', local_failed: true } : m
+                    )
+                );
             },
         });
     }
@@ -90,36 +268,62 @@ export class ConnectChatService implements OnDestroy {
     private startPolling(tid: number) {
         if (this.pollingSub) this.pollingSub.unsubscribe();
 
-        this.pollingSub = interval(2500)
+        this.pollingSub = interval(this.pollIntervalMs)
             .pipe(
                 takeUntil(this.destroy$),
                 filter(() => this._threadId() === tid),
+                filter(() => document.visibilityState === 'visible'),
                 switchMap(() => {
                     const current = this._messages();
                     const lastId = current.length > 0 ? current[current.length - 1].id : undefined;
                     return this.connect.getThreadMessages(tid, lastId).pipe(
-                        catchError(() => of([])) // Ignore poll errors
+                        catchError((err) => {
+                            this.consecutivePollErrors += 1;
+                            this.pollIntervalMs = Math.min(10000, 2500 * Math.max(1, this.consecutivePollErrors));
+                            this._reconnectState.set('reconnecting');
+                            this._error.set(err?.error?.detail || 'Realtime sync paused. Retrying…');
+                            return of([]);
+                        })
                     );
                 })
             )
             .subscribe((newMessages) => {
                 if (newMessages.length > 0) {
-                    // Check if any message is NOT from current user (assuming we know current user ID, 
-                    // but for simplicity, just play sound if message count increases and it wasn't a local send 
-                    // that updated the list immediately. However, since local updates happen optimistically or before polling, 
-                    // polling results usually mean "server has new messages".
-
-                    // Better check: if we verify sender_id vs current User.
-                    // For now, Play sound for ALL incoming polled messages (simple "Ting").
-                    this.playAlertSound();
-
+                    const currentUserId = Number(this.auth.userSignal()?.id || 0);
+                    const hasIncomingFromOther = newMessages.some((msg) => msg.sender_id !== currentUserId);
                     this._messages.update((prev) => {
                         // Deduplicate just in case
                         const existingIds = new Set(prev.map(m => m.id));
                         const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+                        if (uniqueNew.length > 0 && hasIncomingFromOther) {
+                            this.playAlertSound();
+                        }
                         return [...prev, ...uniqueNew];
                     });
                 }
+                if (this.consecutivePollErrors > 0 || this._reconnectState() === 'reconnecting') {
+                    this.consecutivePollErrors = 0;
+                    this.pollIntervalMs = 2500;
+                    this._reconnectState.set('connected');
+                    this._error.set(null);
+                }
+                if (newMessages.some((m) => m.sender_id !== Number(this.auth.userSignal()?.id || 0))) {
+                    this.markRead();
+                }
+            });
+    }
+
+    private startPresenceSync(tid: number) {
+        if (this.presenceSub) this.presenceSub.unsubscribe();
+        this.presenceSub = interval(2500)
+            .pipe(
+                takeUntil(this.destroy$),
+                filter(() => this._threadId() === tid),
+                switchMap(() => this.connect.getThreadPresence(tid).pipe(catchError(() => of({ other_online: false, other_typing: false }))))
+            )
+            .subscribe((presence) => {
+                this._otherOnline.set(!!presence.other_online);
+                this._otherTyping.set(!!presence.other_typing);
             });
     }
 
@@ -136,5 +340,6 @@ export class ConnectChatService implements OnDestroy {
     ngOnDestroy() {
         this.destroy$.next();
         this.destroy$.complete();
+        if (this.presenceSub) this.presenceSub.unsubscribe();
     }
 }

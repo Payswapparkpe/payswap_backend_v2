@@ -19,6 +19,7 @@ from portal.views.dashboard_views import (
     EmployeeDashboardView,
     SuperDashboardView,
     MobikwikBalanceApiView,
+    VendorBalancesApiView,
     DistributorDashboardView,
     RetailerDashboardView,
     CustomerDashboardView,
@@ -51,6 +52,7 @@ from portal.views.permission_views import (
 from portal.views.ticket_views import TicketListView, TicketDetailView, TicketCreateView
 from portal.views.hub_rbac_views import (
     HubRbacDashboardView,
+    HubRoleOptionsView,
     DepartmentListView,
     DepartmentCreateView,
     DepartmentUpdateView,
@@ -66,4 +68,41 @@ from portal.views.hub_rbac_views import (
 )
 from portal.views.project_management_views import ProjectManagementView, CreateProjectAPIKeyView
 from portal.views.business_overview import BusinessOverviewView, HubPnlView
-from portal.views.services_integrated import ServicesIntegratedView
+from portal.views.services_integrated import (
+    ServicesIntegratedView,
+    toggle_vendor_status_view,
+    toggle_vendor_api_status_view,
+)
+from portal.views.notification_views import (
+    NotificationCenterView,
+    notification_banner_create_view,
+    notification_banner_toggle_view,
+    notification_banner_delete_view,
+    notification_campaign_create_view,
+    notification_campaign_toggle_view,
+    notification_campaign_duplicate_view,
+    notification_campaign_send_now_view,
+    notification_campaign_audience_preview_view,
+    notification_analytics_view,
+)
+from portal.views.connect_ops_views import (
+    ConnectOpsCenterView,
+    connect_moderation_action_view,
+    connect_ops_analytics_view,
+)
+from portal.views.parkpe_hub_views import (
+    ParkPeControlCenterView,
+    ParkPeFleetAccessRequestsView,
+    ParkPeSettingsGovernanceView,
+    parkpe_settings_governance_analytics_view,
+)
+from portal.views.service_voucher_refund_views import ServiceVoucherRefundQueueView
+from portal.views.accounting_views import (
+    AccountingBillingDocumentDownloadView,
+    AccountingBillingDocumentHtmlView,
+    AccountingDashboardView,
+    AccountingDocumentsView,
+    AccountingReportsView,
+    AccountingTaxProfileEditView,
+    AccountingTaxProfilesView,
+)

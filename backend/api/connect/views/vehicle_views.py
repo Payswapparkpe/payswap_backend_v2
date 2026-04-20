@@ -14,6 +14,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 from api.throttling import ConnectScanRateThrottle
+from api.utils.client_ip import get_client_ip
 from portal.models import (
     Vehicle,
     VehicleQRCode,
@@ -28,12 +29,19 @@ from portal.models import (
 INDIVIDUAL_MAX_VEHICLES = 4
 from portal.services.cashfree_vehicle_rc import fetch_vehicle_rc
 from portal.services.parkpe_voucherx_bridge import get_parkpe_brand_id
+from portal.services.billing_party_service import (
+    billing_address_error_payload,
+    parkpe_billing_address_required,
+    profile_billing_address_complete,
+)
 from portal.services.voucher_service import VoucherService
 from portal.services.otp_service import OTPService
 from portal.utils.phone_utils import normalize_phone_number
 from portal.tasks.connect_tasks import fetch_connect_vehicle_rc_task
 
 from ._common import logger, vehicle_log
+from portal.services.connect_fastag_service import refresh_vehicle_fastag_balance
+
 from ..serializers import (
     VehicleSerializer,
     VehicleCreateSerializer,
@@ -48,10 +56,13 @@ def _normalize_value(value: str | None) -> str:
 
 
 def _mask_registration(reg: str) -> str:
-    """Mask registration number for public display (e.g. KA01AB****)."""
-    if not reg or len(reg) < 4:
-        return "****"
-    return reg[:4].upper() + "*" * min(len(reg) - 4, 4)
+    """
+    Normalized vehicle registration for API display (full number, uppercase, no spaces).
+    Kept for historical field name `registration_number_masked` in JSON.
+    """
+    if not reg:
+        return ""
+    return "".join(str(reg).strip().upper().split())
 
 
 def _owner_display_name(vehicle: Vehicle) -> str:
@@ -63,6 +74,11 @@ def _owner_display_name(vehicle: Vehicle) -> str:
     return "Vehicle Owner"
 
 
+def _consumer_vehicle_queryset(user):
+    """Personal Connect vehicles only — fleet workspace rows are excluded."""
+    return Vehicle.objects.filter(user=user, connect_scope=Vehicle.SCOPE_CONSUMER)
+
+
 class VehicleListCreateView(APIView):
     """GET /api/connect/vehicles/ – list my vehicles. POST – create vehicle (and QR)."""
     authentication_classes = [JWTAuthentication]
@@ -71,7 +87,7 @@ class VehicleListCreateView(APIView):
 
     def get(self, request):
         vehicle_log(request, "INFO", "vehicle_list", {"user_id": request.user.pk})
-        qs = Vehicle.objects.filter(user=request.user).select_related('qr_code', 'rc_data').order_by('-is_primary', '-created_at')
+        qs = _consumer_vehicle_queryset(request.user).select_related('qr_code', 'rc_data').order_by('-is_primary', '-created_at')
         serializer = VehicleSerializer(qs, many=True, context={'request': request})
         profile = getattr(request.user, "profile", None)
         user_type = getattr(profile, "type", None) or "individual"
@@ -98,7 +114,7 @@ class VehicleListCreateView(APIView):
         # Individual users: max 4 vehicles. Corporate: unlimited.
         profile = getattr(request.user, "profile", None)
         user_type = getattr(profile, "type", None) or "individual"
-        current_count = Vehicle.objects.filter(user=request.user).count()
+        current_count = _consumer_vehicle_queryset(request.user).count()
         if user_type == "individual" and current_count >= INDIVIDUAL_MAX_VEHICLES:
             vehicle_log(request, "WARNING", "vehicle_create_limit_exceeded", {"user_id": request.user.pk, "count": current_count})
             return Response(
@@ -117,7 +133,7 @@ class VehicleListCreateView(APIView):
         reg = (serializer.validated_data.get('registration_number') or '').strip().upper()
         reg_norm = _normalize_registration(reg)
         vehicle_log(request, "INFO", "vehicle_create_start", {"user_id": request.user.pk, "reg": reg})
-        if Vehicle.objects.filter(user=request.user, registration_number_normalized=reg_norm).exists():
+        if _consumer_vehicle_queryset(request.user).filter(registration_number_normalized=reg_norm).exists():
             vehicle_log(request, "WARNING", "vehicle_create_duplicate_reg", {"user_id": request.user.pk, "reg": reg})
             return Response(
                 {"detail": "A vehicle with this registration number already exists."},
@@ -126,9 +142,10 @@ class VehicleListCreateView(APIView):
         vehicle = serializer.save(
             user=request.user,
             ownership_declaration_accepted_at=timezone.now(),
+            connect_scope=Vehicle.SCOPE_CONSUMER,
         )
         # First vehicle for this user is always primary
-        if Vehicle.objects.filter(user=request.user).count() == 1:
+        if _consumer_vehicle_queryset(request.user).count() == 1:
             vehicle.is_primary = True
             vehicle.save(update_fields=['is_primary'])
         code = secrets.token_urlsafe(10).replace('-', '').replace('_', '')[:14]
@@ -137,7 +154,7 @@ class VehicleListCreateView(APIView):
         VehicleQRCode.objects.create(vehicle=vehicle, code=code)
         vehicle_log(request, "INFO", "vehicle_create_qr_created", {"user_id": request.user.pk, "vehicle_id": vehicle.pk, "reg": reg})
         # First vehicle: free RC fetch. Second and subsequent: RC is chargeable (user pays then fetches via pay-rc-view + fetch-rc).
-        vehicle_count = Vehicle.objects.filter(user=request.user).count()
+        vehicle_count = _consumer_vehicle_queryset(request.user).count()
         if vehicle_count == 1:
             try:
                 rc_response, rc_reason, rc_details = fetch_vehicle_rc(reg)
@@ -170,7 +187,7 @@ class VehicleDetailView(APIView):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def _get_vehicle(self, request, pk):
-        return Vehicle.objects.filter(user=request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
+        return _consumer_vehicle_queryset(request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
 
     def get(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_detail_get", {"user_id": request.user.pk, "vehicle_id": pk})
@@ -187,7 +204,7 @@ class VehicleDetailView(APIView):
                 fetch_connect_vehicle_rc_task.delay(vehicle.pk)
         except Exception as e:
             vehicle_log(request, "WARNING", "vehicle_detail_rc_error", {"vehicle_id": pk, "error": str(e)})
-        vehicle = Vehicle.objects.filter(user=request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
         payload = VehicleSerializer(vehicle, context={'request': request}).data
         if not getattr(vehicle, "rc_data", None):
             payload["rc_pending"] = True
@@ -204,10 +221,9 @@ class VehicleDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         reg = (serializer.validated_data.get('registration_number') or vehicle.registration_number).strip().upper()
         reg_norm = _normalize_registration(reg)
-        if reg_norm != _normalize_registration(vehicle.registration_number) and Vehicle.objects.filter(
-            user=request.user,
-            registration_number_normalized=reg_norm,
-        ).exists():
+        if reg_norm != _normalize_registration(vehicle.registration_number) and _consumer_vehicle_queryset(
+            request.user
+        ).filter(registration_number_normalized=reg_norm).exclude(pk=vehicle.pk).exists():
             vehicle_log(request, "WARNING", "vehicle_patch_duplicate_reg", {"user_id": request.user.pk, "vehicle_id": pk, "reg": reg})
             return Response(
                 {"detail": "Another vehicle with this registration number already exists."},
@@ -216,7 +232,7 @@ class VehicleDetailView(APIView):
         serializer.save()
         vehicle.refresh_from_db()
         vehicle_log(request, "INFO", "vehicle_patch_ok", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
         return Response(VehicleSerializer(vehicle, context={'request': request}).data)
 
     def delete(self, request, pk):
@@ -225,6 +241,32 @@ class VehicleDetailView(APIView):
             {"detail": "Vehicle delete requires OTP. Use POST /api/connect/vehicles/<id>/delete-request then POST /api/connect/vehicles/<id>/delete with otp."},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
+
+
+class VehicleFastagBalanceRefreshView(APIView):
+    """POST /api/connect/vehicles/<id>/fastag-balance/ – BBPS View Bill for saved FASTag biller + registration."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request, pk):
+        vehicle_log(request, "INFO", "vehicle_fastag_balance_refresh", {"user_id": request.user.pk, "vehicle_id": pk})
+        vehicle = _consumer_vehicle_queryset(request.user).select_related("qr_code", "rc_data").filter(pk=pk).first()
+        if not vehicle:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        ok, err_msg, _dec = refresh_vehicle_fastag_balance(vehicle)
+        if not ok:
+            vehicle_log(
+                request,
+                "WARNING",
+                "vehicle_fastag_balance_refresh_failed",
+                {"user_id": request.user.pk, "vehicle_id": pk, "error": err_msg},
+            )
+            return Response({"detail": err_msg or "FASTag balance refresh failed."}, status=status.HTTP_400_BAD_REQUEST)
+        vehicle.refresh_from_db()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related("qr_code", "rc_data").filter(pk=pk).first()
+        return Response(VehicleSerializer(vehicle, context={"request": request}).data)
 
 
 def _get_user_phone(user):
@@ -249,7 +291,7 @@ class VehicleDeleteRequestView(APIView):
 
     def post(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_delete_request_start", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).filter(pk=pk).first()
         if not vehicle:
             vehicle_log(request, "WARNING", "vehicle_delete_request_not_found", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -274,7 +316,7 @@ class VehicleDeleteConfirmView(APIView):
 
     def post(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_delete_confirm_start", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).filter(pk=pk).first()
         if not vehicle:
             vehicle_log(request, "WARNING", "vehicle_delete_confirm_not_found", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -304,7 +346,7 @@ class VehicleUnlockRCView(APIView):
 
     def post(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_unlock_rc_start", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).select_related("rc_data").filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related("rc_data").filter(pk=pk).first()
         if not vehicle:
             vehicle_log(request, "WARNING", "vehicle_unlock_rc_not_found", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -351,12 +393,12 @@ class VehicleFetchRCView(APIView):
 
     def post(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_fetch_rc_start", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).filter(pk=pk).first()
         if not vehicle:
             vehicle_log(request, "WARNING", "vehicle_fetch_rc_not_found", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         # Second and subsequent vehicles: RC is chargeable. Require payment before fetch.
-        first_vehicle = Vehicle.objects.filter(user=request.user).order_by("created_at").values_list("pk", flat=True).first()
+        first_vehicle = _consumer_vehicle_queryset(request.user).order_by("created_at").values_list("pk", flat=True).first()
         if first_vehicle != vehicle.pk and not vehicle.rc_view_paid_at:
             vehicle_log(request, "INFO", "vehicle_fetch_rc_payment_required", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response(
@@ -395,6 +437,21 @@ class VehicleFetchRCView(APIView):
                 rc_reason or "",
                 "No RC data returned for this registration number.",
             )
+            try:
+                from portal.services.service_voucher_refund_service import ensure_rc_view_refund_case
+
+                ensure_rc_view_refund_case(
+                    vehicle=vehicle,
+                    rc_reason=rc_reason,
+                    customer_message=payload["rc_message"],
+                )
+            except Exception as e:
+                vehicle_log(
+                    request,
+                    "WARNING",
+                    "vehicle_fetch_rc_refund_case_queue_failed",
+                    {"vehicle_id": pk, "error": str(e)},
+                )
             return Response(payload, status=status.HTTP_200_OK)
         try:
             VehicleRCData.objects.update_or_create(
@@ -407,7 +464,19 @@ class VehicleFetchRCView(APIView):
                 {"detail": f"Failed to save RC data: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        vehicle = Vehicle.objects.filter(user=request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
+        try:
+            from portal.services.service_voucher_refund_service import dismiss_open_cases_after_rc_success
+
+            vehicle.refresh_from_db(fields=["rc_view_debit_reference_id"])
+            dismiss_open_cases_after_rc_success(vehicle=vehicle)
+        except Exception as e:
+            vehicle_log(
+                request,
+                "WARNING",
+                "vehicle_fetch_rc_refund_case_dismiss_failed",
+                {"vehicle_id": pk, "error": str(e)},
+            )
+        vehicle = _consumer_vehicle_queryset(request.user).select_related('qr_code', 'rc_data').filter(pk=pk).first()
         payload = VehicleSerializer(vehicle, context={'request': request}).data
         vehicle_log(request, "INFO", "vehicle_fetch_rc_ok", {"user_id": request.user.pk, "vehicle_id": pk, "reg": reg})
         return Response(payload)
@@ -425,12 +494,17 @@ class VehiclePayRCView(APIView):
         from decimal import Decimal
 
         vehicle_log(request, "INFO", "vehicle_pay_rc_start", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).select_related("rc_data").filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related("rc_data").filter(pk=pk).first()
         if not vehicle:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         if vehicle.rc_view_paid_at:
             payload = VehicleSerializer(vehicle, context={"request": request}).data
             return Response({"already_paid": True, "vehicle": payload}, status=status.HTTP_200_OK)
+
+        if parkpe_billing_address_required():
+            prof = getattr(request.user, "profile", None) or Profile.objects.filter(user=request.user).first()
+            if not profile_billing_address_complete(prof):
+                return Response(billing_address_error_payload(), status=status.HTTP_400_BAD_REQUEST)
 
         data = request.data or {}
         voucher_id = data.get("voucher_id")
@@ -483,8 +557,9 @@ class VehiclePayRCView(APIView):
 
         with transaction.atomic():
             vehicle.rc_view_paid_at = timezone.now()
-            vehicle.save(update_fields=["rc_view_paid_at", "updated_at"])
-            ParkPeVoucherTransaction.objects.create(
+            vehicle.rc_view_debit_reference_id = reference_id
+            vehicle.save(update_fields=["rc_view_paid_at", "rc_view_debit_reference_id", "updated_at"])
+            rc_txn = ParkPeVoucherTransaction.objects.create(
                 user=request.user,
                 amount=amount,
                 transaction_type=ParkPeVoucherTransaction.DEBIT,
@@ -493,7 +568,10 @@ class VehiclePayRCView(APIView):
                 service_code="RC_VIEW",
                 description=f"RC view – {vehicle.registration_number}",
             )
-        vehicle = Vehicle.objects.filter(user=request.user).select_related("qr_code", "rc_data").get(pk=pk)
+        from portal.services.billing_document_service import schedule_billing_from_parkpe_voucher_transaction
+
+        schedule_billing_from_parkpe_voucher_transaction(rc_txn)
+        vehicle = _consumer_vehicle_queryset(request.user).select_related("qr_code", "rc_data").get(pk=pk)
         payload = VehicleSerializer(vehicle, context={"request": request}).data
         vehicle_log(request, "INFO", "vehicle_pay_rc_ok", {"user_id": request.user.pk, "vehicle_id": pk})
         return Response({"paid": True, "vehicle": payload}, status=status.HTTP_200_OK)
@@ -506,7 +584,7 @@ class VehicleQRView(APIView):
 
     def get(self, request, pk):
         vehicle_log(request, "INFO", "vehicle_qr_get", {"user_id": request.user.pk, "vehicle_id": pk})
-        vehicle = Vehicle.objects.filter(user=request.user).select_related('qr_code').filter(pk=pk).first()
+        vehicle = _consumer_vehicle_queryset(request.user).select_related('qr_code').filter(pk=pk).first()
         if not vehicle:
             vehicle_log(request, "WARNING", "vehicle_qr_not_found", {"user_id": request.user.pk, "vehicle_id": pk})
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -541,7 +619,7 @@ def _vehicle_by_qr_payload(qr, vehicle):
 
 
 class VehicleByQRView(APIView):
-    """GET /api/connect/vehicle/by-qr/<qr_code>/ – public; masked vehicle + contact options. Rate-limited per IP."""
+    """GET /api/connect/vehicle/by-qr/<qr_code>/ – public; vehicle registration + contact options. Rate-limited per IP."""
     permission_classes = [AllowAny]
     throttle_classes = [ConnectScanRateThrottle]
 
@@ -550,11 +628,12 @@ class VehicleByQRView(APIView):
         if not qr:
             return Response({"detail": "Invalid or expired QR code."}, status=status.HTTP_404_NOT_FOUND)
         vehicle = qr.vehicle
+        if vehicle.connect_scope != Vehicle.SCOPE_CONSUMER:
+            return Response({"detail": "Invalid or expired QR code."}, status=status.HTTP_404_NOT_FOUND)
 
         # Analytics: Log scan (async – off request path for scale)
         try:
-            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-            ip = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR')
+            ip = get_client_ip(request)
             lat = request.META.get('HTTP_X_GPS_LAT') or None
             lng = request.META.get('HTTP_X_GPS_LNG') or None
             from portal.tasks.logging_tasks import create_connect_scan_log_task
@@ -595,7 +674,8 @@ class VehicleByRegistrationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         vehicle = Vehicle.objects.filter(
-            registration_number_normalized=norm
+            registration_number_normalized=norm,
+            connect_scope=Vehicle.SCOPE_CONSUMER,
         ).select_related("user", "user__profile").first()
         if not vehicle:
             return Response(
@@ -610,8 +690,7 @@ class VehicleByRegistrationView(APIView):
             )
         # Analytics: Log scan async (same as by-QR flow)
         try:
-            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-            ip = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR')
+            ip = get_client_ip(request)
             lat = request.META.get('HTTP_X_GPS_LAT') or None
             lng = request.META.get('HTTP_X_GPS_LNG') or None
             from portal.tasks.logging_tasks import create_connect_scan_log_task

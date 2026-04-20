@@ -16,7 +16,7 @@
   @if (showContactOptions()) {
   <div class="vehicle-card">
     <span class="material-icons">directions_car</span>
-    <p class="reg-masked">{{ d.registration_number_masked }}</p>
+    <p class="vehicle-reg">{{ d.registration_number_masked }}</p>
     <p class="vehicle-label">Vehicle number</p>
   </div>
 
@@ -64,15 +64,15 @@
     <div class="chat-predefined">
       @for (pref of chatPredefined(); track pref.code) {
       <button type="button" class="btn btn-outline btn-sm" (click)="sendPredefinedMessage(pref.code)"
-        [disabled]="chatService.loading()">{{ pref.label_en }}</button>
+        [disabled]="chatService.loading() || chatService.sending()">{{ prefLabel(pref) }}</button>
       }
     </div>
     <div class="chat-input-row">
       <input type="text" class="chat-input" [value]="chatMessageInput()" (input)="onChatMessageInput($event)"
         placeholder="Type a message…" (keydown.enter)="sendChatMessage()" />
       <button type="button" class="btn btn-primary" (click)="sendChatMessage()"
-        [disabled]="!chatMessageInput().trim() || chatService.loading()">
-        {{ chatService.loading() ? '…' : 'Send' }}
+        [disabled]="!chatMessageInput().trim() || chatService.loading() || chatService.sending()">
+        {{ chatService.sending() ? 'Sending…' : 'Send' }}
       </button>
     </div>
   </div>

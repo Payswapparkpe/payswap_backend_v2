@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+
+{% block title %}Connect Ops Center | Payswap{% endblock %}
+{% block page_title %}ParkPe Connect Ops Center{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Safety + Reliability Control Tower</h2>
+    <p class="mt-1 text-sm text-slate-500">Live abuse monitoring, moderation controls, and quality metrics for Connect chat + calling.</p>
+  </section>
+
+  <section class="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Unified activity timeline (Phase 2)</h3>
+    <p class="mt-1 text-sm text-slate-600">Scans, onboard (verify), calls, and chat for one <strong>QR code</strong> or one <strong>user ID</strong> — merged newest-first (max 200 rows).</p>
+    <form method="get" class="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+      <label class="flex flex-col text-sm">
+        <span class="text-slate-500">QR code (exact)</span>
+        <input type="text" name="timeline_qr" value="{{ timeline_qr_query }}" placeholder="e.g. vehicle QR string" class="mt-1 min-w-[16rem] rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm" />
+      </label>
+      <label class="flex flex-col text-sm">
+        <span class="text-slate-500">Or user ID</span>
+        <input type="text" name="timeline_user" value="{{ timeline_user_query }}" placeholder="numeric user pk" class="mt-1 w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </label>
+      <label class="flex flex-col text-sm">
+        <span class="text-slate-500">Hours back</span>
+        <input type="number" name="timeline_hours" value="{{ timeline_hours_value }}" min="1" max="720" class="mt-1 w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </label>
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Load timeline</button>
+    </form>
+    {% if timeline_error %}
+      <p class="mt-3 text-sm text-amber-800">{{ timeline_error }}</p>
+    {% endif %}
+    {% if timeline_qr_query or timeline_user_query %}
+      <p class="mt-2 text-xs text-slate-500">If both are filled, <strong>QR</strong> is used. Clear the other field to filter by user only.</p>
+    {% endif %}
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left">Time</th>
+            <th class="px-3 py-2 text-left">Type</th>
+            <th class="px-3 py-2 text-left">Summary</th>
+            <th class="px-3 py-2 text-left">Detail</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for row in timeline_events %}
+          <tr>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500">{{ row.at|date:'Y-m-d H:i:s' }}</td>
+            <td class="px-3 py-2"><span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium ring-1 ring-slate-200">{{ row.kind }}</span></td>
+            <td class="px-3 py-2">{{ row.title }}</td>
+            <td class="px-3 py-2 max-w-xl text-xs text-slate-700">{{ row.detail }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">
+            {% if timeline_qr_query or timeline_user_query %}No events in this window.{% else %}Enter a QR code or user ID and submit.{% endif %}
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Calls (24h)</p>
+      <p class="mt-1 text-2xl font-semibold text-slate-900">{{ calls_24h }}</p>
+      <p class="text-xs text-emerald-700">Success: {{ calls_success_24h }}</p>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Scans (24h)</p>
+      <p class="mt-1 text-2xl font-semibold text-slate-900">{{ scans_24h }}</p>
+      <p class="text-xs text-slate-500">Active threads (7d): {{ active_threads_7d }}</p>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Safety</p>
+      <p class="mt-1 text-2xl font-semibold text-slate-900">{{ blocked_users }}</p>
+      <p class="text-xs text-amber-700">Pending reports: {{ reports_pending }}</p>
+    </article>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Moderation Actions</h3>
+    <form method="post" action="{% url 'connect_moderation_action' %}" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+      {% csrf_token %}
+      <input type="number" name="target_user_id" required placeholder="Target user ID" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <select name="action" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <option value="warn">Warn</option>
+        <option value="temp_block">Temporary block</option>
+        <option value="perm_block">Permanent block</option>
+        <option value="unblock">Unblock</option>
+      </select>
+      <input type="number" name="block_hours" value="24" min="1" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <input type="text" name="reason" placeholder="Reason for audit trail" class="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 md:col-span-5">Apply moderation action</button>
+    </form>
+  </section>
+
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-base font-semibold text-slate-900">High Risk Events (24h)</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left">Time</th>
+              <th class="px-3 py-2 text-left">Message</th>
+              <th class="px-3 py-2 text-left">Context</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in high_risk_logs %}
+            <tr>
+              <td class="px-3 py-2 text-slate-500">{{ row.timestamp|date:'Y-m-d H:i' }}</td>
+              <td class="px-3 py-2">{{ row.message }}</td>
+              <td class="px-3 py-2 text-xs text-slate-500">{{ row.extra_data|default:'-' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="px-3 py-5 text-center text-slate-500">No high risk blocks in last 24h.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-base font-semibold text-slate-900">Recent Moderation Timeline</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left">Time</th>
+              <th class="px-3 py-2 text-left">Action</th>
+              <th class="px-3 py-2 text-left">Target</th>
+              <th class="px-3 py-2 text-left">Actor</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in moderation_actions %}
+            <tr>
+              <td class="px-3 py-2 text-slate-500">{{ row.created_at|date:'Y-m-d H:i' }}</td>
+              <td class="px-3 py-2">{{ row.action }}</td>
+              <td class="px-3 py-2">{{ row.target_user.username }}</td>
+              <td class="px-3 py-2">{{ row.actor_user.username|default:'system' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="px-3 py-5 text-center text-slate-500">No moderation actions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h3 class="text-base font-semibold text-slate-900">Recent QR scans</h3>
+        <p class="text-xs text-slate-500">Rows from <code class="rounded bg-slate-100 px-1">portal_connect_scan_log</code> (latest 100). Written when <code class="rounded bg-slate-100 px-1">GET /api/connect/vehicle/by-qr/…/</code> or <code class="rounded bg-slate-100 px-1">by-registration</code> succeeds — async via Celery (<code class="rounded bg-slate-100 px-1">create_connect_scan_log_task</code>). If count stays 0 but API works, check Celery/worker.</p>
+      </div>
+    </div>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left">Time</th>
+            <th class="px-3 py-2 text-left">QR code</th>
+            <th class="px-3 py-2 text-left">Vehicle</th>
+            <th class="px-3 py-2 text-left">Scanned by</th>
+            <th class="px-3 py-2 text-left">IP</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for row in recent_scans %}
+          <tr>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500">{{ row.created_at|date:'Y-m-d H:i:s' }}</td>
+            <td class="px-3 py-2 font-mono text-xs">{{ row.qr_code|truncatechars:40 }}</td>
+            <td class="px-3 py-2">
+              {% if row.vehicle %}
+                #{{ row.vehicle.id }} — {{ row.vehicle.registration_number|default:'—' }}
+              {% else %}
+                <span class="text-slate-400">—</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              {% if row.scanned_by %}
+                {{ row.scanned_by.username }} (id {{ row.scanned_by.id }})
+              {% else %}
+                <span class="text-slate-400">anonymous</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 font-mono text-xs">{{ row.ip_address|default:'—' }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="px-3 py-5 text-center text-slate-500">No scan logs yet. Trigger a scan from the app (public vehicle lookup) and ensure Celery is processing <code class="rounded bg-slate-100 px-1">create_connect_scan_log_task</code>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h3 class="text-base font-semibold text-slate-900">QR → user onboard (scanner OTP verify)</h3>
+        <p class="text-xs text-slate-500">Rows from <code class="rounded bg-slate-100 px-1">portal_connect_qr_onboard_log</code> when <code class="rounded bg-slate-100 px-1">POST …/scanner/verify-otp/</code> succeeds with a valid consumer <code class="rounded bg-slate-100 px-1">qr_code</code> (written synchronously).</p>
+      </div>
+    </div>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left">Time</th>
+            <th class="px-3 py-2 text-left">QR code</th>
+            <th class="px-3 py-2 text-left">User</th>
+            <th class="px-3 py-2 text-left">Vehicle</th>
+            <th class="px-3 py-2 text-left">New user</th>
+            <th class="px-3 py-2 text-left">IP</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for row in recent_onboards %}
+          <tr>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500">{{ row.created_at|date:'Y-m-d H:i:s' }}</td>
+            <td class="px-3 py-2 font-mono text-xs">{{ row.qr_code|truncatechars:36 }}</td>
+            <td class="px-3 py-2">{{ row.user.username }} <span class="text-slate-400">({{ row.user.id }})</span></td>
+            <td class="px-3 py-2">
+              {% if row.vehicle %}#{{ row.vehicle.id }} — {{ row.vehicle.registration_number|default:'—' }}{% else %}—{% endif %}
+            </td>
+            <td class="px-3 py-2">{% if row.is_new_user %}yes{% else %}no{% endif %}</td>
+            <td class="px-3 py-2 font-mono text-xs">{{ row.ip_address|default:'—' }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="px-3 py-5 text-center text-slate-500">No onboard logs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-base font-semibold text-slate-900">Recent Connect calls</h3>
+      <p class="mt-1 text-xs text-slate-500"><code class="rounded bg-slate-100 px-1">portal_connect_call_log</code> — latest 80.</p>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left">Time</th>
+              <th class="px-3 py-2 text-left">QR</th>
+              <th class="px-3 py-2 text-left">Owner id</th>
+              <th class="px-3 py-2 text-left">Success</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in recent_calls %}
+            <tr>
+              <td class="px-3 py-2 whitespace-nowrap text-slate-500">{{ row.created_at|date:'Y-m-d H:i:s' }}</td>
+              <td class="px-3 py-2 font-mono text-xs">{{ row.qr_code|truncatechars:28|default:'—' }}</td>
+              <td class="px-3 py-2">{{ row.owner_id|default:'—' }}</td>
+              <td class="px-3 py-2">{% if row.success %}yes{% else %}no{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="px-3 py-5 text-center text-slate-500">No call logs yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 class="text-base font-semibold text-slate-900">Recent chat messages (text)</h3>
+      <p class="mt-1 text-xs text-slate-500"><code class="rounded bg-slate-100 px-1">portal_connect_message</code> — latest 80 text bodies (preview).</p>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left">Time</th>
+              <th class="px-3 py-2 text-left">Thread</th>
+              <th class="px-3 py-2 text-left">Sender</th>
+              <th class="px-3 py-2 text-left">Preview</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in recent_messages %}
+            <tr>
+              <td class="px-3 py-2 whitespace-nowrap text-slate-500">{{ row.created_at|date:'Y-m-d H:i:s' }}</td>
+              <td class="px-3 py-2">
+                {% if row.thread %}
+                  #{{ row.thread.id }}
+                  {% if row.thread.vehicle %} · {{ row.thread.vehicle.registration_number|default:'' }}{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td class="px-3 py-2">{{ row.sender.username }} <span class="text-slate-400">({{ row.sender.id }})</span></td>
+              <td class="px-3 py-2 max-w-xs truncate">{{ row.body|truncatechars:120 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="px-3 py-5 text-center text-slate-500">No messages yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="text-base font-semibold text-slate-900">Policy Snapshot</h3>
+    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
+      {% for key, value in policy.items %}
+        <div class="rounded-lg bg-slate-50 px-3 py-2">
+          <p class="text-xs text-slate-500">{{ key }}</p>
+          <p class="font-semibold text-slate-900">{{ value }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

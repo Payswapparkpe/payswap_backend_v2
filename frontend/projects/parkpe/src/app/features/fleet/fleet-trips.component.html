@@ -1,0 +1,163 @@
+<section class="fleet-page">
+  <div class="fleet-page__header">
+    <div>
+      <h2>Fleet Trips</h2>
+      <p class="fleet-page__lede">
+        <strong>Connect QR scans</strong> on fleet vehicles appear here automatically. You can also
+        <strong>log a visit manually</strong> when the vehicle was not on-site for a scan (yard check, toll pass-through, etc.).
+      </p>
+    </div>
+    <div class="fleet-page__actions">
+      <button type="button" class="btn-secondary" (click)="load(); loadFleetVehicles()" [disabled]="loading">Refresh</button>
+      <a routerLink="/fleet/control-center" class="ghost-btn">Back to Control Center</a>
+    </div>
+  </div>
+
+  <p class="trends-error" *ngIf="trendsError">{{ trendsError }}</p>
+  <div class="trend-strip" *ngIf="trendSeries.length">
+    <div class="trend" *ngFor="let point of trendSeries">
+      <strong>{{ point.label }}</strong>
+      <span>Scans {{ point.scans }}</span>
+      <span>Calls {{ point.calls }}</span>
+      <span>Reports {{ point.reports }}</span>
+    </div>
+  </div>
+  <p class="trend-placeholder" *ngIf="!trendSeries.length && tripsLoaded && !loading">No trend series loaded yet.</p>
+
+  <section class="insight-grid">
+    <article>
+      <p>7-Day Scan Throughput</p>
+      <strong>{{ totalScans7d }}</strong>
+      <span>Scans across the trend window.</span>
+    </article>
+    <article>
+      <p>Avg Call Success</p>
+      <strong>{{ avgCallSuccessRate }}%</strong>
+      <span>From Connect call logs in the same window.</span>
+    </article>
+    <article>
+      <p>Anomaly Events</p>
+      <strong>{{ anomalyTrips }}</strong>
+      <span>Rows missing scanner, plate, or IP metadata.</span>
+    </article>
+  </section>
+
+  <section class="manual-card" *ngIf="!error">
+    <h3 class="manual-card__title">Log visit manually</h3>
+    <p class="manual-card__hint">
+      Creates the same type of row as a QR scan, tagged as <span class="badge-manual">Manual</span>. You stay recorded as the operator.
+    </p>
+    <div class="manual-card__row">
+      <label class="manual-field">
+        <span>Vehicle</span>
+        <select
+          [(ngModel)]="manualVehicleId"
+          [disabled]="manualSubmitting || vehiclesLoading"
+          name="manualVehicleId"
+        >
+          <option [ngValue]="null">Choose vehicle…</option>
+          <option *ngFor="let v of fleetVehicles" [ngValue]="v.id">
+            {{ v.registrationNumber }} — {{ v.vehicleType || 'vehicle' }}
+          </option>
+        </select>
+      </label>
+      <label class="manual-field manual-field--grow">
+        <span>Notes (optional)</span>
+        <input
+          type="text"
+          [(ngModel)]="manualNotes"
+          name="manualNotes"
+          maxlength="500"
+          placeholder="e.g. Yard entry, customer handover"
+          [disabled]="manualSubmitting"
+        />
+      </label>
+      <button
+        type="button"
+        class="ghost-btn manual-card__submit"
+        (click)="submitManualVisit()"
+        [disabled]="manualSubmitting || vehiclesLoading || !fleetVehicles.length"
+      >
+        {{ manualSubmitting ? 'Saving…' : 'Record visit' }}
+      </button>
+    </div>
+    <p class="manual-card__warn" *ngIf="vehiclesLoaded && !fleetVehicles.length && !vehiclesLoading">
+      No fleet vehicles found. <a routerLink="/fleet/vehicles">Add a fleet vehicle</a> first.
+    </p>
+    <p class="manual-form-error" *ngIf="manualSubmitError">{{ manualSubmitError }}</p>
+    <p class="manual-form-success" *ngIf="manualSuccessMessage">{{ manualSuccessMessage }}</p>
+  </section>
+
+  <div class="filters">
+    <label>From <input type="date" [(ngModel)]="dateFrom" name="dateFrom" /></label>
+    <label>To <input type="date" [(ngModel)]="dateTo" name="dateTo" /></label>
+    <button type="button" (click)="applyFilters()">Apply</button>
+    <button type="button" class="btn-secondary" (click)="clearDateFilters()" [disabled]="!dateFrom && !dateTo">Clear dates</button>
+  </div>
+
+  <div class="banner-error" *ngIf="error">
+    <p>{{ error }}</p>
+    <button type="button" (click)="load()">Retry</button>
+  </div>
+  <p class="loading" *ngIf="loading">Loading trips…</p>
+
+  <div class="table-wrap" *ngIf="!error">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Vehicle</th>
+          <th>Scanned by</th>
+          <th>Source</th>
+          <th>Risk</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of items">
+          <td>{{ item.createdAt | date : 'medium' }}</td>
+          <td>
+            <span class="cell-strong">{{ item.registrationNumber || '—' }}</span>
+            <span class="cell-muted"> ({{ item.vehicleType || 'n/a' }})</span>
+          </td>
+          <td>
+            {{ item.scannedBy || 'Unknown' }}<br />
+            <small class="cell-muted">{{ item.scannerPhone || '—' }}</small>
+          </td>
+          <td>
+            <span class="source-badges">
+              <span *ngIf="isManualTrip(item)" class="badge-manual">Manual</span>
+              <span *ngIf="!isManualTrip(item)" class="badge-connect">QR</span>
+            </span>
+            <br />
+            <small class="cell-muted">{{ item.qrCode || '—' }}</small>
+            <br />
+            <small class="cell-muted">{{ item.ipAddress || '—' }}</small>
+          </td>
+          <td>
+            <span class="risk-pill" [ngClass]="getTripRisk(item)">{{ getTripRisk(item) }}</span>
+          </td>
+        </tr>
+        <tr *ngIf="tripsLoaded && !loading && !items.length" class="empty-row">
+          <td colspan="5">
+            <div class="empty-state">
+              <p class="empty-state__title">No scan or visit events yet</p>
+              <p class="empty-state__text">
+                Use <strong>Log visit manually</strong> above, or scan this fleet vehicle’s QR in ParkPe Connect when on site.
+              </p>
+              <div class="empty-state__actions">
+                <a routerLink="/fleet/vehicles" class="ghost-btn">Fleet Vehicles</a>
+                <a routerLink="/connect" class="btn-secondary btn-secondary--link">Connect</a>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager" *ngIf="!error && tripsLoaded">
+    <button type="button" (click)="prevPage()" [disabled]="page <= 1 || loading">Previous</button>
+    <span>Page {{ page }} · {{ total }} total</span>
+    <button type="button" (click)="nextPage()" [disabled]="page * limit >= total || loading || total === 0">Next</button>
+  </div>
+</section>
