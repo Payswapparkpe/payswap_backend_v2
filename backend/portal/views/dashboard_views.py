@@ -197,6 +197,15 @@ def _get_vendor_pool_balances():
                         row['message'] = result.get('message') or result.get('error') or 'Account statement fetch failed'
                 else:
                     row['message'] = 'Instantpay not configured'
+            elif vendor.code == 'cashfree_pg':
+                from portal.services.vendors.cashfree_pg import fetch_easy_split_vendor_on_demand_balance
+                res = fetch_easy_split_vendor_on_demand_balance()
+                if res.get('success') and res.get('balance') is not None:
+                    row['balance'] = res['balance']
+                    row['available'] = True
+                    row['message'] = res.get('message') or 'Cashfree Easy Split balance'
+                else:
+                    row['message'] = res.get('message') or 'Cashfree Easy Split balance fetch failed'
         except Exception as e:
             row['message'] = str(e)[:140]
         vendor_rows.append(row)

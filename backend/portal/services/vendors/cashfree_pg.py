@@ -4,7 +4,12 @@ Based on Cashfree PG SDK: https://github.com/cashfree/cashfree-pg-sdk-python
 Documentation: https://docs.cashfree.com/reference/pg-new-apis-endpoint
 """
 import time
+import uuid
 from typing import Optional, Dict, Any, List
+from urllib.parse import quote
+
+import requests
+
 from core.config import payswap_config
 
 try:
@@ -520,3 +525,95 @@ class CashfreePGClient:
             return result
         except Exception as e:
             raise Exception(f"Cashfree PG Get Payment Link error: {str(e)}")
+
+
+def _cashfree_pg_rest_base_url() -> str:
+    env = (getattr(payswap_config, 'CASHFREE_PG_ENVIRONMENT', 'SANDBOX') or 'SANDBOX').upper()
+    if env == 'PRODUCTION':
+        return 'https://api.cashfree.com/pg'
+    return 'https://sandbox.cashfree.com/pg'
+
+
+def fetch_easy_split_vendor_on_demand_balance(
+    vendor_id: Optional[str] = None,
+    *,
+    timeout: float = 30.0,
+) -> Dict[str, Any]:
+    """
+    Cashfree Easy Split — GET /easy-split/vendors/{vendor_id}/balances (on-demand balance).
+    Docs: sandbox https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}/balances
+    """
+    cfg_vid = getattr(payswap_config, 'CASHFREE_PG_EASY_SPLIT_VENDOR_ID', None)
+    vid = (vendor_id or cfg_vid or '').strip()
+    if not vid:
+        return {
+            'success': False,
+            'balance': None,
+            'message': 'Set CASHFREE_PG_EASY_SPLIT_VENDOR_ID in .env',
+        }
+    cid = payswap_config.get_cashfree_pg_client_id()
+    csec = payswap_config.get_cashfree_pg_client_secret()
+    if not cid or not csec:
+        return {
+            'success': False,
+            'balance': None,
+            'message': 'Cashfree PG client id/secret not configured',
+        }
+    url = f"{_cashfree_pg_rest_base_url()}/easy-split/vendors/{quote(vid, safe='')}/balances"
+    headers: Dict[str, str] = {
+        'x-api-version': '2023-08-01',
+        'x-client-id': cid,
+        'x-client-secret': csec,
+        'x-request-id': str(uuid.uuid4()),
+        'accept': 'application/json',
+    }
+    pk = payswap_config.get_cashfree_pg_partner_key()
+    if pk:
+        headers['x-partner-apikey'] = pk
+    pmid = getattr(payswap_config, 'CASHFREE_PG_PARTNER_MERCHANT_ID', None)
+    if pmid:
+        headers['x-partner-merchantid'] = str(pmid)
+    try:
+        resp = requests.get(url, headers=headers, timeout=timeout)
+    except requests.RequestException as exc:
+        return {'success': False, 'balance': None, 'message': str(exc)[:140]}
+    try:
+        data = resp.json() if resp.content else {}
+    except ValueError:
+        data = {}
+    if resp.status_code == 200 and isinstance(data, dict):
+        vu = data.get('vendor_unsettled')
+        mu = data.get('merchant_unsettled')
+        bal = None
+        if vu is not None and vu != '':
+            try:
+                bal = float(vu)
+            except (TypeError, ValueError):
+                bal = None
+        if bal is None and mu is not None and mu != '':
+            try:
+                bal = float(mu)
+            except (TypeError, ValueError):
+                bal = None
+        if bal is not None:
+            parts = ['Cashfree Easy Split on-demand balance']
+            if vu is not None:
+                parts.append(f'vendor_unsettled={vu}')
+            if mu is not None:
+                parts.append(f'merchant_unsettled={mu}')
+            return {
+                'success': True,
+                'balance': bal,
+                'message': ' · '.join(parts),
+            }
+        return {
+            'success': False,
+            'balance': None,
+            'message': 'Cashfree returned 200 but no vendor_unsettled/merchant_unsettled in body',
+        }
+    err_msg = None
+    if isinstance(data, dict):
+        err_msg = data.get('message') or data.get('code')
+    if not err_msg:
+        err_msg = (resp.text or '')[:200] or f'HTTP {resp.status_code}'
+    return {'success': False, 'balance': None, 'message': err_msg[:140]}

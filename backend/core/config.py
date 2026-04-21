@@ -133,6 +133,10 @@ class PayswapConfig(BaseSettings):
     CASHFREE_PG_CLIENT_SIGNATURE: Optional[SecretStr] = Field(default=None)
     CASHFREE_PG_PARTNER_MERCHANT_ID: Optional[str] = Field(default=None)
     CASHFREE_PG_ENVIRONMENT: str = Field(default='SANDBOX', description='SANDBOX or PRODUCTION')
+    CASHFREE_PG_EASY_SPLIT_VENDOR_ID: Optional[str] = Field(
+        default=None,
+        description='Easy Split vendor_id for GET /pg/easy-split/vendors/{id}/balances (Hub vendor pool card).',
+    )
 
     # (Razorpay PG removed; ParkPe uses Cashfree only.)
 
