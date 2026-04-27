@@ -27,6 +27,9 @@ class ParkPeActionAuditMiddleware(MiddlewareMixin):
 
     def process_response(self, request, response):
         try:
+            # Endpoints with explicit business logs can opt out to avoid duplicate audit rows.
+            if getattr(request, "_skip_parkpe_audit_log", False):
+                return response
             path = getattr(request, "path", "") or ""
             if path.startswith("/api/v1/logging/track-click/"):
                 return response

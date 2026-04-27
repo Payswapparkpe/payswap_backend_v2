@@ -203,6 +203,8 @@ export interface Transaction {
   metadata?: Record<string, any>;
   /** Credit or debit (from ParkPeVoucherTransaction.transaction_type). */
   transactionTypeDirection?: 'credit' | 'debit';
+  /** When set, show this in Credit/Debit column instead of Credit/Debit (e.g. Refund for BBPS rollback). */
+  creditDebitLabel?: string;
   /** Balance after this transaction (when available). */
   balanceAfter?: number;
   billingDocumentId?: number;

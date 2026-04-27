@@ -1,9 +1,9 @@
 """
-In-app notifications and push intent logging for ParkPe Connect chat messages.
+In-app notifications and push dispatch for ParkPe Connect chat messages.
 
 Push dispatch is gated by ``NOTIFICATIONS_PUSH_ENABLED`` (see ``core.settings``).
-When enabled and a ``DevicePushToken`` exists, we record a queued
-``NotificationDeliveryLog`` with the FCM-oriented payload shape for a future worker.
+When enabled and a ``DevicePushToken`` exists, we send via FCM HTTP v1 and
+record a ``NotificationDeliveryLog`` row for observability.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from portal.models import (
     User,
     UserNotification,
 )
+from portal.services.push_fcm import send_fcm_notification
 
 
 def thread_muted_for_participant(thread: ConnectThread, user_id: int) -> bool:
@@ -81,8 +82,8 @@ def create_connect_message_notification(
 
 def _maybe_queue_connect_push(*, user: User, title: str, body: str, meta: dict) -> None:
     """
-    Record a queued push payload for ops / a future FCM worker. Skips when push is disabled or no token.
-    Payload keys align with common FCM ``notification`` + ``data`` usage (thread_id for cold start routing).
+    Send connect push via FCM and capture result in NotificationDeliveryLog.
+    Skips when push is disabled or no token.
     """
     if not getattr(settings, "NOTIFICATIONS_PUSH_ENABLED", False):
         return
@@ -101,14 +102,24 @@ def _maybe_queue_connect_push(*, user: User, title: str, body: str, meta: dict) 
             "deep_link": deep_link,
         },
     }
+    send_result = send_fcm_notification(
+        token=token.token,
+        title=title,
+        body=body,
+        data=request_payload["data"],
+    )
+    if send_result.token_invalid:
+        token.is_active = False
+        token.save(update_fields=["is_active", "updated_at"])
+
     NotificationDeliveryLog.objects.create(
         campaign=None,
         user=user,
         channel=NotificationMessageTemplate.CHANNEL_PUSH,
-        status=NotificationDeliveryLog.STATUS_QUEUED,
+        status=NotificationDeliveryLog.STATUS_SENT if send_result.success else NotificationDeliveryLog.STATUS_FAILED,
         destination=token.token[:120],
         provider="connect_chat",
         request_payload=request_payload,
-        response_payload={"provider": "fcm_apns_pending"},
-        error_message="",
+        response_payload=send_result.response_payload or {"provider": "fcm_v1"},
+        error_message=send_result.error_message[:1500],
     )

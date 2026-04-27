@@ -55,7 +55,7 @@ def test_execute_persists_instantpay_transaction(monkeypatch):
     monkeypatch.setattr(
         service.client,
         "request",
-        lambda api_code, payload: {
+        lambda api_code, payload, **kwargs: {
             "success": True,
             "status_code": 200,
             "json": {"reference_id": "IP-REF-1", "status": "SUCCESS"},

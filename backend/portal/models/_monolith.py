@@ -1555,6 +1555,109 @@ class ParkPeBBPSSavedBill(models.Model):
         return f"{self.user_id} saved {self.operator_name} {self.consumer_id}"
 
 
+class ParkPeBBPSBillPaymentRecord(models.Model):
+    """
+    One row per Mobikwik BBPS reference_id (T… bill pay ref).
+    Updated on pay response and on each pay-status poll — used when vendor API is unavailable.
+    """
+    PHASE_PENDING = "pending"
+    PHASE_SUCCESS = "success"
+    PHASE_FAILED = "failed"
+    PHASE_CHOICES = [
+        (PHASE_PENDING, "Pending"),
+        (PHASE_SUCCESS, "Success"),
+        (PHASE_FAILED, "Failed"),
+    ]
+
+    reference_id = models.CharField(max_length=64, unique=True, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parkpe_bbps_bill_payments",
+    )
+    operator_id = models.CharField(max_length=128, blank=True, default="")
+    bill_id = models.CharField(max_length=128, blank=True, default="")
+    consumer_id = models.CharField(max_length=255, blank=True, default="")
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    payment_method = models.CharField(max_length=32, blank=True, default="")
+    vendor = models.CharField(max_length=32, default="mobikwik")
+    last_vendor_status = models.CharField(max_length=255, blank=True, default="")
+    resolved_phase = models.CharField(
+        max_length=16, choices=PHASE_CHOICES, default=PHASE_PENDING, db_index=True
+    )
+    pay_response_json = models.JSONField(null=True, blank=True)
+    last_poll_json = models.JSONField(null=True, blank=True)
+    last_error_message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_status_check_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "portal_parkpe_bbps_bill_payment_record"
+        verbose_name = "ParkPe BBPS bill payment record"
+        verbose_name_plural = "ParkPe BBPS bill payment records"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reference_id} ({self.resolved_phase})"
+
+
+class ParkPeChallanRecord(models.Model):
+    """
+    Cached challan records per user+vehicle to avoid repeat vendor calls.
+    Refreshed on explicit user refresh and on pending-detail rechecks.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parkpe_challans",
+    )
+    vehicle_number = models.CharField(max_length=32, db_index=True)
+    challan_number = models.CharField(max_length=128, db_index=True)
+    challan_id = models.CharField(max_length=255, db_index=True, blank=True, default="")
+    status = models.CharField(max_length=32, blank=True, default="pending", db_index=True)
+    state = models.CharField(max_length=16, blank=True, default="")
+    offence = models.TextField(blank=True, default="")
+    offence_date = models.CharField(max_length=64, blank=True, default="")
+    location = models.CharField(max_length=255, blank=True, default="")
+    amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    penalty_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    currency = models.CharField(max_length=8, blank=True, default="INR")
+    vehicle_owner_name = models.CharField(max_length=255, blank=True, default="")
+    issuing_authority = models.CharField(max_length=255, blank=True, default="")
+    officer_name = models.CharField(max_length=255, blank=True, default="")
+    due_date = models.CharField(max_length=64, blank=True, default="")
+    payment_deadline = models.CharField(max_length=64, blank=True, default="")
+    payload_json = models.JSONField(null=True, blank=True)
+    last_seen_at = models.DateTimeField(auto_now=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_parkpe_challan_record"
+        verbose_name = "ParkPe Challan Record"
+        verbose_name_plural = "ParkPe Challan Records"
+        ordering = ["-last_seen_at", "-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "vehicle_number", "challan_number"],
+                name="uniq_parkpe_challan_user_vehicle_number",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "vehicle_number", "-last_seen_at"]),
+            models.Index(fields=["user", "status", "-updated_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.vehicle_number} · {self.challan_number} ({self.status})"
+
+
 class UserPermission(models.Model):
     """Custom user permission assignments"""
     
@@ -1644,7 +1747,14 @@ class LogEntry(models.Model):
         ('parkpe_fastag', 'ParkPe FASTag'),
         ('parkpe_challan', 'ParkPe Challan'),
         ('parkpe_general', 'ParkPe General'),
+        ('instantpay', 'Instantpay API'),
         ('general', 'General'),
+    ]
+
+    LOG_ROLE_CHOICES = [
+        ('client', 'Client / app request'),
+        ('vendor', 'Vendor API'),
+        ('system', 'System / downstream'),
     ]
     
     # ============================================================================
@@ -1662,6 +1772,26 @@ class LogEntry(models.Model):
     url = models.CharField(max_length=500, blank=True, null=True, db_index=True, help_text="URL path for the request")
     request_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="Request ID for tracing")
     response_id = models.CharField(max_length=100, blank=True, null=True, help_text="Response ID")
+    correlation_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Ties client + vendor rows in one flow (often same as X-Request-ID)",
+    )
+    chain_step = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="1=app/client, 2=first vendor, higher=downstream",
+    )
+    log_role = models.CharField(
+        max_length=16,
+        choices=LOG_ROLE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Position in request chain",
+    )
     
     # ============================================================================
     # USER INFORMATION
@@ -1719,6 +1849,7 @@ class LogEntry(models.Model):
             models.Index(fields=['category', '-timestamp']),
             models.Index(fields=['user', '-timestamp']),
             models.Index(fields=['request_id']),
+            models.Index(fields=['correlation_id', 'chain_step', 'timestamp']),
             models.Index(fields=['resolved', '-timestamp']),
         ]
     
@@ -1741,6 +1872,16 @@ class LogEntry(models.Model):
         self.resolved_at = None
         self.resolved_by = None
         self.save(update_fields=['resolved', 'resolved_at', 'resolved_by'])
+
+    @property
+    def hub_category_label(self) -> str:
+        """Category + vendor name for Hub /logs list (avoids cluttering CATEGORY_CHOICES)."""
+        base = self.get_category_display() if self.category else "—"
+        ex = self.extra_data or {}
+        v = ex.get("vendor") or ex.get("vendor_name")
+        if v and str(v) not in base:
+            return f"{base} · {v}"
+        return base
 
 
 class EmailQueue(models.Model):

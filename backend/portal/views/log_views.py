@@ -10,6 +10,8 @@ from django.views import View
 from django.views.generic import ListView, DetailView
 from django.http import JsonResponse
 from django.db import models
+from django.db.models import Value
+from django.db.models.functions import Coalesce
 
 from portal.models import LogEntry, User
 
@@ -110,6 +112,14 @@ def _parse_bbps_consumer_details(extra_data):
     return result if result else None
 
 
+def _order_log_queryset_for_request(request, qs):
+    """Newest first globally; for a single trace, chronological (client → vendor → …)."""
+    trace = (request.GET.get("trace") or "").strip()
+    if trace:
+        return qs.order_by(Coalesce("chain_step", Value(99)), "timestamp", "id")
+    return qs.order_by("-timestamp", "-id")
+
+
 class LogListView(ListView):
     """View to list and filter log entries"""
     model = LogEntry
@@ -141,6 +151,11 @@ class LogListView(ListView):
         category = self.request.GET.get('category')
         if category:
             queryset = queryset.filter(category=category)
+        trace = (self.request.GET.get('trace') or '').strip()
+        if trace:
+            queryset = queryset.filter(
+                models.Q(correlation_id=trace) | models.Q(request_id=trace)
+            )
         resolved = self.request.GET.get('resolved')
         if resolved == 'true':
             queryset = queryset.filter(
@@ -167,12 +182,14 @@ class LogListView(ListView):
                 models.Q(message__icontains=search) |
                 models.Q(module_name__icontains=search) |
                 models.Q(url__icontains=search) |
-                models.Q(request_id__icontains=search)
+                models.Q(request_id__icontains=search) |
+                models.Q(correlation_id__icontains=search)
             )
-        return queryset.order_by('-timestamp')
+        return _order_log_queryset_for_request(self.request, queryset)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['trace_mode'] = bool((self.request.GET.get('trace') or '').strip())
         context['total_logs'] = LogEntry.objects.count()
         context['error_logs'] = LogEntry.objects.filter(log_level='ERROR').count()
         context['warning_logs'] = LogEntry.objects.filter(log_level='WARNING').count()
@@ -197,11 +214,14 @@ class LogListView(ListView):
             page_obj = paginator.get_page(page_number)
             logs_data = []
             for log in page_obj:
+                trace_val = log.correlation_id or log.request_id or ''
+                role_disp = log.get_log_role_display() if log.log_role else ''
                 logs_data.append({
                     'id': log.id,
                     'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '',
                     'log_level': log.log_level or '',
                     'category': log.get_category_display() if log.category else '',
+                    'category_with_vendor': log.hub_category_label,
                     'message': log.message or '',
                     'message_short': log.message[:100] + '...' if log.message and len(log.message) > 100 else (log.message or ''),
                     'module_name': log.module_name or '',
@@ -210,6 +230,11 @@ class LogListView(ListView):
                     'resolved': log.resolved,
                     'resolved_at': log.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if log.resolved_at else '',
                     'resolved_by': log.resolved_by.username if log.resolved_by else '',
+                    'chain_step': log.chain_step,
+                    'log_role': log.log_role or '',
+                    'log_role_display': role_disp,
+                    'trace': trace_val,
+                    'correlation_id': log.correlation_id or '',
                 })
             return JsonResponse({
                 'logs': logs_data,
@@ -291,6 +316,11 @@ class LogExportView(View):
         category = self.request.GET.get('category')
         if category:
             queryset = queryset.filter(category=category)
+        trace = (self.request.GET.get('trace') or '').strip()
+        if trace:
+            queryset = queryset.filter(
+                models.Q(correlation_id=trace) | models.Q(request_id=trace)
+            )
         resolved = self.request.GET.get('resolved')
         if resolved == 'true':
             queryset = queryset.filter(
@@ -317,9 +347,10 @@ class LogExportView(View):
                 models.Q(message__icontains=search) |
                 models.Q(module_name__icontains=search) |
                 models.Q(url__icontains=search) |
-                models.Q(request_id__icontains=search)
+                models.Q(request_id__icontains=search) |
+                models.Q(correlation_id__icontains=search)
             )
-        return queryset.order_by('-timestamp')
+        return _order_log_queryset_for_request(self.request, queryset)
 
     def get(self, request):
         import csv
@@ -422,16 +453,23 @@ class LogDetailView(DetailView):
             context["consumer_details"] = _parse_bbps_consumer_details(extra)
         else:
             context["consumer_details"] = None
-        # Related logs with same request_id (ParkPe → Vendor flow: did vendor get hit?)
+        # Related logs: same trace (request_id / correlation_id) in chain order
+        trace_q = models.Q()
         if log_entry.request_id:
+            rid = log_entry.request_id
+            trace_q |= models.Q(request_id=rid) | models.Q(correlation_id=rid)
+        if log_entry.correlation_id:
+            cid = log_entry.correlation_id
+            trace_q |= models.Q(correlation_id=cid) | models.Q(request_id=cid)
+        if log_entry.request_id or log_entry.correlation_id:
             context["related_logs_same_request"] = list(
-                LogEntry.objects.filter(request_id=log_entry.request_id)
+                LogEntry.objects.filter(trace_q)
                 .exclude(pk=log_entry.pk)
-                .order_by("timestamp")[:20]
+                .order_by(Coalesce("chain_step", Value(99)), "timestamp", "id")[:30]
             )
-            # Whether any of them is a vendor call (mobikwik_bbps / euronet_bbps)
             context["vendor_was_called"] = any(
-                log.category in ("mobikwik_bbps", "euronet_bbps")
+                log.category in ("mobikwik_bbps", "euronet_bbps", "instantpay", "cashfree", "cashfree_pg")
+                or (log.log_role == "vendor")
                 for log in context["related_logs_same_request"]
             )
         else:

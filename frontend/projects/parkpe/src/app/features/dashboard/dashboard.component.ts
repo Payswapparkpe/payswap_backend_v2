@@ -152,7 +152,7 @@ export class DashboardComponent implements OnInit {
     { title: 'Buy Voucher', description: 'Use Voucher to load your fastag and Connect Recharge.', icon: 'card_giftcard', route: '/vouchers' },
     { title: 'Pay Bills', description: 'Electricity, water & more.', icon: 'receipt_long', route: '/bbps' },
     { title: 'FASTag', description: 'Recharge your FASTag.', icon: 'toll', route: '/fastag', comingSoon: true },
-    { title: 'Challans', description: 'Pay traffic challans.', icon: 'gavel', route: '/challan', comingSoon: true },
+    { title: 'Challans', description: 'Lookup traffic challans.', icon: 'gavel', route: '/challan' },
     { title: 'Book Parking', description: 'Find and reserve parking.', icon: 'local_parking', route: '/parking', comingSoon: true },
     { title: 'Connect', description: 'Manage vehicles & QR.', icon: 'qr_code_2', route: '/connect' },
     { title: 'Transaction History', description: 'View payments & receipts.', icon: 'history', route: '/payment/history' },
@@ -164,7 +164,7 @@ export class DashboardComponent implements OnInit {
    * `quickActions` entry no longer uses `comingSoon`.
    */
   readonly overviewTilesComingSoon = {
-    challans: true,
+    challans: false,
     fastag: true,
     parking: true,
   } as const;

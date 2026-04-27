@@ -87,7 +87,31 @@ class TicketListView(ListView):
         ).count()
         context['resolved_tickets'] = queryset.filter(status='RESOLVED').count()
         context['closed_tickets'] = queryset.filter(status='CLOSED').count()
+        from portal.services.hub_ticket_ivr_service import user_may_use_hub_ivr
+        context['show_hub_ivr'] = user_may_use_hub_ivr(self.request.user)
         return context
+
+    def post(self, request, *args, **kwargs):
+        """Quick IVR from ticket list (no ticket context)."""
+        if request.POST.get('action') != 'hub_ivr_call':
+            return redirect('ticket_list')
+        from portal.services.hub_ticket_ivr_service import initiate_hub_ticket_ivr, user_may_use_hub_ivr
+
+        if not user_may_use_hub_ivr(request.user):
+            messages.error(request, 'You do not have permission to start IVR calls.')
+            return redirect('ticket_list')
+        ok, user_msg, _raw = initiate_hub_ticket_ivr(
+            from_raw=(request.POST.get('ivr_from') or '').strip(),
+            to_raw=(request.POST.get('ivr_to') or '').strip(),
+            ticket=None,
+            actor=request.user,
+            request=request,
+        )
+        if ok:
+            messages.success(request, user_msg)
+        else:
+            messages.error(request, user_msg)
+        return redirect('ticket_list')
 
 
 class TicketDetailView(DetailView):
@@ -148,6 +172,8 @@ class TicketDetailView(DetailView):
                 ).select_related('user')
         context['status_choices'] = Ticket.STATUS_CHOICES
         context['priority_choices'] = Ticket.PRIORITY_CHOICES
+        from portal.services.hub_ticket_ivr_service import user_may_use_hub_ivr
+        context['show_hub_ivr'] = user_may_use_hub_ivr(self.request.user)
         return context
 
     def post(self, request, *args, **kwargs):
@@ -213,6 +239,34 @@ class TicketDetailView(DetailView):
                 messages.success(request, 'Note added successfully')
             else:
                 messages.error(request, 'Note content is required')
+        elif action == 'hub_ivr_call':
+            from portal.services.hub_ticket_ivr_service import initiate_hub_ticket_ivr, user_may_use_hub_ivr
+
+            if not user_may_use_hub_ivr(user):
+                messages.error(request, 'You do not have permission to start IVR calls from tickets.')
+            else:
+                from_phone = (request.POST.get('ivr_from') or request.POST.get('from_phone') or '').strip()
+                to_phone = (request.POST.get('ivr_to') or request.POST.get('to_phone') or '').strip()
+                ok, user_msg, _raw = initiate_hub_ticket_ivr(
+                    from_raw=from_phone,
+                    to_raw=to_phone,
+                    ticket=ticket,
+                    actor=user,
+                    request=request,
+                )
+                if ok:
+                    messages.success(request, user_msg)
+                    try:
+                        TicketNote.objects.create(
+                            ticket=ticket,
+                            created_by=user,
+                            content='[System] IVR call initiated via Hub (Kaleyra click-to-call). See Hub logs (category: Kaleyra) for masked details.',
+                            is_internal=True,
+                        )
+                    except Exception:
+                        pass
+                else:
+                    messages.error(request, user_msg)
         return redirect('ticket_detail', pk=ticket.pk)
 
 

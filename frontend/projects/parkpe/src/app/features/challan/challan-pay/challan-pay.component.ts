@@ -1,5 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -86,6 +87,14 @@ export class ChallanPayComponent implements OnInit {
   loading = true;
   paying = false;
 
+  private apiErrorMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const detail = (err.error?.detail ?? err.error?.message ?? '').toString().trim();
+      if (detail) return detail;
+    }
+    return 'Payment failed';
+  }
+
   ngOnInit() {
     this.challanId = this.route.snapshot.params['id'];
     this.api.getChallan(this.challanId).subscribe({
@@ -124,9 +133,9 @@ export class ChallanPayComponent implements OnInit {
         this.notification.showSuccess('Challan paid successfully!');
         this.router.navigate(['/payment/status'], { queryParams: { status: 'success' } });
       },
-      error: () => {
+      error: (error) => {
         this.paying = false;
-        this.notification.showError('Payment failed');
+        this.notification.showError(this.apiErrorMessage(error));
       },
     });
   }

@@ -17,11 +17,60 @@
                 <p class="page-description-enterprise">Manage and track support tickets across the platform</p>
             </div>
         </div>
-        <a href="{% url 'ticket_create' %}" class="btn-enterprise-primary">
-            <i class="ti ti-plus mr-2"></i>
-            Create Ticket
-        </a>
+        <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            {% if show_hub_ivr %}
+            <a href="#hub-ivr-call" class="btn-enterprise-secondary whitespace-nowrap">
+                <i class="ti ti-phone-call mr-2"></i>
+                IVR call
+            </a>
+            {% endif %}
+            <a href="{% url 'ticket_create' %}" class="btn-enterprise-primary">
+                <i class="ti ti-plus mr-2"></i>
+                Create Ticket
+            </a>
+        </div>
     </div>
+    
+    {% if show_hub_ivr %}
+    <!-- Kaleyra click-to-call: same as Connect; use from = first leg, to = second leg -->
+    <div id="hub-ivr-call" class="card-enterprise border border-emerald-200 bg-gradient-to-br from-emerald-50/90 to-white scroll-mt-24">
+        <div class="card-enterprise-header flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <i class="ti ti-phone-incoming text-xl text-emerald-700"></i>
+                </div>
+                <div>
+                    <h3 class="card-enterprise-title text-emerald-900">Quick IVR (Kaleyra)</h3>
+                    <p class="text-xs text-gray-500 font-normal">Bridge two numbers from Hub — no ticket required</p>
+                </div>
+            </div>
+        </div>
+        <p class="text-sm text-gray-600 mb-4 leading-relaxed">
+            <strong>From</strong> rings first (e.g. your phone), then <strong>To</strong> is connected. Logs appear under
+            <span class="font-mono text-xs">Logs → Kaleyra</span> with masked numbers.
+        </p>
+        <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="hub_ivr_call">
+            <div>
+                <label class="block text-sm font-semibold text-gray-900 mb-2">From (first leg)</label>
+                <input type="tel" name="ivr_from" required autocomplete="tel" placeholder="10-digit mobile"
+                       class="input-enterprise w-full">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-900 mb-2">To (second leg)</label>
+                <input type="tel" name="ivr_to" required autocomplete="tel" placeholder="Customer / other party"
+                       class="input-enterprise w-full">
+            </div>
+            <div class="md:col-span-2">
+                <button type="submit" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700">
+                    <i class="ti ti-phone-outgoing"></i>
+                    Start bridged call
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
     
     <!-- Enterprise Stat Cards - 3D Style -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

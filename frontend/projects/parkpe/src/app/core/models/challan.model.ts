@@ -4,6 +4,7 @@ export interface ChallanSearchRequest {
   state?: string;
   chassisNumber?: string;
   engineNumber?: string;
+  forceRefresh?: boolean;
 }
 
 // Challan

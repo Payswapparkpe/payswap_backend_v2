@@ -17,13 +17,15 @@ export type ConnectQrSnapshot = {
   qrImageUrl: string;
 };
 export type PaymentStatusSnapshot = {
-  tone: 'success' | 'error' | 'warning';
+  tone: 'success' | 'error' | 'warning' | 'pending';
   orderRef: string;
   gatewayRef: string;
   amount: number | null;
   statusMessage: string;
   headline: string;
   gatewayLabel: string;
+  /** Bharat Billpay / BBPS flow (e.g. Cashfree redirect after BBPS pay). */
+  bharatBillpayReceipt?: boolean;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -32,7 +34,8 @@ export class MobilityStateStore {
   private readonly VEHICLES_KEY = 'parkpe:snapshot:connect-vehicles';
   private readonly ACTIVE_BOOKING_KEY = 'parkpe:snapshot:active-booking';
   private readonly CONNECT_QR_KEY = 'parkpe:snapshot:connect-qr';
-  private readonly PAYMENT_STATUS_KEY = 'parkpe:snapshot:payment-status';
+  /** Bump when payment-status copy/layout changes so stale localStorage does not restore old UI. */
+  private readonly PAYMENT_STATUS_KEY = 'parkpe:snapshot:payment-status:v2';
 
   readonly dashboardSummary = signal<DashboardSummary>({
     totalSpendMonth: 0,
@@ -67,6 +70,13 @@ export class MobilityStateStore {
   );
 
   constructor() {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('parkpe:snapshot:payment-status');
+      } catch {
+        /* ignore */
+      }
+    }
     const dashboard = this.read<DashboardSummary>(this.DASHBOARD_KEY);
     const vehicles = this.read<ConnectVehicle[]>(this.VEHICLES_KEY);
     const booking = this.read<Booking>(this.ACTIVE_BOOKING_KEY);

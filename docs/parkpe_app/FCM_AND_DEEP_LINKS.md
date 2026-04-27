@@ -1,37 +1,53 @@
-# FCM, यूनिवर्सल लिंक्स, डिवाइस टोकन — डिज़ाइन (`parkpe_app`)
+# FCM, डीप लिंक, डिवाइस टोकन — रनबुक (`parkpe_app`)
 
 ## लक्ष्य
 
-- **Push:** ट्रांज़ैक्शन, Connect चैट, चालान/FASTag अलर्ट
-- **Deep links:** वेब URL जैसे Connect स्कैन (`/connect/scan/:qrCode`) ऐप में खोलें
-- **डिवाइस रजिस्ट्रेशन:** बैकएंड को FCM/APNs टोकन भेजना
+- **Push:** Connect chat + campaign notifications मोबाइल तक पहुंचें
+- **Deep links:** push payload से app route खुले
+- **डिवाइस रजिस्ट्रेशन:** login के बाद token backend में auto-upsert हो
 
-## क्लाइंट (Flutter)
+## क्लाइंट (Flutter) — implemented
 
 | टॉपिक | पैकेज / काम |
 |--------|-------------|
-| FCM | `firebase_core` + `firebase_messaging` (या समान) |
-| लोकल नोटिफिकेशन | `flutter_local_notifications` (फोरग्राउंड डिस्प्ले) |
-| यूनिवर्सल लिंक्स | `app_links` — Android App Links + iOS Associated Domains |
-| सुरक्षित स्टोरेज | मौजूदा `flutter_secure_storage` पैटर्न के साथ |
+| FCM bootstrap | `firebase_core` + `firebase_messaging` |
+| Token registration | `POST /api/dashboard/notifications/push-token` (`token`, `devicePlatform`, `appPlatform`) |
+| Token refresh | `onTokenRefresh` पर backend update |
+| Deep link open | `onMessageOpenedApp` + `getInitialMessage` |
 
-**डीप लिंक मैपिंग (उदाहरण):**
+**डीप लिंक मैपिंग (current):**
 
-- `https://<domain>/connect/scan/<qrCode>` → `GoRouter` पर `/connect/scan-result?code=`
-- पेमेंट कॉलबैक URL → मौजूदा WebView/PG फ्लो के साथ
+- `/connect/chats/<id>` → app `/connect` tab खोलता है
+- अन्य `/...` route → same route पर `GoRouter.go()`
 
-## बैकएंड (Django) — अभी / आगे
+## बैकएंड (Django) — implemented
 
-- वर्तमान में समर्पित `DeviceRegistration` मॉडल रिपो में स्पष्ट नहीं है; उत्पादन से पहले जोड़ें:
-  - फ़ील्ड: `user`, `fcm_token` / `apns_token`, `platform` (`ios` \| `android`), `app_version`, `updated_at`
-  - एंडपॉइंट: `POST /api/.../devices/register` (JWT), idempotent अपडेट
-- `notification_orchestrator` में मोबाइल चैनल — FCM HTTP v1 सर्विस अकाउंट
+- `DevicePushToken` model पहले से उपयोग में है (idempotent update by token)
+- `NotificationOrchestrator` push channel अब FCM HTTP v1 call करता है
+- `connect_chat_notifications` push now sends FCM + delivery log
+- invalid/unregistered token मिलने पर token `is_active=False` mark
+
+## Firebase / Apple console checklist
+
+1. Firebase project में Android + iOS app add करें
+2. Android के लिए `google-services.json` in `parkpe_app/android/app/`
+3. iOS के लिए `GoogleService-Info.plist` in `parkpe_app/ios/Runner/`
+4. Apple Developer में APNs Auth Key (`.p8`) बनाकर Firebase iOS app settings में upload करें
+5. Firebase service account JSON backend deployment secret में रखें (git में नहीं)
+
+## Backend env checklist
+
+- `NOTIFICATIONS_PUSH_ENABLED=true`
+- `FCM_PROJECT_ID=<firebase-project-id>`
+- `FCM_SERVICE_ACCOUNT_PATH=/secure/path/firebase-service-account.json`
+  - या `FCM_SERVICE_ACCOUNT_JSON={...}`
 
 ## सुरक्षा
 
-- टोकन रोटेशन लॉगआउट पर इनवैलिडेट
-- डीप लिंक में PII न डालें; QR कोड पहले से पब्लिक लुकअप से वैलिडेट करें
+- service account JSON repo में commit न करें
+- डीप लिंक/data payload में PII न डालें
+- token failures (unregistered) पर inactive mark रखें, repeated retries avoid करें
 
 ---
 
-CI में FCM शामिल नहीं — लोकल `google-services.json` / `GoogleService-Info.plist` सीक्रेट्स के रूप में रखें।
+CI में FCM credential files commit नहीं होंगी; runtime/device testing के लिए local files + deployment secrets use करें.

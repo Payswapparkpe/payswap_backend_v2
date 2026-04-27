@@ -20,12 +20,32 @@ import { Challan } from '../../../core/models/challan.model';
           <h1>Challan Details</h1>
           <div class="detail-row"><span>Challan Number:</span><span>{{ challan.challanNumber }}</span></div>
           <div class="detail-row"><span>Vehicle:</span><span>{{ challan.vehicleNumber }}</span></div>
+          <div class="detail-row"><span>Status:</span><span>{{ challan.status | titlecase }}</span></div>
+          <div class="detail-row"><span>State:</span><span>{{ challan.state || '-' }}</span></div>
+          @if (challan.vehicleOwnerName) {
+            <div class="detail-row"><span>Owner:</span><span>{{ challan.vehicleOwnerName }}</span></div>
+          }
           <div class="detail-row"><span>Offence:</span><span>{{ challan.offence }}</span></div>
-          <div class="detail-row"><span>Date:</span><span>{{ challan.offenceDate | date }}</span></div>
+          <div class="detail-row"><span>Date:</span><span>{{ formatDate(challan.offenceDate) }}</span></div>
           <div class="detail-row"><span>Location:</span><span>{{ challan.location }}</span></div>
+          @if (challan.issuingAuthority) {
+            <div class="detail-row"><span>Issuing Authority:</span><span>{{ challan.issuingAuthority }}</span></div>
+          }
           <div class="detail-row highlight">
             <span>Total Amount:</span><span class="amount">₹{{ challan.totalAmount }}</span>
           </div>
+
+          @if (challan.additionalDetails?.length) {
+            <div class="extra-details">
+              <h3>Additional Details</h3>
+              @for (item of challan.additionalDetails; track $index) {
+                <div class="detail-row">
+                  <span>{{ item.label }}</span>
+                  <span>{{ item.value || '-' }}</span>
+                </div>
+              }
+            </div>
+          }
           
           @if (challan.status === 'pending') {
             <button class="btn btn-primary btn-block" (click)="payChallan()">
@@ -61,6 +81,7 @@ import { Challan } from '../../../core/models/challan.model';
     }
     .amount { font-size: 1.5rem; font-weight: 700; color: var(--error); }
     .btn-block { width: 100%; padding: 1rem; margin-top: 1rem; }
+    .extra-details h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
   `],
 })
 export class ChallanDetailComponent implements OnInit {
@@ -73,17 +94,37 @@ export class ChallanDetailComponent implements OnInit {
   loading = true;
 
   ngOnInit() {
-    this.challanId = this.route.snapshot.params['id'];
-    this.api.getChallan(this.challanId).subscribe({
-      next: (data) => {
-        this.challan = data;
+    this.route.paramMap.subscribe({
+      next: (params) => {
+        const nextId = params.get('id') || '';
+        if (!nextId) return;
+        this.challanId = nextId;
+        this.loading = true;
+        this.api.getChallan(this.challanId).subscribe({
+          next: (data) => {
+            this.challan = data;
+            this.loading = false;
+          },
+          error: () => this.loading = false,
+        });
+      },
+      error: () => {
         this.loading = false;
       },
-      error: () => this.loading = false,
     });
   }
 
   payChallan() {
     this.router.navigate(['/challan/pay', this.challanId]);
+  }
+
+  formatDate(value: Date | string | undefined): string {
+    if (!value) return '-';
+    const s = String(value).trim();
+    // InstantPay often sends DD-MM-YYYY, which Angular date pipe does not parse reliably.
+    const m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-IN');
   }
 }

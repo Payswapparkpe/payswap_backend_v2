@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 import logging
+import uuid
 
 from portal.models import ApiVendor, InstantpayTransaction, ResellerPartner
 from portal.services.vendors.instantpay import InstantpayClient
@@ -57,7 +58,16 @@ class InstantpayHubService:
                 },
             )
 
-        result = self.client.request(api_code, body)
+        correlation = (partner_txn_id or idempotency_key or str(uuid.uuid4())) or ""
+        correlation = str(correlation)[:100] if correlation else str(uuid.uuid4())[:100]
+        result = self.client.request(
+            api_code,
+            body,
+            log_context={
+                "correlation_id": correlation,
+                "chain_step": 2,
+            },
+        )
 
         if tx:
             tx.response_payload = result.get("json") or {"body": result.get("body")}

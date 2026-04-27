@@ -80,6 +80,15 @@ export interface BbpsPayCartResponse {
   results: { billId: string; operatorId: string; consumerId: string; amount: number; transactionId: string; status: string }[];
 }
 
+/** Poll GET /api/bbps/pay-status/<ref>/ (Mobikwik bill payment phase) */
+export interface BbpsPayStatusResponse {
+  success: boolean;
+  ref_id: string;
+  vendorStatus?: string | null;
+  phase: 'success' | 'failed' | 'pending';
+  message?: string;
+}
+
 export interface NotificationBannerItem {
   id: number;
   name: string;
@@ -381,6 +390,7 @@ export interface ApiBackend {
   fetchBill(request: BillFetchRequest): Observable<BillFetchResponse>;
   payBill(payload: BBPSPaymentRequest): Observable<BBPSPaymentResponse>;
   payCart(payload: { bills: { billId: string; operatorId: string; consumerId: string; amount: number }[]; voucher_id: number; pin: string }): Observable<BbpsPayCartResponse>;
+  getBbpsPayStatus(refId: string): Observable<BbpsPayStatusResponse>;
   getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]>;
   addBbpsFavorite(body: { operatorId: string; operatorName?: string; category?: string; mobikwikOpId?: string }): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }>;
   removeBbpsFavorite(operatorId: string): Observable<void>;

@@ -102,9 +102,9 @@
                 }
               </td>
               <td>
-                @if (txn.transactionTypeDirection) {
+                @if (txn.transactionTypeDirection || txn.creditDebitLabel) {
                   <span class="pill pill-direction" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">
-                    {{ txn.transactionTypeDirection | titlecase }}
+                    {{ creditDebitDisplay(txn) }}
                   </span>
                 } @else {
                   —
@@ -152,8 +152,8 @@
           <div class="txn-card-row">
             <span class="txn-card-label">Credit/Debit</span>
             <span class="txn-card-value">
-              @if (txn.transactionTypeDirection) {
-                <span class="pill pill-direction" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">{{ txn.transactionTypeDirection | titlecase }}</span>
+              @if (txn.transactionTypeDirection || txn.creditDebitLabel) {
+                <span class="pill pill-direction" [class.credit]="txn.transactionTypeDirection === 'credit'" [class.debit]="txn.transactionTypeDirection === 'debit'">{{ creditDebitDisplay(txn) }}</span>
               } @else {
                 —
               }

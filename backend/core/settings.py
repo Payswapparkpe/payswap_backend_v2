@@ -43,6 +43,10 @@ NOTIFICATIONS_ENABLED = getattr(payswap_config, "NOTIFICATIONS_ENABLED", True)
 NOTIFICATIONS_PUSH_ENABLED = getattr(payswap_config, "NOTIFICATIONS_PUSH_ENABLED", False)
 NOTIFICATIONS_ROLLOUT_PERCENT = getattr(payswap_config, "NOTIFICATIONS_ROLLOUT_PERCENT", 100)
 NOTIFICATIONS_RATE_LIMIT_PER_USER = getattr(payswap_config, "NOTIFICATIONS_RATE_LIMIT_PER_USER", 50)
+FCM_PROJECT_ID = getattr(payswap_config, "FCM_PROJECT_ID", None)
+FCM_SERVICE_ACCOUNT_PATH = getattr(payswap_config, "FCM_SERVICE_ACCOUNT_PATH", None)
+_fcm_service_account_json = getattr(payswap_config, "FCM_SERVICE_ACCOUNT_JSON", None)
+FCM_SERVICE_ACCOUNT_JSON = _fcm_service_account_json.get_secret_value() if _fcm_service_account_json else None
 ALLOWED_HOSTS = list(payswap_config.allowed_hosts_list)
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')  # Django test client / management command tests

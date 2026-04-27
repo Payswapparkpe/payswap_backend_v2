@@ -452,7 +452,7 @@ export class BBPSInternalComponent implements OnInit {
         return `${this.mobikwikOperatorIconBase}/op${value}.png`;
       }
     }
-    return 'assets/bbps/bharat-connect-logo.png';
+    return '/assets/bbps/bharat-connect-logo.png';
   }
 
   loadCategories() {
@@ -778,19 +778,48 @@ export class BBPSInternalComponent implements OnInit {
           }
           this.router.navigate(['/payment/status'], {
             queryParams: {
-              status: isPending ? 'failed' : 'success',
-              reason: isPending ? 'not_confirmed' : undefined,
+              status: isPending ? 'pending' : 'success',
               transactionId: res.transactionId ?? '',
               amount: amt,
+              gateway: 'bbps',
             },
           });
         } else {
-          this.voucherPayError.set(res.message ?? 'Payment failed');
+          const msg = (res as { message?: string }).message ?? 'Payment failed';
+          const tid = (res as { transactionId?: string; billId?: string }).transactionId ?? b.billId;
+          this.voucherPayError.set(msg);
+          this.closeVoucherPayModal();
+          void this.router.navigate(['/payment/status'], {
+            queryParams: {
+              status: 'failed',
+              transactionId: tid,
+              amount: amt,
+              gateway: 'bbps',
+              detail: msg.length > 280 ? msg.slice(0, 280) : msg,
+            },
+          });
         }
       },
       error: (err) => {
         this.voucherPaying.set(false);
-        this.voucherPayError.set(err?.error?.detail ?? err?.message ?? 'Payment failed');
+        const detail = err?.error?.detail ?? err?.message ?? 'Payment failed';
+        const tid = err?.error?.transactionId ?? err?.error?.billId ?? b.billId;
+        const amountNav =
+          err?.error?.amount != null && err?.error?.amount !== ''
+            ? Number(err?.error?.amount)
+            : amt;
+        this.voucherPayError.set(detail);
+        this.closeVoucherPayModal();
+        const d = typeof detail === 'string' ? detail : String(detail);
+        void this.router.navigate(['/payment/status'], {
+          queryParams: {
+            status: 'failed',
+            transactionId: tid,
+            amount: amountNav,
+            gateway: 'bbps',
+            detail: d.length > 280 ? d.slice(0, 280) : d,
+          },
+        });
       },
     });
   }
@@ -827,19 +856,52 @@ export class BBPSInternalComponent implements OnInit {
           }
           this.router.navigate(['/payment/status'], {
             queryParams: {
-              status: hasPending ? 'failed' : 'success',
-              reason: hasPending ? 'not_confirmed' : undefined,
+              status: hasPending ? 'pending' : 'success',
               transactionId: res.results?.[0]?.transactionId ?? '',
               amount: res.total,
+              gateway: 'bbps',
             },
           });
         } else {
-          this.voucherPayError.set(res.message ?? 'Payment failed');
+          const msg = (res as { message?: string }).message ?? 'Payment failed';
+          const tid =
+            (res as { transactionId?: string; billId?: string }).transactionId ??
+            (res as { billId?: string }).billId ??
+            '';
+          this.voucherPayError.set(msg);
+          this.closeVoucherPayModal();
+          const cartTotal = cartItems.reduce((s, i) => s + i.amount, 0);
+          void this.router.navigate(['/payment/status'], {
+            queryParams: {
+              status: 'failed',
+              transactionId: tid,
+              amount: res.total ?? cartTotal,
+              gateway: 'bbps',
+              detail: msg.length > 280 ? msg.slice(0, 280) : msg,
+            },
+          });
         }
       },
       error: (err) => {
         this.voucherPaying.set(false);
-        this.voucherPayError.set(err?.error?.detail ?? err?.message ?? 'Payment failed');
+        const detail = err?.error?.detail ?? err?.message ?? 'Payment failed';
+        const tid = err?.error?.transactionId ?? err?.error?.billId ?? '';
+        const totalNav =
+          err?.error?.amount != null && err?.error?.amount !== ''
+            ? Number(err?.error?.amount)
+            : cartItems.reduce((s, i) => s + i.amount, 0);
+        this.voucherPayError.set(detail);
+        this.closeVoucherPayModal();
+        const d = typeof detail === 'string' ? detail : String(detail);
+        void this.router.navigate(['/payment/status'], {
+          queryParams: {
+            status: 'failed',
+            transactionId: tid,
+            amount: totalNav,
+            gateway: 'bbps',
+            detail: d.length > 280 ? d.slice(0, 280) : d,
+          },
+        });
       },
     });
   }

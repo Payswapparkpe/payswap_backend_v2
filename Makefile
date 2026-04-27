@@ -1,12 +1,20 @@
 # Quick dev servers (run each target in its own terminal).
 # ParkPe Angular: http://localhost:4201  |  Django hub: http://localhost:8000
 
-.PHONY: help parkpe hub parkpe-app
+.PHONY: help deps parkpe hub parkpe-app
 
 help:
+	@echo "make deps       — pip install backend/requirements.txt (uses .venv if present)"
 	@echo "make parkpe     — ParkPe Angular app (frontend/, port 4201)"
 	@echo "make hub        — Payswap Django backend (backend/manage.py, port 8000)"
 	@echo "make parkpe-app — ParkPe Flutter app (parkpe_app/); optional DEVICE=chrome|macos|..."
+
+deps:
+	@if [ -f .venv/bin/pip ]; then \
+		.venv/bin/pip install -r backend/requirements.txt; \
+	else \
+		pip install -r backend/requirements.txt; \
+	fi
 
 parkpe:
 	cd frontend && npm run start -- --project=parkpe --host 0.0.0.0

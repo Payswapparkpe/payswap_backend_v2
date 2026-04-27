@@ -116,6 +116,7 @@ export class PaymentCallbackComponent implements OnInit {
                   orderId,
                   amount: payload.amount,
                   gateway: 'cashfree',
+                  bbps: '1',
                   ...(paymentId ? { gatewayPaymentId: paymentId } : {}),
                 },
               });
@@ -126,6 +127,7 @@ export class PaymentCallbackComponent implements OnInit {
                   reason: 'not_confirmed',
                   orderId,
                   gateway: 'cashfree',
+                  bbps: '1',
                   ...(paymentId || pgFromUrl ? { gatewayPaymentId: paymentId || pgFromUrl } : {}),
                 },
               });
@@ -143,6 +145,7 @@ export class PaymentCallbackComponent implements OnInit {
                 reason: 'not_confirmed',
                 orderId,
                 gateway: 'cashfree',
+                bbps: '1',
                 ...(pgFromUrl ? { gatewayPaymentId: pgFromUrl } : {}),
               },
             });

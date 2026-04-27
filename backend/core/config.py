@@ -321,9 +321,22 @@ class PayswapConfig(BaseSettings):
     INSTANTPAY_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Instantpay API Client Secret")
     INSTANTPAY_ENCRYPTION_KEY: Optional[SecretStr] = Field(default=None, description="Instantpay API Encryption Key")
     INSTANTPAY_AUTH_CODE: Optional[SecretStr] = Field(default=None, description="Instantpay X-Ipay-Auth-Code header value")
+    INSTANTPAY_IDENTITY_AUTH_MODE: Literal[
+        "sha256_pipe", "sha256_concat", "static", "base64_basic", "fixed_1"
+    ] = Field(
+        default="sha256_pipe",
+        description=(
+            "Auth strategy for Instantpay identity endpoints (e.g. /identity/vehicleChallan). "
+            "sha256_pipe=sha256(client_id|client_secret|timestamp), "
+            "sha256_concat=sha256(client_id+client_secret+timestamp), "
+            "static=use INSTANTPAY_AUTH_CODE, base64_basic=base64(client_id:client_secret), "
+            "fixed_1=send X-Ipay-Auth-Code header as literal '1'."
+        ),
+    )
     INSTANTPAY_ENDPOINT_IP: Optional[str] = Field(default=None, description="Instantpay X-Ipay-Endpoint-Ip header value")
     INSTANTPAY_REPORT_BANK_PROFILE_ID: Optional[str] = Field(default="0", description="Instantpay reports bankProfileId")
     INSTANTPAY_REPORT_ACCOUNT_NUMBER: Optional[str] = Field(default=None, description="Instantpay reports accountNumber")
+    INSTANTPAY_REPORT_ACCOUNT_TYPE: Optional[str] = Field(default="CURRENT", description="Instantpay business wallet accountType")
     INSTANTPAY_ENVIRONMENT: Literal["SANDBOX", "PRODUCTION"] = Field(
         default="SANDBOX", description="Instantpay environment: SANDBOX or PRODUCTION"
     )
@@ -339,6 +352,15 @@ class PayswapConfig(BaseSettings):
     NOTIFICATIONS_PUSH_ENABLED: bool = Field(default=False, description="Enable real push provider dispatch (FCM/APNS).")
     NOTIFICATIONS_ROLLOUT_PERCENT: int = Field(default=100, description="Progressive rollout percentage (0-100).")
     NOTIFICATIONS_RATE_LIMIT_PER_USER: int = Field(default=50, description="Max non-failed notifications per user per hour.")
+    FCM_PROJECT_ID: Optional[str] = Field(default=None, description="Firebase project id for FCM HTTP v1 sends.")
+    FCM_SERVICE_ACCOUNT_PATH: Optional[str] = Field(
+        default=None,
+        description="Absolute/relative path to Firebase service account JSON used for FCM server auth.",
+    )
+    FCM_SERVICE_ACCOUNT_JSON: Optional[SecretStr] = Field(
+        default=None,
+        description="Inline Firebase service account JSON (alternative to FCM_SERVICE_ACCOUNT_PATH).",
+    )
 
     # ============================================================================
     # AWS S3 (optional for local/dev; required when using S3 storage)
@@ -535,6 +557,9 @@ class PayswapConfig(BaseSettings):
     def get_instantpay_auth_code(self) -> str:
         return self.INSTANTPAY_AUTH_CODE.get_secret_value() if self.INSTANTPAY_AUTH_CODE else ""
 
+    def get_instantpay_identity_auth_mode(self) -> str:
+        return str(self.INSTANTPAY_IDENTITY_AUTH_MODE or "sha256_pipe").strip().lower()
+
     def get_instantpay_endpoint_ip(self) -> str:
         return self.INSTANTPAY_ENDPOINT_IP or ""
 
@@ -543,6 +568,9 @@ class PayswapConfig(BaseSettings):
 
     def get_instantpay_report_account_number(self) -> str:
         return self.INSTANTPAY_REPORT_ACCOUNT_NUMBER or ""
+
+    def get_instantpay_report_account_type(self) -> str:
+        return (self.INSTANTPAY_REPORT_ACCOUNT_TYPE or "CURRENT").strip() or "CURRENT"
 
     def is_instantpay_configured(self) -> bool:
         return bool(

@@ -28,12 +28,25 @@ See also: [docs/parkpe_app/MVP_SPRINTS.md](../docs/parkpe_app/MVP_SPRINTS.md), [
    - Copy `.env.example` to `.env` and set `API_BASE_URL` to your backend. Use a **trailing slash** (e.g. `http://localhost:8000/api/`) — the app also normalizes this, so paths like `auth/otp/request` resolve to `/api/auth/...` and not `/apiauth/...`.
    - **macOS / iOS simulator:** `http://localhost:8000/api/`
    - **Android emulator:** `http://10.0.2.2:8000/api/`
-   - **Physical device (same Wi‑Fi as your dev machine):** `http://<your-lan-ip>:8000/api/`
+   - **Physical iPhone / Android device:** On the device, `localhost` is the phone itself, so you will get **connection refused** if you leave `localhost` in `.env`. Use your **Mac’s LAN IP** on the same Wi‑Fi, e.g. `http://192.168.1.42:8000/api/`. On macOS you can run `ipconfig getifaddr en0` (Wi‑Fi) or check System Settings → Network. Start Django bound to all interfaces: `python manage.py runserver 0.0.0.0:8000` (default `127.0.0.1:8000` only accepts connections from the same machine).
 
 3. **Install dependencies**
    ```bash
    flutter pub get
    ```
+
+## Push Notifications (FCM + APNs)
+
+1. In Firebase, create Android/iOS app entries for ParkPe and enable Cloud Messaging.
+2. Place Firebase native files:
+   - `android/app/google-services.json`
+   - `ios/Runner/GoogleService-Info.plist`
+3. In Apple Developer create APNs auth key (`.p8`) and upload it in Firebase iOS app settings.
+4. Backend must have:
+   - `NOTIFICATIONS_PUSH_ENABLED=true`
+   - `FCM_PROJECT_ID`
+   - `FCM_SERVICE_ACCOUNT_PATH` (or `FCM_SERVICE_ACCOUNT_JSON`)
+5. After login, app auto-registers device token at `POST /api/dashboard/notifications/push-token`.
 
 ## Run
 

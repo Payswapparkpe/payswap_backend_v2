@@ -128,6 +128,43 @@
         
         <!-- Sidebar -->
         <div class="space-y-6">
+            {% if show_hub_ivr %}
+            <!-- Hub IVR: Kaleyra click-to-call (same bridge as Connect) -->
+            <div class="card-enterprise border border-emerald-200 bg-emerald-50/40">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-phone-call text-xl text-emerald-700"></i>
+                        <h3 class="card-enterprise-title">IVR call (Kaleyra)</h3>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-600 mb-3 leading-relaxed">
+                    Connects two numbers like ParkPe Connect: <strong>From</strong> rings first (agent or callback), then <strong>To</strong> is dialed and bridged. Uses your Kaleyra voice / click-to-call config.
+                </p>
+                <form method="post" class="space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="hub_ivr_call">
+                    <div>
+                        <label class="form-label text-sm">From (first leg)</label>
+                        <input type="tel" name="ivr_from" autocomplete="tel"
+                               class="input-enterprise w-full text-sm"
+                               placeholder="e.g. agent or your mobile (10 digit)"
+                               required>
+                    </div>
+                    <div>
+                        <label class="form-label text-sm">To (second leg)</label>
+                        <input type="tel" name="ivr_to" autocomplete="tel"
+                               class="input-enterprise w-full text-sm"
+                               placeholder="Customer or other party (10 digit)"
+                               required>
+                    </div>
+                    <button type="submit" class="btn-enterprise-primary w-full text-sm bg-emerald-600 hover:bg-emerald-700 border-0">
+                        <i class="ti ti-phone-outgoing mr-2"></i>
+                        Start bridged call
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
             <!-- Ticket Info -->
             <div class="card-enterprise">
                 <div class="card-enterprise-header">

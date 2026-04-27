@@ -276,7 +276,8 @@ class MobikwikBBPSClient:
                 "response_status": response_status_code,
                 "response_body": response_body_sanitized,
                 "success": success,
-                "vendor": "mobikwik",
+                "vendor": "Mobikwik",
+                "vendor_name": "Mobikwik",
             }
             if error:
                 extra["error"] = str(error)[:1000]
@@ -295,6 +296,9 @@ class MobikwikBBPSClient:
                 extra["source"] = ctx["source"]
             if ctx.get("api_name"):
                 extra["upstream_api_name"] = ctx["api_name"]
+            trace = ctx.get("request_id") or ctx.get("correlation_id")
+            if trace and len(str(trace)) > 100:
+                trace = str(trace)[:100]
             LogEntry.objects.create(
                 log_level="INFO" if success else "ERROR",
                 category="mobikwik_bbps",
@@ -304,6 +308,9 @@ class MobikwikBBPSClient:
                 extra_data=extra,
                 request_id=ctx.get("request_id"),
                 response_id=ctx.get("response_id"),
+                correlation_id=trace,
+                chain_step=2,
+                log_role="vendor",
             )
         except Exception as e:
             import logging
@@ -1438,6 +1445,13 @@ class MobikwikBBPSClient:
         path = self._get_path("recharge")
         extra = extra_params or {}
         op_val = self._op_int(operator_id)
+        payment_account_info_raw = str(extra.get("paymentAccountInfo", "") or "").strip()
+        payment_account_info_digits = "".join(ch for ch in payment_account_info_raw if ch.isdigit())
+        # For FASTag/biller flows where Mobikwik expects local mobile/account, strip country code 91.
+        if len(payment_account_info_digits) == 12 and payment_account_info_digits.startswith("91"):
+            payment_account_info = payment_account_info_digits[2:]
+        else:
+            payment_account_info = payment_account_info_raw
         payload = {
             "cn": customer_id,
             "op": str(op_val) if op_val is not None else operator_id,
@@ -1447,9 +1461,9 @@ class MobikwikBBPSClient:
             "remitterName": extra.get("remitterName", ""),
             "customerMobile": extra.get("customerMobile", ""),
             "paymentRefID": extra.get("paymentRefID", ref_id),
-            "paymentMode": extra.get("paymentMode", "UPI"),
+            "paymentMode": extra.get("paymentMode", "Cash"),
             "agentId": extra.get("agentId") or self.agent_id or "",
-            "paymentAccountInfo": extra.get("paymentAccountInfo", ""),
+            "paymentAccountInfo": payment_account_info,
         }
         # Allow extra_params to override any key
         for k, v in extra.items():

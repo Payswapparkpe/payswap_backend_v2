@@ -29,11 +29,86 @@ from portal.services.billing_party_service import (
 
 from api.parkpe_logging import log_parkpe
 from portal.utils.transaction_id import generate_transaction_id
+from portal.utils.bbps_vendor_phase import vendor_payment_phase
 
 logger = get_logger(__name__)
 MOBIKWIK_OPERATOR_ICON_BASE = "https://static.mobikwik.com/appdata/operator_icons"
 BBPS_PAY_DESCRIPTION = "BBPS voucher bill payment"
 BBPS_ROLLBACK_DESCRIPTION = "BBPS voucher rollback credit"
+
+
+class BBPSParkpePaymentStatusView(APIView):
+    """GET /api/bbps/pay-status/<ref_id>/ — poll Mobikwik retailer payment status (ParkPe app)."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def get(self, request, ref_id):
+        ref = (ref_id or "").strip()
+        if not ref:
+            return Response({"detail": "ref_id required."}, status=status.HTTP_400_BAD_REQUEST)
+        service = BBPSService(vendor="mobikwik")
+        if not service.is_available():
+            return Response({"detail": "BBPS service is not configured."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        log_context = {
+            "request_id": getattr(request, "request_id", None),
+            "source": "ParkPe",
+            "api_name": "BBPS pay status poll",
+        }
+        result = service.payment_status(ref_id=ref, log_context=log_context)
+        from portal.services.parkpe_bbps_bill_payment_record_service import (
+            get_user_record,
+            record_poll_failure,
+            response_from_db_row,
+            update_from_vendor_poll,
+        )
+
+        if result.get("success"):
+            vs = result.get("status") or "UNKNOWN"
+            phase = vendor_payment_phase(str(vs))
+            try:
+                update_from_vendor_poll(user=request.user, reference_id=ref, result_dict=result)
+            except Exception:
+                logger.exception("parkpe_bbps_status_record_update_failed", extra_data={"ref_id": ref})
+            return Response(
+                {
+                    "success": True,
+                    "ref_id": ref,
+                    "vendorStatus": vs,
+                    "phase": phase,
+                    "source": "vendor",
+                },
+                status=status.HTTP_200_OK,
+            )
+        try:
+            record_poll_failure(
+                user=request.user,
+                reference_id=ref,
+                message=str(result.get("message") or ""),
+            )
+        except Exception:
+            pass
+        from portal.models import ParkPeBBPSBillPaymentRecord as BBPSPayRec
+
+        rec = get_user_record(request.user, ref)
+        if rec and (
+            (rec.last_vendor_status or "").strip()
+            or rec.resolved_phase in (BBPSPayRec.PHASE_FAILED, BBPSPayRec.PHASE_SUCCESS)
+        ):
+            body = response_from_db_row(rec)
+            return Response(body, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "success": False,
+                "ref_id": ref,
+                "message": (result.get("message") or "Status unavailable")[:200],
+                "phase": "pending",
+                "vendorStatus": None,
+                "source": "vendor",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 def _cashfree_payments_normalize(payments_raw):
@@ -125,6 +200,18 @@ def _log_context_from_request(request, api_name: str):
         "source": "ParkPe",
         "api_name": api_name,
     }
+
+
+def _bbps_pay_reference_id(result: dict | None, bill_ref_id: str) -> str:
+    """Stable id for ParkPeBBPSBillPaymentRecord — matches success path (transaction_id or vendor id or bill ref)."""
+    r = result or {}
+    tid = r.get("transaction_id")
+    if tid is not None and str(tid).strip():
+        return str(tid).strip()[:64]
+    vid = _vendor_response_id_from_result(r, "pay_bill")
+    if vid is not None and str(vid).strip():
+        return str(vid).strip()[:64]
+    return str(bill_ref_id or "").strip()[:64]
 
 
 def _vendor_response_id_from_result(result, action: str):
@@ -813,14 +900,14 @@ class BBPSPayBillView(APIView):
             customer_mobile = str(body.get("customerPhone") or body.get("customerMobile") or "").strip()
             payment_account_info = str(body.get("paymentAccountInfo") or "").strip()
             if not payment_account_info:
-                # Mobikwik rejects empty paymentAccountInfo; fallback to customer mobile for voucher/UPI flow.
+                # Mobikwik rejects empty paymentAccountInfo; fallback to customer mobile for voucher flow.
                 payment_account_info = customer_mobile
-            # Mobikwik retailer payment: always UPI from our side (funds already secured via ParkPe voucher/PG).
+            # Mobikwik retailer payment: Cash (agent tier rejects UPI); funds already secured via ParkPe voucher/PG.
             pay_extra = {
                 "remitterName": str(body.get("customerName") or body.get("remitterName") or "").strip(),
                 "customerMobile": customer_mobile,
                 "paymentAccountInfo": payment_account_info,
-                "paymentMode": "UPI",
+                "paymentMode": "Cash",
                 "paymentRefID": str(body.get("paymentRefID") or ref_id).strip() or ref_id,
             }
             # remove empty optional keys (Mobikwik rejects mandatory remitterName; keep that key as-is)
@@ -887,9 +974,34 @@ class BBPSPayBillView(APIView):
                     "parkpe_bbps_pay failed",
                     extra_data={"operator_id": operator_id, "message": result.get("message")},
                 )
-                resp_fail = {"detail": result.get("message", "Payment failed")}
-                vendor_resp_id = _vendor_response_id_from_result(result, "pay_bill")
-                extra_fail = {"operator_id": operator_id, "message": result.get("message")}
+                ref_for_record = _bbps_pay_reference_id(result if isinstance(result, dict) else None, ref_id)
+                try:
+                    from decimal import Decimal as _Dec
+                    from portal.services.parkpe_bbps_bill_payment_record_service import upsert_from_pay_failed
+
+                    upsert_from_pay_failed(
+                        user=user,
+                        reference_id=ref_for_record,
+                        operator_id=operator_id,
+                        bill_id=bill_id,
+                        consumer_id=consumer_id,
+                        amount=_Dec(str(amount_float)),
+                        payment_method=str(payment_method or ""),
+                        result_dict=result if isinstance(result, dict) else {},
+                        error_message=str((result or {}).get("message") or "") if isinstance(result, dict) else "",
+                    )
+                except Exception:
+                    logger.exception("parkpe_bbps_pay_failed_record_save_failed", extra_data={"reference_id": str(ref_for_record)[:64]})
+                msg_fail = (result or {}).get("message", "Payment failed") if isinstance(result, dict) else "Payment failed"
+                resp_fail = {
+                    "detail": msg_fail,
+                    "success": False,
+                    "transactionId": ref_for_record,
+                    "billId": bill_id,
+                    "amount": amount_float,
+                }
+                vendor_resp_id = _vendor_response_id_from_result(result, "pay_bill") if isinstance(result, dict) else None
+                extra_fail = {"operator_id": operator_id, "message": ((result or {}).get("message") if isinstance(result, dict) else None)}
                 if vendor_resp_id:
                     extra_fail["vendor_response_id"] = vendor_resp_id
                 log_parkpe(
@@ -930,6 +1042,23 @@ class BBPSPayBillView(APIView):
                 "timestamp": None,
                 "message": "Payment submitted",
             }
+            try:
+                from decimal import Decimal as _Dec
+                from portal.services.parkpe_bbps_bill_payment_record_service import upsert_from_pay_submitted
+
+                upsert_from_pay_submitted(
+                    user=user,
+                    reference_id=txn_id,
+                    operator_id=operator_id,
+                    bill_id=bill_id,
+                    consumer_id=consumer_id,
+                    amount=_Dec(str(amount_float)),
+                    payment_method=str(payment_method or ""),
+                    result_dict=result,
+                    angular_status=angular_response.get("status"),
+                )
+            except Exception:
+                logger.exception("parkpe_bbps_pay_record_save_failed", extra_data={"transaction_id": str(txn_id)[:64]})
             vendor_resp_id = _vendor_response_id_from_result(result, "pay_bill") or txn_id
             log_parkpe(
                 "parkpe_bbps", "Pay bill success", True, request,
@@ -1188,8 +1317,35 @@ class BBPSPayCartView(APIView):
                     "parkpe_bbps_pay_cart bill failed",
                     extra_data={"operator_id": item["operatorId"], "message": result.get("message")},
                 )
+                ref_for_record = _bbps_pay_reference_id(result if isinstance(result, dict) else None, item["billId"])
+                try:
+                    from portal.services.parkpe_bbps_bill_payment_record_service import upsert_from_pay_failed
+
+                    upsert_from_pay_failed(
+                        user=user,
+                        reference_id=ref_for_record,
+                        operator_id=item["operatorId"],
+                        bill_id=item["billId"],
+                        consumer_id=item["consumerId"],
+                        amount=Decimal(str(item["amount"])),
+                        payment_method="voucher",
+                        result_dict=result if isinstance(result, dict) else {},
+                        error_message=str((result or {}).get("message") or "") if isinstance(result, dict) else "",
+                    )
+                except Exception:
+                    logger.exception(
+                        "parkpe_bbps_pay_cart_failed_record_save_failed",
+                        extra_data={"reference_id": str(ref_for_record)[:64]},
+                    )
                 return Response(
-                    {"detail": result.get("message", "Payment failed for one or more bills."), "results": results},
+                    {
+                        "detail": result.get("message", "Payment failed for one or more bills."),
+                        "success": False,
+                        "transactionId": ref_for_record,
+                        "billId": item["billId"],
+                        "amount": item["amount"],
+                        "results": results,
+                    },
                     status=status.HTTP_502_BAD_GATEWAY,
                 )
             txn_id = result.get("transaction_id") or item["billId"]
@@ -1201,6 +1357,22 @@ class BBPSPayCartView(APIView):
                 "transactionId": txn_id,
                 "status": result.get("status") or "SUBMITTED",
             })
+            try:
+                from portal.services.parkpe_bbps_bill_payment_record_service import upsert_from_pay_submitted
+
+                upsert_from_pay_submitted(
+                    user=user,
+                    reference_id=txn_id,
+                    operator_id=item["operatorId"],
+                    bill_id=item["billId"],
+                    consumer_id=item["consumerId"],
+                    amount=Decimal(str(item["amount"])),
+                    payment_method="voucher",
+                    result_dict=result,
+                    angular_status=result.get("status") or "SUBMITTED",
+                )
+            except Exception:
+                logger.exception("parkpe_bbps_pay_cart_record_save_failed", extra_data={"transaction_id": str(txn_id)[:64]})
 
         # All Mobikwik calls succeeded; debit voucher once for total
         amount_decimal = Decimal(str(total))

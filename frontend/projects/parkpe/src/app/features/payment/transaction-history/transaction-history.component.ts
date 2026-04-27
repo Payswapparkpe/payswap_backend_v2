@@ -51,6 +51,18 @@ export class TransactionHistoryComponent implements OnInit {
     return TXN_TYPE_LABELS[type?.toLowerCase()] ?? (type ? type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—');
   }
 
+  /** Credit/Debit column: Refund for BBPS rollback rows when API sends creditDebitLabel. */
+  creditDebitDisplay(txn: Transaction): string {
+    if (txn.creditDebitLabel?.trim()) {
+      return txn.creditDebitLabel.trim();
+    }
+    const d = txn.transactionTypeDirection;
+    if (!d) {
+      return '—';
+    }
+    return d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
+  }
+
   ngOnInit() {
     this.load();
   }

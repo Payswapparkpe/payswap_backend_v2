@@ -42,6 +42,11 @@ export class BBPSService {
     );
   }
 
+  /** Poll Mobikwik bill payment status (GET /api/bbps/pay-status/:ref/). */
+  getBillPaymentStatus(refId: string) {
+    return this.api.getBbpsPayStatus(refId);
+  }
+
   payBill(payload: BBPSPaymentRequest): Observable<BBPSPaymentResponse> {
     this.logger.info('payBill', { service: 'bbps', action: 'payBill', operatorId: payload?.operatorId });
     return this.api.payBill(payload).pipe(

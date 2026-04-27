@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import uuid
 import logging
 import re
 from datetime import datetime, date, timedelta
@@ -54,6 +55,7 @@ from portal.models import (
     LogEntry,
     FleetWorkspaceInterest,
     FleetDriverRoster,
+    ParkPeChallanRecord,
 )
 from portal.services.parkpe_voucherx_bridge import (
     get_parkpe_brand_id,
@@ -72,6 +74,7 @@ from portal.utils.phone_utils import format_phone_display, normalize_phone_numbe
 from portal.utils.voucher_utils import unformat_voucher_code
 from portal.services.voucher_service import VoucherService
 from portal.services.cashfree_vehicle_rc import fetch_vehicle_rc
+from portal.services.vendors.instantpay import InstantpayClient
 from api.connect.serializers import VehicleCreateSerializer
 from api.connect.views.vehicle_views import _normalize_registration
 from api.utils.client_ip import get_client_ip
@@ -1185,6 +1188,11 @@ class FastagRechargeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # This endpoint already writes explicit business logs via log_parkpe().
+        # Skip generic audit middleware row to prevent duplicate entries.
+        request._skip_parkpe_audit_log = True
+        if hasattr(request, "_request"):
+            request._request._skip_parkpe_audit_log = True
         body = request.data if isinstance(request.data, dict) else {}
         vehicle_number = str(body.get("vehicleNumber") or body.get("fastagId") or "").strip()
         amount = body.get("amount")
@@ -1293,9 +1301,19 @@ class FastagRechargeView(APIView):
             "remitterName": customer_name or request.user.username or "ParkPe User",
             "customerMobile": customer_phone,
             "paymentAccountInfo": customer_phone or vehicle_number,
-            "paymentMode": str(body.get("paymentMode") or "UPI").strip() or "UPI",
+            "paymentMode": str(body.get("paymentMode") or "Cash").strip() or "Cash",
             "paymentRefID": tid,
         }
+        agent_override = str(body.get("agentId") or "").strip()
+        cfg_agent = getattr(payswap_config, "MOBIKWIK_BBPS_AGENT_ID", None)
+        cfg_agent_str = (
+            cfg_agent.get_secret_value()
+            if cfg_agent is not None and hasattr(cfg_agent, "get_secret_value")
+            else str(cfg_agent or "")
+        ).strip()
+        chosen_agent = agent_override or cfg_agent_str
+        if chosen_agent:
+            extra["agentId"] = chosen_agent
         extra = {k: v for k, v in extra.items() if v not in (None, "") or k == "remitterName"}
 
         result = service.pay_bill(
@@ -1583,6 +1601,14 @@ def _render_user_receipt_html(doc: BillingDocument) -> str:
     )
 
 
+def _is_bbps_voucher_rollback_credit(txn):
+    """Post-failed BBPS pay: amount credited back to voucher (show as Refund in UI, not plain Credit)."""
+    if txn.transaction_type != ParkPeVoucherTransaction.CREDIT:
+        return False
+    desc = (txn.description or "").strip().lower()
+    return "rollback" in desc and "bbps" in desc
+
+
 def _transaction_from_voucher_txn(txn):
     """Map ParkPeVoucherTransaction to Angular Transaction shape."""
     sc = (txn.service_code or "other").strip().lower().replace(" ", "_") or "other"
@@ -1649,11 +1675,30 @@ def _transaction_from_voucher_txn(txn):
         "description": description,
         "transactionTypeDirection": txn.transaction_type,  # 'credit' | 'debit'
     }
+    if _is_bbps_voucher_rollback_credit(txn):
+        out["creditDebitLabel"] = "Refund"
     if txn.balance_after is not None:
         out["balanceAfter"] = float(txn.balance_after)
     if getattr(txn, "user_id", None):
         _merge_tax_for_voucher_txn(txn, out)
     return out
+
+
+def _payment_history_dedupe_key(t: dict) -> tuple:
+    """
+    Stable key for merging voucher txns + PG orders into one history list.
+
+    The same BBPS bill reference_id is stored on both the voucher debit row and the
+    rollback credit row; they must not collapse into one. Voucher purchase rows still
+    dedupe: order + credit share the same transactionId (order_id).
+    """
+    tid = str(t.get("transactionId") or t.get("id") or "").strip()
+    ttype = (t.get("transactionType") or "").strip().lower()
+    if ttype == "bbps":
+        direction = (t.get("transactionTypeDirection") or "").strip().lower()
+        label = (t.get("creditDebitLabel") or "").strip()
+        return ("bbps", tid, direction, label)
+    return ("default", tid)
 
 
 def _parse_date_param(value):
@@ -1754,14 +1799,15 @@ class PaymentTransactionsListView(APIView):
         combined_raw.sort(key=lambda x: x[0], reverse=True)
         combined = [t for _, t in combined_raw]
 
-        # 4. Deduplicate: same order_id can appear as both order and (later) voucher credit – keep one (prefer voucher txn for consistency)
+        # 4. Deduplicate: same order_id can appear as both order and voucher credit — keep one.
+        # BBPS debit + rollback share transactionId (bill ref) but must both appear.
         seen_ids = set()
         deduped = []
         for t in combined:
-            tid = t.get("transactionId") or t.get("id")
-            if tid in seen_ids:
+            dk = _payment_history_dedupe_key(t)
+            if dk in seen_ids:
                 continue
-            seen_ids.add(tid)
+            seen_ids.add(dk)
             if filter_type and t.get("transactionType") != filter_type:
                 continue
             if filter_status and t.get("status") != filter_status:
@@ -3175,3 +3221,355 @@ class FleetWorkspaceInterestSubmitView(APIView):
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+
+def _encode_challan_id(vehicle_number: str, challan_number: str) -> str:
+    raw = f"{(vehicle_number or '').strip().upper()}|{(challan_number or '').strip()}"
+    token = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+    return token.rstrip("=")
+
+
+def _decode_challan_id(challan_id: str) -> tuple[str, str]:
+    val = str(challan_id or "").strip()
+    if not val:
+        return "", ""
+    try:
+        padded = val + ("=" * (-len(val) % 4))
+        decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        vehicle_number, challan_number = decoded.split("|", 1)
+        return vehicle_number.strip().upper(), challan_number.strip()
+    except Exception:
+        return "", ""
+
+
+def _normalize_challan_status(raw_status: str) -> str:
+    s = str(raw_status or "").strip().lower()
+    if s in {"paid", "success", "successful", "completed"}:
+        return "paid"
+    if s in {"overdue", "expired"}:
+        return "overdue"
+    if s in {"disputed"}:
+        return "disputed"
+    return "pending"
+
+
+def _to_amount(raw) -> float:
+    try:
+        return float(raw)
+    except Exception:
+        return 0.0
+
+
+def _pick_value(item: dict, keys: list[str], default=""):
+    for key in keys:
+        if key in item and item.get(key) not in (None, ""):
+            return item.get(key)
+    return default
+
+
+def _extract_challan_records(vendor_json: dict | None) -> list[dict]:
+    if not isinstance(vendor_json, dict):
+        return []
+    for key in ("challans", "data", "result", "records", "items"):
+        value = vendor_json.get(key)
+        if isinstance(value, list):
+            return [row for row in value if isinstance(row, dict)]
+        if isinstance(value, dict):
+            nested = (
+                value.get("challans")
+                or value.get("items")
+                or value.get("records")
+                or value.get("vehicleData")
+                or value.get("vehicalData")
+            )
+            if isinstance(nested, list):
+                return [row for row in nested if isinstance(row, dict)]
+    return []
+
+
+def _normalize_instantpay_challan_row(raw_row: dict, vehicle_number: str, state_hint: str = "") -> dict:
+    challan_no = str(
+        _pick_value(
+            raw_row,
+            ["challanNumber", "challan_no", "challanNo", "notice_no", "noticeNo", "number", "id"],
+            "",
+        )
+    ).strip()
+    effective_vehicle = str(
+        _pick_value(raw_row, ["vehicleNumber", "vehicle_number", "registrationNumber", "registration_no"], vehicle_number)
+    ).strip().upper()
+    offences = raw_row.get("offences")
+    first_offence = offences[0] if isinstance(offences, list) and offences and isinstance(offences[0], dict) else {}
+    offence = str(
+        _pick_value(
+            raw_row,
+            ["offence", "offence_name", "violation", "reason"],
+            _pick_value(first_offence, ["offenceName", "name"], "Traffic challan"),
+        )
+    ).strip()
+    location = str(_pick_value(raw_row, ["location", "place", "address", "city", "challanPlace"], "Not specified")).strip()
+    state = str(_pick_value(raw_row, ["state", "state_code", "stateName", "rcStateCode"], state_hint)).strip()
+    amount = _to_amount(
+        _pick_value(raw_row, ["amount", "base_amount", "fine_amount", "fineAmount", "challanAmount"], 0)
+    )
+    penalty = _to_amount(_pick_value(raw_row, ["penaltyAmount", "penalty_amount", "late_fee"], 0))
+    total_amount = _to_amount(
+        _pick_value(raw_row, ["totalAmount", "total_amount", "payable_amount", "challanAmount"], amount + penalty)
+    )
+    status_raw = _pick_value(raw_row, ["status", "payment_status", "challan_status", "challanStatus"], "pending")
+    challan_id = _encode_challan_id(effective_vehicle, challan_no or str(raw_row.get("id") or ""))
+    return {
+        "id": challan_id,
+        "challanNumber": challan_no or f"CHALLAN-{challan_id[:10]}",
+        "vehicleNumber": effective_vehicle,
+        "vehicleOwnerName": str(_pick_value(raw_row, ["ownerName", "owner_name", "name", "userName"], "")).strip(),
+        "offence": offence,
+        "offenceCode": str(_pick_value(raw_row, ["offenceCode", "offence_code", "violationCode", "motorVehicleAct"], "")).strip(),
+        "offenceDate": _pick_value(raw_row, ["offenceDate", "offence_date", "date", "challan_date", "challanDate"], ""),
+        "location": location,
+        "state": state,
+        "amount": amount,
+        "penaltyAmount": penalty,
+        "totalAmount": total_amount,
+        "currency": "INR",
+        "dueDate": _pick_value(raw_row, ["dueDate", "due_date", "payment_due_date"], ""),
+        "status": _normalize_challan_status(str(status_raw)),
+        "issuingAuthority": str(
+            _pick_value(raw_row, ["issuingAuthority", "issuing_authority", "authority"], "Traffic Police")
+        ).strip(),
+        "officerName": str(_pick_value(raw_row, ["officerName", "officer_name"], "")).strip(),
+        "additionalDetails": [
+            {"label": str(k), "value": str(v)}
+            for k, v in raw_row.items()
+            if k not in {"amount", "penalty_amount", "penaltyAmount", "total_amount", "totalAmount"}
+        ][:8],
+        "images": [],
+        "paymentDeadline": _pick_value(raw_row, ["paymentDeadline", "payment_deadline", "dueDate", "due_date"], ""),
+    }
+
+
+def _challan_row_from_cache(rec: ParkPeChallanRecord) -> dict:
+    base = {
+        "id": rec.challan_id or _encode_challan_id(rec.vehicle_number, rec.challan_number),
+        "challanNumber": rec.challan_number,
+        "vehicleNumber": rec.vehicle_number,
+        "vehicleOwnerName": rec.vehicle_owner_name or "",
+        "offence": rec.offence or "Traffic challan",
+        "offenceCode": "",
+        "offenceDate": rec.offence_date or "",
+        "location": rec.location or "Not specified",
+        "state": rec.state or "",
+        "amount": float(rec.amount or 0),
+        "penaltyAmount": float(rec.penalty_amount or 0),
+        "totalAmount": float(rec.total_amount or 0),
+        "currency": rec.currency or "INR",
+        "dueDate": rec.due_date or "",
+        "status": _normalize_challan_status(rec.status or "pending"),
+        "issuingAuthority": rec.issuing_authority or "Traffic Police",
+        "officerName": rec.officer_name or "",
+        "additionalDetails": [],
+        "images": [],
+        "paymentDeadline": rec.payment_deadline or "",
+    }
+    if isinstance(rec.payload_json, dict):
+        base["additionalDetails"] = [
+            {"label": str(k), "value": str(v)}
+            for k, v in rec.payload_json.items()
+            if k not in {"amount", "penalty_amount", "penaltyAmount", "total_amount", "totalAmount"}
+        ][:8]
+    return base
+
+
+def _get_cached_challan_rows(user, vehicle_number: str) -> list[dict]:
+    qs = (
+        ParkPeChallanRecord.objects.filter(
+            user=user,
+            vehicle_number=str(vehicle_number or "").strip().upper(),
+        )
+        .order_by("-last_seen_at", "-updated_at")
+    )
+    return [_challan_row_from_cache(rec) for rec in qs]
+
+
+def _upsert_cached_challans(user, vehicle_number: str, challans: list[dict]) -> None:
+    normalized_vehicle = str(vehicle_number or "").strip().upper()
+    if not normalized_vehicle or not isinstance(challans, list):
+        return
+    now = timezone.now()
+    for row in challans:
+        if not isinstance(row, dict):
+            continue
+        challan_no = str(row.get("challanNumber") or "").strip()
+        if not challan_no:
+            continue
+        defaults = {
+            "challan_id": str(row.get("id") or _encode_challan_id(normalized_vehicle, challan_no)).strip(),
+            "status": str(row.get("status") or "pending"),
+            "state": str(row.get("state") or ""),
+            "offence": str(row.get("offence") or ""),
+            "offence_date": str(row.get("offenceDate") or ""),
+            "location": str(row.get("location") or ""),
+            "amount": Decimal(str(row.get("amount") or 0)),
+            "penalty_amount": Decimal(str(row.get("penaltyAmount") or 0)),
+            "total_amount": Decimal(str(row.get("totalAmount") or 0)),
+            "currency": str(row.get("currency") or "INR"),
+            "vehicle_owner_name": str(row.get("vehicleOwnerName") or ""),
+            "issuing_authority": str(row.get("issuingAuthority") or ""),
+            "officer_name": str(row.get("officerName") or ""),
+            "due_date": str(row.get("dueDate") or ""),
+            "payment_deadline": str(row.get("paymentDeadline") or ""),
+            "payload_json": row,
+            "last_seen_at": now,
+        }
+        ParkPeChallanRecord.objects.update_or_create(
+            user=user,
+            vehicle_number=normalized_vehicle,
+            challan_number=challan_no,
+            defaults=defaults,
+        )
+
+
+def _instantpay_challan_lookup(*, request, vehicle_number: str, state: str = "") -> tuple[dict, list[dict], str]:
+    """Step 1: client (ParkPe app) log; step 2: Instantpay vendor log inside InstantpayClient.request."""
+    req_trace = getattr(request, "request_id", None) or str(uuid.uuid4())
+    if isinstance(req_trace, str) and len(req_trace) > 100:
+        req_trace = req_trace[:100]
+    log_parkpe(
+        "parkpe_challan",
+        "Challan lookup: ParkPe app → API (before Instantpay)",
+        True,
+        request,
+        {"vehicleNumber": vehicle_number, "state": state, "flow": "client_request"},
+        log_level="INFO",
+        chain_step=1,
+        log_role="client",
+        correlation_id=req_trace,
+    )
+    client = InstantpayClient()
+    partner_txn_id = f"parkpe_challan_{timezone.now().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}"
+    payload = {
+        "partner_txn_id": partner_txn_id,
+        # Keep both keys for compatibility across Instantpay route variants.
+        "vehicleNumber": vehicle_number,
+        "vehicle_number": vehicle_number,
+        "vehicleRegistrationNumber": vehicle_number,
+    }
+    if state:
+        payload["state"] = state
+    result = client.request(
+        "vehicle_challan_lookup",
+        payload,
+        log_context={
+            "correlation_id": req_trace,
+            "chain_step": 2,
+            "request": request,
+        },
+    )
+    records = _extract_challan_records(result.get("json") or {})
+    normalized = [_normalize_instantpay_challan_row(row, vehicle_number, state) for row in records]
+    vendor_status = str(result.get("vendor_status") or "")
+    return result, normalized, vendor_status
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanSearchView(APIView):
+    """GET /api/challan/search?vehicleNumber=KA01AB1234&state=KA"""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        vehicle_number = (
+            request.GET.get("vehicleNumber")
+            or request.GET.get("vehicle_number")
+            or request.GET.get("registrationNumber")
+            or ""
+        )
+        vehicle_number = _normalize_registration(vehicle_number)
+        state = str(request.GET.get("state") or "").strip().upper()
+        if not vehicle_number:
+            return Response({"detail": "vehicleNumber is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        force_refresh = str(request.GET.get("refresh") or request.GET.get("forceRefresh") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+        }
+        cached = _get_cached_challan_rows(request.user, vehicle_number)
+        if cached and not force_refresh:
+            return Response(cached)
+
+        result, challans, vendor_status = _instantpay_challan_lookup(
+            request=request,
+            vehicle_number=vehicle_number,
+            state=state,
+        )
+        if not result.get("success"):
+            return Response(
+                {
+                    "detail": result.get("message") or result.get("error") or "Instantpay challan lookup failed.",
+                    "vendorStatus": vendor_status,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        _upsert_cached_challans(request.user, vehicle_number, challans)
+        return Response(challans)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanDetailView(APIView):
+    """GET /api/challan/<id>"""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, challan_id: str):
+        vehicle_number, challan_number = _decode_challan_id(challan_id)
+        if not vehicle_number or not challan_number:
+            return Response({"detail": "Invalid challan id."}, status=status.HTTP_400_BAD_REQUEST)
+        cached_rows = _get_cached_challan_rows(request.user, vehicle_number)
+        cached_row = next(
+            (row for row in cached_rows if str(row.get("challanNumber") or "").strip() == challan_number),
+            None,
+        )
+        if cached_row and str(cached_row.get("status") or "").lower() != "pending":
+            return Response(cached_row)
+        result, challans, _ = _instantpay_challan_lookup(
+            request=request,
+            vehicle_number=vehicle_number,
+        )
+        if not result.get("success"):
+            if cached_row:
+                return Response(cached_row)
+            return Response(
+                {"detail": result.get("message") or result.get("error") or "Failed to fetch challan details."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        _upsert_cached_challans(request.user, vehicle_number, challans)
+        for row in challans:
+            if str(row.get("challanNumber") or "").strip() == challan_number:
+                return Response(row)
+        cached_rows = _get_cached_challan_rows(request.user, vehicle_number)
+        for row in cached_rows:
+            if str(row.get("challanNumber") or "").strip() == challan_number:
+                return Response(row)
+        return Response({"detail": "Challan not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanPayView(APIView):
+    """POST /api/challan/<id>/pay — lookup is live, payment flow pending gateway integration."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request, challan_id: str):
+        return Response(
+            {
+                "detail": "Challan payment is not enabled yet. Vehicle challan lookup is live.",
+                "challanId": challan_id,
+            },
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )

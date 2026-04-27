@@ -85,9 +85,16 @@ def log_parkpe(
     response_body: Any = None,
     request_id: Optional[str] = None,
     response_id: Optional[str] = None,
+    *,
+    chain_step: Optional[int] = None,
+    log_role: Optional[str] = None,
+    correlation_id: Optional[str] = None,
 ) -> None:
     """
     Create a LogEntry for ParkPe frontend activity so it appears in backend log screen.
+    Convention: if an endpoint uses explicit log_parkpe() business logs, set
+    request._skip_parkpe_audit_log=True (and DRF request._request too) so audit middleware
+    does not add a duplicate generic row for the same request.
     category: one of PARKPE_LOG_CATEGORIES
     message: short description (e.g. "Categories", "Fetch bill", "Login success")
     success: True for success, False for failure
@@ -105,6 +112,9 @@ def log_parkpe(
     try:
         req_id = request_id if request_id is not None else (getattr(request, "request_id", None) if request else None)
         resp_id = response_id if response_id is not None else (getattr(request, "response_id", None) if request else None)
+        trace = (correlation_id or req_id) if (correlation_id or req_id) else None
+        if trace and len(str(trace)) > 100:
+            trace = str(trace)[:100]
         extra = dict(extra_data or {}, source="ParkPe")
         if category == "parkpe_bbps" and message:
             msg_lower = message.lower()
@@ -146,8 +156,99 @@ def log_parkpe(
             client_ip=_get_client_ip(request),
             user_agent=_get_user_agent(request),
             extra_data=extra,
-            request_id=req_id,
+            request_id=str(req_id)[:100] if req_id else None,
             response_id=resp_id,
+            correlation_id=trace,
+            chain_step=chain_step,
+            log_role=log_role or ("client" if chain_step == 1 else None),
+        )
+    except Exception:
+        pass
+
+
+def _truncate_for_log(data: Any, max_len: int = 2000) -> str:
+    try:
+        s = json.dumps(data, default=str, ensure_ascii=False) if not isinstance(data, str) else data
+    except Exception:
+        s = str(data) if data is not None else ""
+    s = s[:max_len] + ("..." if len(s) > max_len else "")
+    return s
+
+
+def log_instantpay_api_call(
+    api_code: str,
+    result: Dict[str, Any],
+    internal_instantpay_request_id: str,
+    *,
+    log_context: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    One LogEntry per Instantpay HTTP flow so /logs/ shows app → Instantpay in series.
+    Never raises. correlation_id should match the ParkPe / Hub request when available.
+    """
+    from portal.models import LogEntry  # local import; instantpay is vendor layer
+
+    log_context = log_context or {}
+    correlation = log_context.get("correlation_id") or log_context.get("request_id")
+    if correlation and len(str(correlation)) > 100:
+        correlation = str(correlation)[:100]
+    chain_step = int(log_context.get("chain_step") or 2)
+    django_request = log_context.get("request")
+    user = log_context.get("user")
+    if user is None and django_request and getattr(django_request, "user", None) and django_request.user.is_authenticated:
+        user = django_request.user
+    ext: Dict[str, Any] = {
+        "vendor": "Instantpay",
+        "vendor_name": "Instantpay",
+        "api_code": api_code,
+        "http_status": result.get("status_code"),
+        "success": bool(result.get("success")),
+        "vendor_status": (str(result.get("vendor_status") or ""))[:200],
+        "instantpay_x_request_id": str(internal_instantpay_request_id)[:100],
+    }
+    if result.get("error"):
+        ext["error"] = str(result.get("error"))[:2000]
+    if result.get("message"):
+        ext["message"] = str(result.get("message"))[:1000]
+    if result.get("attempted_path"):
+        ext["attempted_path"] = str(result.get("attempted_path"))[:500]
+    request_meta = result.get("request_meta")
+    if isinstance(request_meta, dict):
+        safe_meta: Dict[str, Any] = {}
+        for k in (
+            "auth_mode",
+            "timestamp_sent",
+            "auth_code_sha256",
+            "auth_code_prefix",
+            "auth_code_suffix",
+            "header_names",
+            "normalized_payload",
+        ):
+            if request_meta.get(k) is not None:
+                safe_meta[k] = request_meta.get(k)
+        if safe_meta:
+            ext["request_meta"] = safe_meta
+    j = result.get("json")
+    if isinstance(j, dict):
+        ext["response_snippet"] = _truncate_for_log(j, 2000)
+    elif result.get("body") is not None:
+        ext["response_snippet"] = _truncate_for_log(result.get("body"), 1000)
+    level = "INFO" if result.get("success") else "ERROR"
+    st = result.get("status_code", "—")
+    try:
+        LogEntry.objects.create(
+            log_level=level,
+            category="instantpay",
+            message=f"Instantpay {api_code} · HTTP {st}"[:500],
+            module_name="portal.services.vendors.instantpay",
+            user=user if user and getattr(user, "pk", None) else None,
+            client_ip=_get_client_ip(django_request),
+            user_agent=_get_user_agent(django_request),
+            request_id=correlation,
+            correlation_id=correlation,
+            chain_step=chain_step,
+            log_role="vendor",
+            extra_data=ext,
         )
     except Exception:
         pass

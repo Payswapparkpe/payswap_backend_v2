@@ -103,22 +103,41 @@ class SuperDashboardView(TemplateView):
         return context
 
 
+# Vendors to omit from the "Vendor Pool Balance" grid (no pool card / not used on this screen).
+_VENDOR_POOL_BALANCE_EXCLUDED_CODES = frozenset(
+    {
+        "cashfree",
+        "cashfree_pg",
+        "euronet",
+        "paypoint",
+        "paypoint_dmt",
+    }
+)
+
+
 def _get_vendor_pool_balances():
     """Fetch vendor pool balance cards for dashboard."""
     def _extract_instantpay_business_balance(payload):
-        """Extract business wallet balance (strict closingBalance first)."""
+        """Extract business wallet balance from balance API and statement fallback."""
         if not isinstance(payload, dict):
             return None
 
-        # Strict preference: closing balance from statement response.
-        direct_keys = ('closingBalance', 'closing_balance')
+        # Prefer explicit wallet available balance from /accounts/balance.
+        direct_keys = ('available', 'total', 'closingBalance', 'closing_balance')
         for key in direct_keys:
             value = payload.get(key)
             if value not in (None, ''):
                 return value
 
+        balance_obj = payload.get('balance')
+        if isinstance(balance_obj, dict):
+            for key in ('available', 'total', 'closingBal', 'closingBalance'):
+                value = balance_obj.get(key)
+                if value not in (None, ''):
+                    return value
+
         # Nested wrappers that vendors commonly use
-        for container_key in ('data', 'result', 'statement', 'account', 'wallet'):
+        for container_key in ('data', 'result', 'statement', 'account', 'wallet', 'pool'):
             nested = payload.get(container_key)
             if isinstance(nested, dict):
                 value = _extract_instantpay_business_balance(nested)
@@ -138,6 +157,8 @@ def _get_vendor_pool_balances():
 
     vendor_rows = []
     for vendor in ApiVendor.objects.filter(is_active=True).order_by('name'):
+        if vendor.code in _VENDOR_POOL_BALANCE_EXCLUDED_CODES:
+            continue
         row = {
             'vendor_code': vendor.code,
             'vendor_name': vendor.name,
@@ -169,15 +190,15 @@ def _get_vendor_pool_balances():
                         row['message'] = 'Set INSTANTPAY_REPORT_ACCOUNT_NUMBER in .env'
                         vendor_rows.append(row)
                         continue
-                    today = datetime.now().strftime('%Y-%m-%d')
                     result = client.request(
-                        'account_statement',
+                        'business_wallet_balance',
                         {
                             'bankProfileId': payswap_config.get_instantpay_report_bank_profile_id(),
                             'accountNumber': account_number,
+                            'accountType': payswap_config.get_instantpay_report_account_type(),
                             'externalRef': f"DB{int(datetime.now().timestamp())}",
-                            'pagination': {'pageNumber': 1, 'recordsPerPage': 1},
-                            'filters': {'txnDateFrom': today, 'txnDateTo': today},
+                            'latitude': '20.1236',
+                            'longitude': '78.3228',
                         },
                     )
                     if result.get('success'):
@@ -190,11 +211,11 @@ def _get_vendor_pool_balances():
                                 row['balance'] = extracted_balance
                         if row['balance'] is not None:
                             row['available'] = True
-                            row['message'] = 'Live Instantpay business wallet balance (from account statement)'
+                            row['message'] = 'Live Instantpay business wallet balance'
                         else:
-                            row['message'] = 'Instantpay account statement received, but business wallet balance not found'
+                            row['message'] = 'Instantpay business wallet response received, but balance not found'
                     else:
-                        row['message'] = result.get('message') or result.get('error') or 'Account statement fetch failed'
+                        row['message'] = result.get('message') or result.get('error') or 'Business wallet balance fetch failed'
                 else:
                     row['message'] = 'Instantpay not configured'
             elif vendor.code == 'cashfree_pg':

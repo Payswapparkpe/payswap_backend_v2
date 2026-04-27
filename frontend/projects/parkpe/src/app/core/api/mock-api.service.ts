@@ -492,6 +492,16 @@ export class MockApiService implements ApiBackend {
     }).pipe(delay(this.bbpsDelay));
   }
 
+  getBbpsPayStatus(refId: string): Observable<import('./api-backend.interface').BbpsPayStatusResponse> {
+    const res: import('./api-backend.interface').BbpsPayStatusResponse = {
+      success: true,
+      ref_id: refId,
+      vendorStatus: 'SUCCESS',
+      phase: 'success',
+    };
+    return of(res).pipe(delay(this.bbpsDelay));
+  }
+
   getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]> {
     return of([]).pipe(delay(this.bbpsDelay));
   }

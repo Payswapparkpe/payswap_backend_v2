@@ -57,6 +57,7 @@ import type {
   BbpsSavedBillApi,
   BbpsSavedBillAdd,
   BbpsPayCartResponse,
+  BbpsPayStatusResponse,
   NotificationBannerItem,
   InboxNotificationItem,
   FleetControlCenterResponse,
@@ -608,6 +609,13 @@ export class RealApiService implements ApiBackend {
     );
   }
 
+  getBbpsPayStatus(refId: string): Observable<BbpsPayStatusResponse> {
+    const id = encodeURIComponent(String(refId || '').trim());
+    return this.http.get<BbpsPayStatusResponse>(`${this.apiUrl}/bbps/pay-status/${id}/`, {
+      headers: this.bbpsHeaders,
+    });
+  }
+
   getBbpsFavorites(): Observable<{ operatorId: string; operatorName: string; category: string; mobikwikOpId?: string }[]> {
     return this.getCached(
       'bbps:favorites',
@@ -678,20 +686,30 @@ export class RealApiService implements ApiBackend {
     );
   }
 
-  // Challan API – backend routes not yet implemented
-  searchChallans(_request: ChallanSearchRequest): Observable<Challan[]> {
-    return throwError(() => new Error(UNSUPPORTED));
+  // Challan API (Instantpay lookup via backend)
+  searchChallans(request: ChallanSearchRequest): Observable<Challan[]> {
+    let httpParams = new HttpParams().set('vehicleNumber', request.vehicleNumber);
+    if (request.state) httpParams = httpParams.set('state', request.state);
+    if (request.chassisNumber) httpParams = httpParams.set('chassisNumber', request.chassisNumber);
+    if (request.engineNumber) httpParams = httpParams.set('engineNumber', request.engineNumber);
+    if (request.forceRefresh) httpParams = httpParams.set('refresh', '1');
+    return this.http.get<Challan[]>(`${this.apiUrl}/challan/search`, {
+      params: httpParams,
+    });
   }
 
-  getChallan(_id: string): Observable<Challan> {
-    return throwError(() => new Error(UNSUPPORTED));
+  getChallan(id: string): Observable<Challan> {
+    return this.http.get<Challan>(`${this.apiUrl}/challan/${encodeURIComponent(id)}`);
   }
 
   payChallan(
-    _id: string,
-    _payload: ChallanPaymentRequest
+    id: string,
+    payload: ChallanPaymentRequest
   ): Observable<ChallanPaymentResponse> {
-    return throwError(() => new Error(UNSUPPORTED));
+    return this.http.post<ChallanPaymentResponse>(
+      `${this.apiUrl}/challan/${encodeURIComponent(id)}/pay`,
+      payload
+    );
   }
 
   // Dashboard API

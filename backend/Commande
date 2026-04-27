@@ -1,0 +1,16 @@
+Repo root se:
+
+make parkpe-app
+Yeh parkpe_app folder mein jāyegā, flutter pub get chalayegā, phir flutter run (jo device Flutter pick karega — simulator / emulator / connected device).
+
+Device choose karna ho
+Device id/name flutter devices se dekho, phir:
+
+make parkpe-app DEVICE=macos
+ya
+
+make parkpe-app DEVICE=chrome
+Sirf Flutter, bina make:
+
+
+cd parkpe_app && flutter pub get && flutter run

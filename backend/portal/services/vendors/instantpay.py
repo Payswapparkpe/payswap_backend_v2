@@ -72,12 +72,14 @@ class InstantpayClient:
         "aeps_withdraw": ("POST", "/aeps/withdraw"),
         "balance_check": ("POST", "/aeps/balance-check"),
         "account_statement": ("POST", "/reports/statement"),
+        "business_wallet_balance": ("POST", "/accounts/balance"),
         "dmt_transfer": ("POST", "/dmt/transfer"),
         "remittance_domestic": ("POST", "/remittance/domestic"),
         "remittance_nepal": ("POST", "/remittance/nepal"),
         "credit_card_bill_pay": ("POST", "/billpay/credit-card"),
         "rc_verification": ("POST", "/vehicle/rc-verification"),
-        "vehicle_challan_lookup": ("POST", "/vehicle/challan-lookup"),
+        # Instantpay identity verification suite (documented endpoint).
+        "vehicle_challan_lookup": ("POST", "/identity/vehicleChallan"),
         "digilocker_init": ("POST", "/digilocker/init"),
         "digilocker_status": ("GET", "/digilocker/status"),
         "card_bin_lookup": ("POST", "/cards/bin-lookup"),
@@ -95,10 +97,12 @@ class InstantpayClient:
         self.client_secret = payswap_config.get_instantpay_client_secret()
         self.encryption_key = payswap_config.get_instantpay_encryption_key()
         self.auth_code = payswap_config.get_instantpay_auth_code()
+        self.identity_auth_mode = payswap_config.get_instantpay_identity_auth_mode()
         self.endpoint_ip = payswap_config.get_instantpay_endpoint_ip() or ""
         self.environment = (payswap_config.INSTANTPAY_ENVIRONMENT or "SANDBOX").upper()
         self.base_url = self._resolve_base_url()
         self.timeout_seconds = 45.0
+        self._log_config_sanity()
 
     def _resolve_base_url(self) -> str:
         if payswap_config.INSTANTPAY_BASE_URL:
@@ -108,13 +112,104 @@ class InstantpayClient:
             logger.warning("INSTANTPAY_BASE_URL not set; using default api host for sandbox.")
         return "https://api.instantpay.in"
 
+    def _log_config_sanity(self) -> None:
+        """
+        Emit high-signal config warnings to catch environment/auth mismatches early.
+        This is intentionally non-blocking and never logs raw secrets.
+        """
+        url = (self.base_url or "").lower()
+        mode = (self.identity_auth_mode or "").strip().lower()
+        if self.environment == "PRODUCTION" and any(tok in url for tok in ("sandbox", "staging", "uat", "test")):
+            logger.warning(
+                f"Instantpay config mismatch: INSTANTPAY_ENVIRONMENT=PRODUCTION but base URL looks non-prod "
+                f"(base_url={self.base_url}, identity_auth_mode={mode})."
+            )
+        if self.environment == "SANDBOX" and not any(tok in url for tok in ("sandbox", "staging", "uat", "test")):
+            logger.warning(
+                f"Instantpay config mismatch: INSTANTPAY_ENVIRONMENT=SANDBOX but base URL looks prod/default "
+                f"(base_url={self.base_url}, identity_auth_mode={mode})."
+            )
+        if mode == "static" and not self.auth_code:
+            logger.warning(
+                "Instantpay identity auth mode is static but INSTANTPAY_AUTH_CODE is empty; fallback hash mode will be used."
+            )
+        if mode in {"sha256_pipe", "sha256_concat", "base64_basic", "fixed_1"} and self.auth_code:
+            logger.info(
+                "Instantpay identity auth runs in dynamic mode; INSTANTPAY_AUTH_CODE remains configured but "
+                f"unused for identity auth (identity_auth_mode={mode})."
+            )
+
     def is_configured(self) -> bool:
         return payswap_config.is_instantpay_configured()
 
     def _request_id(self) -> str:
         return str(uuid.uuid4())
 
-    def _build_headers(self, request_id: str, body: Optional[Dict[str, Any]], auth_code: Optional[str] = None) -> Dict[str, str]:
+    def _identity_auth_code_pipe(self, timestamp: str) -> str:
+        raw = f"{self.client_id}|{self.client_secret}|{timestamp}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _identity_auth_code_concat(self, timestamp: str) -> str:
+        raw = f"{self.client_id}{self.client_secret}{timestamp}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _identity_auth_code_base64(self) -> str:
+        raw = f"{self.client_id}:{self.client_secret}"
+        return base64.b64encode(raw.encode("utf-8")).decode("ascii")
+
+    def _resolve_identity_auth(
+        self, timestamp: str, explicit_auth_code: Optional[str] = None
+    ) -> tuple[str, str]:
+        if explicit_auth_code:
+            return explicit_auth_code, "explicit_override"
+        mode = (self.identity_auth_mode or "sha256_pipe").strip().lower()
+        if mode == "fixed_1":
+            return "1", "fixed_1"
+        if mode == "static":
+            if self.auth_code:
+                return self.auth_code, "static"
+            return self._identity_auth_code_pipe(timestamp), "sha256_pipe_fallback"
+        if mode == "sha256_concat":
+            return self._identity_auth_code_concat(timestamp), "sha256_concat"
+        if mode == "base64_basic":
+            return self._identity_auth_code_base64(), "base64_basic"
+        return self._identity_auth_code_pipe(timestamp), "sha256_pipe"
+
+    def _build_headers(
+        self,
+        request_id: str,
+        body: Optional[Dict[str, Any]],
+        auth_code: Optional[str] = None,
+        *,
+        auth_code_only: bool = False,
+    ) -> tuple[Dict[str, str], Dict[str, Any]]:
+        if auth_code_only:
+            ts = str(int(time.time()))
+            selected_auth_code, resolved_mode = self._resolve_identity_auth(
+                ts, explicit_auth_code=auth_code
+            )
+            headers = {
+                "Content-Type": "application/json",
+                "X-Ipay-Auth-Code": selected_auth_code,
+                "X-Ipay-Client-Id": self.client_id,
+                "X-Ipay-Client-Secret": self.client_secret,
+            }
+            if self.endpoint_ip:
+                headers["X-Ipay-Endpoint-Ip"] = self.endpoint_ip
+            if resolved_mode in {"sha256_pipe", "sha256_pipe_fallback", "sha256_concat"}:
+                headers["X-Ipay-Timestamp"] = ts
+            auth_hash = hashlib.sha256(selected_auth_code.encode("utf-8")).hexdigest()
+            meta = {
+                "auth_mode": resolved_mode,
+                "timestamp_sent": ts,
+                "auth_code_sha256": auth_hash,
+                "auth_code_prefix": selected_auth_code[:4],
+                "auth_code_suffix": selected_auth_code[-4:] if len(selected_auth_code) >= 4 else selected_auth_code,
+                "header_names": sorted(list(headers.keys())),
+            }
+            return headers, meta
+
+        selected_auth_code = auth_code if auth_code is not None else self.auth_code
         ts = str(int(time.time()))
         payload = json.dumps(body or {}, separators=(",", ":"), sort_keys=True)
         body_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -130,10 +225,9 @@ class InstantpayClient:
         }
         if self.endpoint_ip:
             headers["X-Ipay-Endpoint-Ip"] = self.endpoint_ip
-        selected_auth_code = auth_code if auth_code is not None else self.auth_code
         if selected_auth_code:
             headers["X-Ipay-Auth-Code"] = selected_auth_code
-        return headers
+        return headers, {"header_names": sorted(list(headers.keys()))}
 
     def _encrypt_optional(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -173,6 +267,9 @@ class InstantpayClient:
     def _path_candidates(self, path: str) -> list[str]:
         """Try common route prefixes because Instantpay account routes vary by tenant setup."""
         normalized = path if path.startswith("/") else f"/{path}"
+        # Identity verification APIs use fixed routes; probing /api/v1 variants yields noisy 404s.
+        if normalized.startswith("/identity/"):
+            return [normalized]
         candidates = [
             normalized,
             f"/api{normalized}",
@@ -187,25 +284,63 @@ class InstantpayClient:
                 seen.add(p)
         return deduped
 
-    def request(self, api_code: str, payload: Optional[Dict[str, Any]] = None, *, query: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def request(
+        self,
+        api_code: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        query: Optional[Dict[str, Any]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        from api.parkpe_logging import log_instantpay_api_call
+
+        _lc = dict(log_context or {})
+
+        def _emit(res: Dict[str, Any], x_request_id: str) -> Dict[str, Any]:
+            log_instantpay_api_call(api_code, res, x_request_id, log_context=_lc)
+            return res
+
         if api_code not in self.ENDPOINTS:
-            return self._normalize(api_code, 400, {}, error=f"Unsupported api_code: {api_code}")
+            rid = self._request_id()
+            return _emit(self._normalize(api_code, 400, {}, error=f"Unsupported api_code: {api_code}"), rid)
         if not self.is_configured():
-            return self._normalize(api_code, 400, {}, error="Instantpay not configured")
+            rid = self._request_id()
+            return _emit(self._normalize(api_code, 400, {}, error="Instantpay not configured"), rid)
 
         method, path = self.ENDPOINTS[api_code]
         request_id = self._request_id()
         body = payload or {}
-        prepared_body = self._encrypt_optional(body)
+        if api_code == "vehicle_challan_lookup":
+            vehicle_number = (
+                body.get("vehicleRegistrationNumber")
+                or body.get("vehicleNumber")
+                or body.get("vehicle_number")
+                or ""
+            )
+            prepared_body = {
+                "vehicleRegistrationNumber": str(vehicle_number).strip().upper(),
+                "consent": str(body.get("consent") or "Y"),
+                "latitude": str(body.get("latitude") or "0.0"),
+                "longitude": str(body.get("longitude") or "0.0"),
+                "externalRef": str(body.get("externalRef") or body.get("partner_txn_id") or request_id),
+            }
+        elif api_code == "business_wallet_balance":
+            # Business wallet endpoint expects plain JSON keys (not encrypted envelope).
+            prepared_body = {
+                "bankProfileId": str(body.get("bankProfileId") or "0"),
+                "accountNumber": str(body.get("accountNumber") or ""),
+                "accountType": str(body.get("accountType") or "CURRENT"),
+                "externalRef": str(body.get("externalRef") or request_id),
+                "latitude": str(body.get("latitude") or "20.1236"),
+                "longitude": str(body.get("longitude") or "78.3228"),
+            }
+        else:
+            prepared_body = self._encrypt_optional(body)
         auth_candidates = [None]
-        if api_code == "account_statement":
-            # reporting APIs frequently use fixed auth code values based on product mapping.
+        if api_code in {"vehicle_challan_lookup", "account_statement", "business_wallet_balance"}:
+            # Identity challan + business wallet statement follow fixed header contracts.
+            # Do not probe alternate auth code values for these endpoints.
             auth_candidates = [None]
-            if self.auth_code:
-                auth_candidates.append(self.auth_code)
-            auth_candidates.extend(["-1", "1"])
-            # de-duplicate
-            auth_candidates = list(dict.fromkeys(auth_candidates))
 
         try:
             # trust_env=False avoids unintended proxy/DNS overrides from host env vars.
@@ -214,11 +349,14 @@ class InstantpayClient:
                 last_non_404: Optional[Dict[str, Any]] = None
                 for candidate_path in self._path_candidates(path):
                     for auth_candidate in auth_candidates:
-                        headers = self._build_headers(
+                        headers, request_meta = self._build_headers(
                             request_id=request_id,
                             body=body,
                             auth_code=auth_candidate,
+                            auth_code_only=(api_code in {"vehicle_challan_lookup", "account_statement", "business_wallet_balance"}),
                         )
+                        if api_code in {"vehicle_challan_lookup", "business_wallet_balance"}:
+                            request_meta["normalized_payload"] = dict(prepared_body)
                         if method == "GET":
                             response = client.get(
                                 f"{self.base_url}{candidate_path}",
@@ -237,6 +375,7 @@ class InstantpayClient:
                             response_body = response.text
                         normalized = self._normalize(api_code, response.status_code, response_body)
                         normalized["attempted_path"] = candidate_path
+                        normalized["request_meta"] = request_meta
                         if auth_candidate is not None:
                             normalized["attempted_auth_code"] = auth_candidate
                         last_normalized = normalized
@@ -244,14 +383,14 @@ class InstantpayClient:
                             last_non_404 = normalized
                         # stop on first successful business response
                         if normalized.get("success"):
-                            return normalized
-                        # for non-reporting APIs, no need to probe more auth values
-                        if api_code != "account_statement":
-                            break
-                return last_non_404 or last_normalized or self._normalize(api_code, 500, {}, error="No response from Instantpay")
+                            return _emit(normalized, request_id)
+                        # no alternate probing configured for current endpoint contracts
+                        break
+                final = last_non_404 or last_normalized or self._normalize(api_code, 500, {}, error="No response from Instantpay")
+                return _emit(final, request_id)
         except Exception as exc:
             logger.error(f"Instantpay request failed for {self.base_url}{path}: {exc}")
-            return self._normalize(api_code, 500, {}, error=f"{exc}")
+            return _emit(self._normalize(api_code, 500, {}, error=f"{exc}"), request_id)
 
     # Quick-test helpers used by portal legacy view
     def gstin_verification(self, gstin: str, client_ip: Optional[str] = None) -> Dict[str, Any]:

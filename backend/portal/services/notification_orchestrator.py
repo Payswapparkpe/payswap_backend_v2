@@ -21,6 +21,7 @@ from portal.models import (
     Profile,
     UserNotification,
 )
+from portal.services.push_fcm import send_fcm_notification
 from portal.services.notification_service_v2 import NotificationServiceV2
 from portal.utils.logging_helper import get_logger
 
@@ -253,17 +254,30 @@ class NotificationOrchestrator:
                 token = DevicePushToken.objects.filter(user=user, is_active=True).order_by("-updated_at").first()
                 if not token:
                     return DispatchResult(channel=channel, status=NotificationDeliveryLog.STATUS_FAILED, error_message="token_missing")
-                # Provider integration placeholder. We log intent for phased rollout.
+                fcm_data = {"type": "campaign", "deep_link": str(template.cta_url or "")}
+                result = send_fcm_notification(
+                    token=token.token,
+                    title=template.title or campaign.name,
+                    body=template.body,
+                    data=fcm_data,
+                )
+                if result.token_invalid:
+                    token.is_active = False
+                    token.save(update_fields=["is_active", "updated_at"])
+                if result.success:
+                    return DispatchResult(
+                        channel=channel,
+                        status=NotificationDeliveryLog.STATUS_SENT,
+                        destination=token.token[:18],
+                        provider_message_id=result.provider_message_id,
+                        response=result.response_payload or {"provider": "fcm_v1"},
+                    )
                 return DispatchResult(
                     channel=channel,
-                    status=NotificationDeliveryLog.STATUS_QUEUED,
+                    status=NotificationDeliveryLog.STATUS_FAILED,
                     destination=token.token[:18],
-                    response={
-                        "title": template.title or campaign.name,
-                        "body": template.body,
-                        "deepLink": template.cta_url,
-                        "provider": "fcm_apns_pending",
-                    },
+                    response=result.response_payload or {"provider": "fcm_v1"},
+                    error_message=result.error_message or "fcm_send_failed",
                 )
 
             if channel == NotificationMessageTemplate.CHANNEL_BANNER:

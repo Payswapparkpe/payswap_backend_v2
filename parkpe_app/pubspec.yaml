@@ -51,6 +51,8 @@ dependencies:
   lottie: ^3.3.3
   url_launcher: ^6.3.2
   flutter_cashfree_pg_sdk: ^2.3.3+50
+  firebase_core: ^4.1.1
+  firebase_messaging: ^16.0.1
 
 dev_dependencies:
   flutter_native_splash: ^2.4.7

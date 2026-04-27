@@ -44,6 +44,14 @@ import type { Challan } from '../../../core/models/challan.model';
                   <span class="material-icons">search</span> Search Challans
                 }
               </button>
+              <button
+                type="button"
+                class="btn btn-outline btn-block"
+                [disabled]="searchLoading() || !(searchForm.value.vehicleNumber || '').trim()"
+                (click)="refreshChallans()"
+              >
+                <span class="material-icons">refresh</span> Refresh Challans
+              </button>
             </form>
 
             @if (challans().length > 0) {
@@ -153,12 +161,21 @@ export class ChallanShellComponent implements OnInit {
   }
 
   searchChallans() {
+    this.fetchChallans(false);
+  }
+
+  refreshChallans() {
+    this.fetchChallans(true);
+  }
+
+  private fetchChallans(forceRefresh: boolean) {
     if (this.searchForm.invalid) return;
     this.searchLoading.set(true);
     this.searched.set(true);
     const req = {
       vehicleNumber: this.searchForm.value.vehicleNumber ?? '',
       state: this.searchForm.value.state ?? undefined,
+      forceRefresh,
     };
     this.api.searchChallans(req).subscribe({
       next: (list) => {
