@@ -75,11 +75,12 @@ urlpatterns = [
     path('dashboard/projects/create-api-key/', views.CreateProjectAPIKeyView.as_view(), name='project_management_create_api_key'),
     # Profile
     path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('profile/save/', views.ProfileSaveView.as_view(), name='profile_save'),
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile_create'),
-    path('profile/update/', views.ProfileUpdateView.as_view(), name='profile_update'),
+    path('profile/update/', RedirectView.as_view(url='/profile/?tab=personal', permanent=False), name='profile_update'),
     
     # Settings
-    path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('settings/', RedirectView.as_view(url='/profile/?tab=security', permanent=False), name='settings'),
     
     # Users
     path('users/', views.UserListView.as_view(), name='user_list'),
@@ -90,7 +91,7 @@ urlpatterns = [
     
     # KYC
     path('kyc/', views.KYCListView.as_view(), name='kyc_list'),
-    path('kyc/submit/', views.KYCSubmitView.as_view(), name='kyc_submit'),
+    path('kyc/submit/', RedirectView.as_view(url='/profile/?tab=kyc', permanent=False), name='kyc_submit'),
     path('kyc/<int:kyc_id>/documents/<int:file_index>/', views.KYCDocumentAccessView.as_view(), name='kyc_document_access'),
     
     # Wallet

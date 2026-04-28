@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block page_title %}{{ page_title|default:"Parking Location" }}{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900">{{ location.name }}</h1>
+    <p class="text-sm text-gray-500">{{ location.address }}, {{ location.city }}</p>
+  </div>
+  <a href="{% url 'parking_owner_dashboard' %}" class="text-sm text-primary-600 hover:underline">Back to dashboard</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {% for item in zone_data %}
+  <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="font-medium text-gray-900">{{ item.zone.zone_name }}</h2>
+      <span class="text-xs text-gray-500">F{{ item.zone.floor_level }}</span>
+    </div>
+    <div class="mb-3 text-sm text-gray-600">
+      Available: <span class="font-semibold text-green-600">{{ item.available }}</span> |
+      Occupied: <span class="font-semibold text-red-600">{{ item.occupied }}</span> |
+      Reserved: <span class="font-semibold text-amber-600">{{ item.reserved }}</span>
+    </div>
+    <div class="grid grid-cols-4 gap-2">
+      {% for slot in item.slots %}
+      <div class="rounded border px-2 py-1 text-xs text-center
+        {% if slot.status == 'available' %}border-green-200 bg-green-50 text-green-700
+        {% elif slot.status == 'occupied' %}border-red-200 bg-red-50 text-red-700
+        {% elif slot.status == 'reserved' %}border-amber-200 bg-amber-50 text-amber-700
+        {% else %}border-gray-200 bg-gray-50 text-gray-700{% endif %}">
+        {{ slot.slot_code }}
+      </div>
+      {% empty %}
+      <div class="col-span-4 text-sm text-gray-500">No active slots.</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">No zones configured for this location.</div>
+  {% endfor %}
+</div>
+
+{% if active_bookings %}
+<div class="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+  <h2 class="px-4 py-3 bg-gray-50 border-b border-gray-200 font-medium text-gray-900">Active bookings</h2>
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehicle</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Slot</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      {% for booking in active_bookings %}
+      <tr>
+        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.booking_reference }}</td>
+        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.vehicle_number }}</td>
+        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.slot.slot_code }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

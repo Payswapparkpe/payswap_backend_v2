@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Profile - Payswap{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="card-enterprise">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-4">
+                {% if profile.profile_photo %}
+                <img src="{{ profile.profile_photo.url }}" alt="Profile Photo" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200">
+                {% else %}
+                <div class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl font-semibold">
+                    {{ profile.first_name|default:user.username|slice:":1"|upper }}
+                </div>
+                {% endif %}
+                <div>
+                    <h1 class="text-2xl font-semibold text-gray-900">{{ profile.full_name|default:user.username }}</h1>
+                    <p class="text-sm text-gray-600">{{ user.get_role_code_display }} • {{ profile.email }} • {{ profile.phone }}</p>
+                </div>
+            </div>
+            <div class="text-sm text-gray-700 font-medium">{{ completion_pct }}% complete</div>
+        </div>
+        <div class="mt-4">
+            <div class="w-full h-2 rounded-full bg-gray-200">
+                <div class="h-2 rounded-full bg-indigo-600" style="width: {{ completion_pct }}%;"></div>
+            </div>
+            {% if completion_missing_items %}
+            <p class="mt-2 text-xs text-amber-700">{{ completion_missing_items|length }} items pending.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-enterprise">
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'profile' %}?tab=overview" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'overview' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">Overview</a>
+            <a href="{% url 'profile' %}?tab=personal" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'personal' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">Personal</a>
+            <a href="{% url 'profile' %}?tab=business" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'business' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">
+                {% if is_business_profile %}Business / KYB{% else %}Identity{% endif %}
+            </a>
+            <a href="{% url 'profile' %}?tab=banking" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'banking' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">Banking</a>
+            <a href="{% url 'profile' %}?tab=kyc" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'kyc' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">KYC</a>
+            <a href="{% url 'profile' %}?tab=security" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'security' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700{% endif %}">Security & Settings</a>
+        </div>
+    </div>
+
+    <div id="profile-tab-content">
+        {% if active_tab == 'overview' %}
+            {% include "portal/profile/tabs/overview.html" %}
+        {% elif active_tab == 'personal' %}
+            {% include "portal/profile/tabs/personal.html" %}
+        {% elif active_tab == 'business' %}
+            {% include "portal/profile/tabs/business.html" %}
+        {% elif active_tab == 'banking' %}
+            {% include "portal/profile/tabs/banking.html" %}
+        {% elif active_tab == 'kyc' %}
+            {% include "portal/profile/tabs/kyc.html" %}
+        {% elif active_tab == 'security' %}
+            {% include "portal/profile/tabs/security.html" %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

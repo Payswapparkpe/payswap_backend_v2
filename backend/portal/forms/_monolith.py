@@ -901,6 +901,125 @@ class ProfileUpdateForm(forms.ModelForm):
         return cleaned_data
 
 
+class ProfilePersonalForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = [
+            'first_name', 'middle_name', 'last_name',
+            'date_of_birth', 'gender', 'marital_status',
+            'nationality', 'profile_photo',
+        ]
+        widgets = {
+            'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'input-enterprise'}),
+            'first_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'middle_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'last_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'gender': forms.Select(attrs={'class': 'input-enterprise'}),
+            'marital_status': forms.Select(attrs={'class': 'input-enterprise'}),
+            'nationality': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'profile_photo': forms.FileInput(attrs={'class': 'input-enterprise', 'accept': 'image/*'}),
+        }
+
+
+class ProfileAddressForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = [
+            'address_line_1', 'address_line_2', 'city', 'state', 'pincode',
+            'country_of_residence', 'alternate_phone',
+        ]
+        widgets = {
+            'address_line_1': forms.Textarea(attrs={'class': 'input-enterprise', 'rows': 2}),
+            'address_line_2': forms.Textarea(attrs={'class': 'input-enterprise', 'rows': 2}),
+            'city': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'state': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'pincode': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'country_of_residence': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'alternate_phone': forms.TextInput(attrs={'class': 'input-enterprise'}),
+        }
+
+    def clean_alternate_phone(self):
+        phone = self.cleaned_data.get('alternate_phone')
+        if phone:
+            validate_phone_number(phone)
+        return phone
+
+
+class ProfileBankingForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = [
+            'bank_name', 'account_holder_name', 'account_number',
+            'ifsc_code', 'branch_name', 'account_type',
+        ]
+        widgets = {
+            'bank_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'account_holder_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'account_number': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'ifsc_code': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'branch_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'account_type': forms.Select(attrs={'class': 'input-enterprise'}),
+        }
+
+
+class ProfileBusinessForm(forms.ModelForm):
+    BUSINESS_PROFILE_TYPES = {'business', 'corporate'}
+
+    class Meta:
+        model = Profile
+        fields = [
+            'type', 'business_name', 'business_registration_number',
+            'business_type', 'gst_number', 'tax_id',
+        ]
+        widgets = {
+            'type': forms.Select(attrs={'class': 'input-enterprise'}),
+            'business_name': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'business_registration_number': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'business_type': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'gst_number': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'tax_id': forms.TextInput(attrs={'class': 'input-enterprise'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        profile_type = cleaned_data.get('type') or 'individual'
+        if profile_type not in self.BUSINESS_PROFILE_TYPES:
+            cleaned_data['business_name'] = None
+            cleaned_data['business_registration_number'] = None
+            cleaned_data['business_type'] = None
+            cleaned_data['gst_number'] = None
+            cleaned_data['tax_id'] = None
+        elif not cleaned_data.get('business_name'):
+            self.add_error('business_name', 'Business name is required for business/corporate profiles.')
+        return cleaned_data
+
+
+class ProfileIdentityForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ['pan_number', 'aadhaar_number']
+        widgets = {
+            'pan_number': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'aadhaar_number': forms.TextInput(attrs={'class': 'input-enterprise'}),
+        }
+
+
+class ProfileSecurityPrefsForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = [
+            'language_preference', 'timezone', 'currency_preference',
+            'recovery_email', 'notification_preferences',
+        ]
+        widgets = {
+            'language_preference': forms.Select(attrs={'class': 'input-enterprise'}),
+            'timezone': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'currency_preference': forms.TextInput(attrs={'class': 'input-enterprise'}),
+            'recovery_email': forms.EmailInput(attrs={'class': 'input-enterprise'}),
+            'notification_preferences': forms.HiddenInput(),
+        }
+
+
 class ProfileCompletionForm(forms.Form):
     """Profile completion form for social signup users - Required fields"""
     

@@ -1,16 +1,18 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ParkingSlot, BookingRequest, Booking } from '../../../core/models/parking.model';
 import { ParkingService } from '../services/parking.service';
 import { StepIndicatorComponent } from '../../../shared/components/step-indicator/step-indicator.component';
 import { API_BACKEND_TOKEN } from '../../../core/constants';
+import { VoucherListItem } from '../../../core/models/voucher.model';
+import { ConnectService } from '../../connect/services/connect.service';
 
 @Component({
   selector: 'app-parking-booking',
   standalone: true,
-  imports: [CommonModule, FormsModule, StepIndicatorComponent, RouterLink],
+  imports: [CommonModule, FormsModule, StepIndicatorComponent],
   template: `
     <div class="feature-container">
       <button class="back-link" (click)="goBack()">
@@ -44,6 +46,17 @@ import { API_BACKEND_TOKEN } from '../../../core/constants';
             <!-- Vehicle Details -->
             <div class="form-card card">
               <h3 class="form-section-title">Vehicle Details</h3>
+              @if (registeredVehicles.length > 0) {
+                <div class="form-group">
+                  <label>Registered Vehicle</label>
+                  <select [(ngModel)]="selectedVehicleId" class="form-input" (ngModelChange)="applySelectedVehicle()">
+                    @for (v of registeredVehicles; track v.id) {
+                      <option [ngValue]="v.id">{{ v.registrationNumber }} ({{ formatVehicleType(v.vehicleType) }})</option>
+                    }
+                    <option [ngValue]="'manual'">Enter manually</option>
+                  </select>
+                </div>
+              }
               <div class="form-group">
                 <label>Vehicle Number *</label>
                 <input type="text" [(ngModel)]="vehicleNumber" placeholder="MH12AB1234"
@@ -152,17 +165,32 @@ import { API_BACKEND_TOKEN } from '../../../core/constants';
                   <span class="material-icons">account_balance_wallet</span>
                   <div>
                     <div class="payment-method-name">Parkpe Voucher</div>
-                    <div class="payment-method-sub">Balance: ₹{{ voucherBalance | number:'1.0-2' }}</div>
+                    <div class="payment-method-sub">Select one voucher for this booking</div>
                   </div>
                   <span class="material-icons check-icon"
-                    [class.checked]="voucherBalance >= estimatedAmount">
-                    {{ voucherBalance >= estimatedAmount ? 'check_circle' : 'radio_button_unchecked' }}
+                    [class.checked]="selectedVoucherBalance >= estimatedAmount">
+                    {{ selectedVoucherBalance >= estimatedAmount ? 'check_circle' : 'radio_button_unchecked' }}
                   </span>
                 </div>
-                @if (voucherBalance < estimatedAmount) {
+                @if (availableVouchers.length > 0) {
+                  <div class="form-group" style="margin-top: 0.625rem;">
+                    <label style="font-size: 0.75rem;">Voucher *</label>
+                    <select [(ngModel)]="selectedVoucherId" class="form-input" (ngModelChange)="onVoucherChange()">
+                      @for (v of availableVouchers; track v.id) {
+                        <option [ngValue]="v.id">{{ v.voucherCode }} — ₹{{ v.currentBalance | number:'1.0-2' }}</option>
+                      }
+                    </select>
+                  </div>
+                } @else {
                   <div class="voucher-warn">
                     <span class="material-icons">warning</span>
-                    Insufficient balance. Please add ₹{{ estimatedAmount - voucherBalance | number:'1.0-2' }} more.
+                    No active vouchers found for this account.
+                  </div>
+                }
+                @if (selectedVoucherId && selectedVoucherBalance < estimatedAmount) {
+                  <div class="voucher-warn">
+                    <span class="material-icons">warning</span>
+                    Selected voucher has insufficient balance. Need ₹{{ (estimatedAmount - selectedVoucherBalance) | number:'1.0-2' }} more.
                   </div>
                 }
               </div>
@@ -253,6 +281,7 @@ export class ParkingBookingComponent implements OnInit {
   private router = inject(Router);
   private parkingService = inject(ParkingService);
   private api = inject(API_BACKEND_TOKEN);
+  private connectService = inject(ConnectService);
 
   slot?: ParkingSlot;
   locationId = '';
@@ -270,8 +299,19 @@ export class ParkingBookingComponent implements OnInit {
   estimateLoading = false;
   priceEstimate: any = null;
   voucherBalance = 0;
+  maxSingleVoucherBalance = 0;
+  availableVouchers: VoucherListItem[] = [];
+  selectedVoucherId?: number;
+  selectedVoucherBalance = 0;
   submitting = false;
   errorMsg = '';
+  registeredVehicles: Array<{
+    id: number;
+    registrationNumber: string;
+    vehicleType: string;
+    isPrimary?: boolean;
+  }> = [];
+  selectedVehicleId: number | 'manual' = 'manual';
 
   durationOptions = [
     { value: 1, label: '1 hr' },
@@ -293,11 +333,34 @@ export class ParkingBookingComponent implements OnInit {
 
     this.setDuration(2);
     this.loadVoucherBalance();
+    this.loadRegisteredVehicles();
     this.prefillUserDetails();
   }
 
+  loadRegisteredVehicles() {
+    // Customer registered vehicles come from Connect module, not Fleet module.
+    this.connectService.getVehicles().subscribe({
+      next: (resp: any) => {
+        const items = resp?.results ?? [];
+        this.registeredVehicles = items.map((v: any) => ({
+          id: v.id,
+          registrationNumber: v.registrationNumber || v.registration_number || '',
+          vehicleType: this.normalizeVehicleType(v.vehicleType || v.vehicle_type),
+          isPrimary: !!(v.isPrimary || v.is_primary),
+        })).filter((v: any) => !!v.registrationNumber);
+
+        if (this.registeredVehicles.length > 0) {
+          const preferred =
+            this.registeredVehicles.find((v) => v.isPrimary) || this.registeredVehicles[0];
+          this.selectedVehicleId = preferred.id;
+          this.applySelectedVehicle();
+        }
+      },
+    });
+  }
+
   prefillUserDetails() {
-    this.api.getUserProfile().subscribe({
+    this.api.getProfile().subscribe({
       next: (profile: any) => {
         this.customerName = profile?.name || profile?.full_name || '';
         this.customerPhone = (profile?.phone || '').replace(/^\+91/, '').replace(/\D/g, '');
@@ -307,9 +370,27 @@ export class ParkingBookingComponent implements OnInit {
   }
 
   loadVoucherBalance() {
-    (this.api as any).getVoucherBalance?.()?.subscribe?.({
-      next: (data: any) => {
-        this.voucherBalance = data?.balance ?? data?.total_balance ?? 0;
+    this.api.getVouchers({ page: 1, limit: 200 }).subscribe({
+      next: (data: { vouchers: VoucherListItem[] }) => {
+        const vouchers = data?.vouchers ?? [];
+        const active = vouchers.filter(
+          (v) => (v.currentBalance ?? 0) > 0 && ['ACTIVE', 'PARTIALLY_REDEEMED'].includes((v.status || '').toUpperCase())
+        );
+        this.availableVouchers = active;
+        // Product rule: do not show total/summed voucher balance.
+        this.voucherBalance = 0;
+        this.maxSingleVoucherBalance = 0;
+        if (active.length > 0) {
+          this.ensureVoucherSelection();
+        } else {
+          this.selectedVoucherId = undefined;
+          this.selectedVoucherBalance = 0;
+        }
+      },
+      error: () => {
+        this.availableVouchers = [];
+        this.selectedVoucherId = undefined;
+        this.selectedVoucherBalance = 0;
       },
     });
   }
@@ -341,24 +422,73 @@ export class ParkingBookingComponent implements OnInit {
       next: (est) => {
         this.priceEstimate = est;
         this.estimatedAmount = est?.amount ?? 0;
+        this.ensureVoucherSelection();
         this.estimateLoading = false;
       },
       error: () => {
         this.estimatedAmount = (this.slot?.rate ?? 0) * (this.selectedDuration || 1);
+        this.ensureVoucherSelection();
         this.estimateLoading = false;
       },
     });
   }
 
   canSubmit(): boolean {
+    const phoneDigits = this.customerPhone.replace(/\D/g, '');
     return !!(
       this.vehicleNumber.trim() &&
       this.customerName.trim() &&
-      this.customerPhone.trim().length === 10 &&
+      phoneDigits.length === 10 &&
       this.fromDt &&
       this.toDt &&
-      this.voucherBalance >= this.estimatedAmount
+      !!this.selectedVoucherId &&
+      this.selectedVoucherBalance >= this.estimatedAmount
     );
+  }
+
+  onVoucherChange() {
+    const selected = this.availableVouchers.find((v) => v.id === this.selectedVoucherId);
+    this.selectedVoucherBalance = selected?.currentBalance ?? 0;
+  }
+
+  private ensureVoucherSelection() {
+    if (!this.availableVouchers.length) {
+      this.selectedVoucherId = undefined;
+      this.selectedVoucherBalance = 0;
+      return;
+    }
+
+    const selected = this.availableVouchers.find((v) => v.id === this.selectedVoucherId);
+    if (selected) {
+      this.selectedVoucherBalance = selected.currentBalance ?? 0;
+      if (this.selectedVoucherBalance >= this.estimatedAmount) return;
+    }
+
+    // Auto-pick a voucher that can pay this booking; else pick highest balance.
+    const sufficient = this.availableVouchers.find((v) => (v.currentBalance ?? 0) >= this.estimatedAmount);
+    const fallback = this.availableVouchers.reduce((best, cur) =>
+      (cur.currentBalance ?? 0) > (best.currentBalance ?? 0) ? cur : best
+    );
+    const pick = sufficient || fallback;
+    this.selectedVoucherId = pick.id;
+    this.selectedVoucherBalance = pick.currentBalance ?? 0;
+  }
+
+  applySelectedVehicle() {
+    if (this.selectedVehicleId === 'manual') return;
+    const selected = this.registeredVehicles.find((v) => v.id === this.selectedVehicleId);
+    if (!selected) return;
+    this.vehicleNumber = selected.registrationNumber.toUpperCase();
+    this.vehicleType = selected.vehicleType || this.vehicleType;
+    this.updateEstimate();
+  }
+
+  private normalizeVehicleType(vt: string): string {
+    const key = (vt || '').toLowerCase();
+    if (['2w', 'two_wheeler', 'bike', 'scooter'].includes(key)) return 'two_wheeler';
+    if (['ev', 'electric', 'electric_car'].includes(key)) return 'ev';
+    if (['heavy', 'heavy_vehicle', 'truck'].includes(key)) return 'heavy_vehicle';
+    return 'four_wheeler';
   }
 
   goBack() {
@@ -381,6 +511,8 @@ export class ParkingBookingComponent implements OnInit {
       customerPhone: '+91' + this.customerPhone,
       customerEmail: this.customerEmail,
     };
+    // Optional hint for backend routing; backend may ignore if not implemented.
+    (payload as any).voucherId = this.selectedVoucherId;
 
     this.parkingService.createBooking(payload).subscribe({
       next: (booking: Booking) => {

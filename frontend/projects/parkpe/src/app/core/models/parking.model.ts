@@ -17,7 +17,9 @@ export interface ParkingLocation {
   openingHours?: {
     open: string;
     close: string;
+    '247'?: boolean;
   };
+  distanceKm?: number;
   description?: string;
   images?: string[];
 }
@@ -35,7 +37,9 @@ export interface ParkingSlot {
   id: string;
   locationId: string;
   code: string; // e.g., "A-101"
+  slot_code?: string;
   available: boolean;
+  status?: 'available' | 'occupied' | 'reserved' | 'blocked' | 'maintenance';
   vehicleType?: 'two_wheeler' | 'four_wheeler' | 'heavy_vehicle';
   rate: number;
   currency: string;
@@ -76,6 +80,13 @@ export interface Booking {
     email: string;
   };
   qrCode?: string;
+  qrImageUrl?: string;
+  ticketNumber?: string;
+  actualEntryTime?: Date | string;
+  actualExitTime?: Date | string;
+  finalAmount?: number;
+  estimatedAmount?: number;
+  ticketPdfUrl?: string;
   bookingReference: string;
   createdAt: Date | string;
   paymentId?: string;

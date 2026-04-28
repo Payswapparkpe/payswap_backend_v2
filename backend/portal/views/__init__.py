@@ -29,6 +29,7 @@ from portal.views.dashboard_views import (
 from portal.views.profile_views import (
     ProfileCreateView,
     ProfileView,
+    ProfileSaveView,
     ProfileUpdateView,
     SettingsView,
 )

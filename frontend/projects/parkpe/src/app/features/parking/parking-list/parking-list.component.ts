@@ -92,8 +92,8 @@ declare const mappls: any;
                   <div class="location-header">
                     <div class="location-name-wrap">
                       <h3 class="location-name">{{ location.name }}</h3>
-                      @if ((location as any).distanceKm != null) {
-                        <span class="distance-badge">{{ (location as any).distanceKm | number:'1.1-1' }} km</span>
+                      @if (location.distanceKm != null) {
+                        <span class="distance-badge">{{ location.distanceKm | number:'1.1-1' }} km</span>
                       }
                     </div>
                     <span class="availability-badge" [class.available]="location.availableSlots > 0"
@@ -129,10 +129,10 @@ declare const mappls: any;
                         <span class="material-icons">schedule</span>
                         <span>24×7</span>
                       </div>
-                    } @else if (location.openingHours?.['open']) {
+                    } @else if (location.openingHours?.open) {
                       <div class="detail-item">
                         <span class="material-icons">schedule</span>
-                        <span>{{ location.openingHours['open'] }} – {{ location.openingHours['close'] }}</span>
+                        <span>{{ location.openingHours?.open }} – {{ location.openingHours?.close }}</span>
                       </div>
                     }
                   </div>
@@ -310,7 +310,9 @@ export class ParkingListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit() {
     this.tryGetUserLocation();
-    this.loadLocations();
+    // Keep initial load async to avoid Angular dev-mode NG0100
+    // when geolocation callback updates state very quickly.
+    setTimeout(() => this.loadLocations(), 0);
   }
 
   ngAfterViewInit() {}
@@ -327,6 +329,23 @@ export class ParkingListComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.parkingService.getLocations(params).subscribe({
       next: (data) => {
+        // If geo-filter returns empty (user far from seeded/demo locations),
+        // fallback to full list so UI never looks broken.
+        if (params && (!data || data.length === 0)) {
+          this.parkingService.getLocations().subscribe({
+            next: (allData) => {
+              this.locations = allData;
+              this.filteredLocations = allData;
+              this.loading = false;
+              if (this.viewMode === 'map') this.initMap();
+            },
+            error: () => {
+              this.loading = false;
+            },
+          });
+          return;
+        }
+
         this.locations = data;
         this.filteredLocations = data;
         this.loading = false;
@@ -344,7 +363,8 @@ export class ParkingListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.ngZone.run(() => {
           this.userLat = pos.coords.latitude;
           this.userLng = pos.coords.longitude;
-          this.loadLocations();
+          // Defer refresh to next macrotask to keep template checks stable.
+          setTimeout(() => this.loadLocations(), 0);
         });
       });
     }

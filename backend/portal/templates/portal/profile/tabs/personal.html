@@ -1,0 +1,32 @@
+<form method="post" action="{% url 'profile_save' %}" enctype="multipart/form-data" class="space-y-6">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="personal">
+    <div class="card-enterprise">
+        <h3 class="card-enterprise-title mb-4">Personal Information</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for field in personal_form %}
+            <div class="{% if field.name == 'profile_photo' %}md:col-span-2{% endif %}">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="text-xs text-red-600 mt-1">{{ field.errors.0 }}</p>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card-enterprise">
+        <h3 class="card-enterprise-title mb-4">Address & Contact</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for field in address_form %}
+            <div class="{% if field.name == 'address_line_1' or field.name == 'address_line_2' %}md:col-span-2{% endif %}">
+                <label class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="text-xs text-red-600 mt-1">{{ field.errors.0 }}</p>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="flex justify-end">
+        <button type="submit" class="btn-enterprise-primary">Save Personal Details</button>
+    </div>
+</form>
+

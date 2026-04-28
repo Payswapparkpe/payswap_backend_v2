@@ -1,0 +1,30 @@
+<form method="post" action="{% url 'profile_save' %}" class="space-y-6">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="business">
+    <div class="card-enterprise">
+        <h3 class="card-enterprise-title mb-4">{% if is_business_profile %}Business / KYB{% else %}Identity{% endif %}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% if is_business_profile %}
+                {% for field in business_form %}
+                <div>
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="text-xs text-red-600 mt-1">{{ field.errors.0 }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                {% for field in identity_form %}
+                <div>
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="text-xs text-red-600 mt-1">{{ field.errors.0 }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    <div class="flex justify-end">
+        <button type="submit" class="btn-enterprise-primary">Save {% if is_business_profile %}Business{% else %}Identity{% endif %} Details</button>
+    </div>
+</form>
+

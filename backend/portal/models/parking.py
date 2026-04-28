@@ -345,7 +345,8 @@ class ParkingBooking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     history = HistoricalRecords(
         inherit=False,
-        excluded_fields=["qr_data", "updated_at"],
+        # Keep updated_at in history row to satisfy historical table constraints.
+        excluded_fields=["qr_data"],
         user_model=User,
     )
 

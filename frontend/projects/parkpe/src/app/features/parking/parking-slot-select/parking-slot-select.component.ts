@@ -106,16 +106,16 @@ interface ZoneGroup {
               @for (slot of zone.slots; track slot.id) {
                 <button
                   class="slot-cell"
-                  [class.available]="slot.status === 'available'"
-                  [class.occupied]="slot.status === 'occupied'"
-                  [class.reserved]="slot.status === 'reserved'"
-                  [class.blocked]="slot.status === 'blocked' || slot.status === 'maintenance'"
+                  [class.available]="slotStatus(slot) === 'available'"
+                  [class.occupied]="slotStatus(slot) === 'occupied'"
+                  [class.reserved]="slotStatus(slot) === 'reserved'"
+                  [class.blocked]="slotStatus(slot) === 'blocked' || slotStatus(slot) === 'maintenance'"
                   [class.selected]="selectedSlot?.id === slot.id"
-                  [disabled]="slot.status !== 'available'"
+                  [disabled]="slotStatus(slot) !== 'available'"
                   (click)="selectSlot(slot)"
-                  [title]="slot.slot_code + ' — ' + slot.status + ' — ₹' + slot.rate + '/hr'"
+                  [title]="slotCode(slot) + ' — ' + slotStatus(slot) + ' — ₹' + slot.rate + '/hr'"
                 >
-                  <span class="slot-code">{{ slot.slot_code }}</span>
+                  <span class="slot-code">{{ slotCode(slot) }}</span>
                   @if (slot.features?.includes('ev_charging')) {
                     <span class="slot-ev" title="EV Charging">⚡</span>
                   }
@@ -132,7 +132,7 @@ interface ZoneGroup {
         @if (selectedSlot) {
           <div class="selected-summary">
             <div class="selected-info">
-              <div class="selected-slot-code">{{ selectedSlot.slot_code }}</div>
+              <div class="selected-slot-code">{{ slotCode(selectedSlot) }}</div>
               <div class="selected-details">
                 <span>{{ formatVehicleType(selectedSlot.vehicleType!) }}</span>
                 <span class="sep">·</span>
@@ -290,8 +290,8 @@ export class ParkingSlotSelectComponent implements OnInit {
     this.parkingService.getSlots(this.locationId, vt).subscribe({
       next: (slots) => {
         this.buildZones(slots);
-        this.totalAvailable = slots.filter((s) => s.status === 'available').length;
-        this.totalOccupied = slots.filter((s) => s.status === 'occupied').length;
+        this.totalAvailable = slots.filter((s) => this.slotStatus(s) === 'available').length;
+        this.totalOccupied = slots.filter((s) => this.slotStatus(s) === 'occupied').length;
         this.loading = false;
       },
       error: () => { this.loading = false; },
@@ -315,7 +315,7 @@ export class ParkingSlotSelectComponent implements OnInit {
       const z = zoneMap.get(zid)!;
       z.slots.push(s);
       z.total++;
-      if (s.status === 'available') z.available++;
+      if (this.slotStatus(s) === 'available') z.available++;
     }
     this.zones = [...zoneMap.values()].sort((a, b) => a.floor - b.floor || a.name.localeCompare(b.name));
     this.filteredZones = this.zones;
@@ -335,7 +335,7 @@ export class ParkingSlotSelectComponent implements OnInit {
   }
 
   selectSlot(slot: ParkingSlot) {
-    if (slot.status !== 'available') return;
+    if (this.slotStatus(slot) !== 'available') return;
     this.selectedSlot = this.selectedSlot?.id === slot.id ? undefined : slot;
   }
 
@@ -356,5 +356,14 @@ export class ParkingSlotSelectComponent implements OnInit {
       HANDICAP: 'Handicap', HEAVY: 'Heavy Vehicle',
     };
     return map[type] ?? type;
+  }
+
+  slotStatus(slot: ParkingSlot): string {
+    if (slot.status) return slot.status;
+    return slot.available ? 'available' : 'occupied';
+  }
+
+  slotCode(slot: ParkingSlot): string {
+    return slot.slot_code || slot.code;
   }
 }
