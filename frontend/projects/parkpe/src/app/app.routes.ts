@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { fleetAuthGuard } from './core/guards/fleet-auth.guard';
+import { parkingAuthGuard } from './core/guards/parking-auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
 import { homeEntryGuard } from './core/guards/root-redirect.guard';
 import { sessionLockGuard } from './core/guards/session-lock.guard';
@@ -61,8 +62,16 @@ export const routes: Routes = [
     path: 'fleet/login',
     canActivate: [guestGuard],
     loadComponent: () =>
-      import('./features/auth/login/login.component').then(
-        (m) => m.LoginComponent
+      import('./features/fleet/fleet-login.component').then(
+        (m) => m.FleetLoginComponent
+      ),
+  },
+  {
+    path: 'parking/login',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/parking-owner/parking-login.component').then(
+        (m) => m.ParkingLoginComponent
       ),
   },
   {
@@ -122,6 +131,38 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/fleet/fleet-compliance.component').then(
             (m) => m.FleetComplianceComponent
+          ),
+      },
+      {
+        path: 'parking/dashboard',
+        canActivate: [parkingAuthGuard],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-dashboard.component').then(
+            (m) => m.ParkingDashboardComponent
+          ),
+      },
+      {
+        path: 'parking/locations',
+        canActivate: [parkingAuthGuard],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-dashboard.component').then(
+            (m) => m.ParkingDashboardComponent
+          ),
+      },
+      {
+        path: 'parking/sessions',
+        canActivate: [parkingAuthGuard],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-dashboard.component').then(
+            (m) => m.ParkingDashboardComponent
+          ),
+      },
+      {
+        path: 'parking/bookings',
+        canActivate: [parkingAuthGuard],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-dashboard.component').then(
+            (m) => m.ParkingDashboardComponent
           ),
       },
       {

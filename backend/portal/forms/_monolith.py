@@ -356,12 +356,14 @@ class UnlockPinForm(forms.Form):
 
 class ProfileCreateForm(forms.ModelForm):
     """Profile creation/update form"""
+    BUSINESS_PROFILE_TYPES = {'business', 'corporate'}
     
     class Meta:
         model = Profile
         fields = ['first_name', 'last_name', 'middle_name', 'email', 'phone', 'date_of_birth', 
                   'gender', 'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 
-                  'type', 'business_name', 'pan_number', 'aadhaar_number', 'gst_number']
+                  'type', 'business_name', 'business_registration_number', 'business_type',
+                  'pan_number', 'aadhaar_number', 'gst_number', 'tax_id']
         widgets = {
             'first_name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
@@ -408,6 +410,12 @@ class ProfileCreateForm(forms.ModelForm):
             'business_name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
+            'business_registration_number': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
+            'business_type': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
             'pan_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
@@ -417,6 +425,9 @@ class ProfileCreateForm(forms.ModelForm):
             'gst_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
+            'tax_id': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
+            }),
         }
     
     def clean_phone(self):
@@ -424,6 +435,20 @@ class ProfileCreateForm(forms.ModelForm):
         if phone:
             validate_phone_number(phone)
         return phone
+
+    def clean(self):
+        cleaned_data = super().clean()
+        profile_type = cleaned_data.get('type') or 'individual'
+        if profile_type not in self.BUSINESS_PROFILE_TYPES:
+            cleaned_data['business_name'] = None
+            cleaned_data['business_registration_number'] = None
+            cleaned_data['business_type'] = None
+            cleaned_data['gst_number'] = None
+            cleaned_data['tax_id'] = None
+            return cleaned_data
+        if not cleaned_data.get('business_name'):
+            self.add_error('business_name', 'Business name is required for business/corporate profiles.')
+        return cleaned_data
 
 
 class UserCreateForm(forms.Form):
@@ -741,6 +766,7 @@ class PasswordChangeForm(forms.Form):
 
 class ProfileUpdateForm(forms.ModelForm):
     """Profile update form"""
+    BUSINESS_PROFILE_TYPES = {'business', 'corporate'}
     
     class Meta:
         model = Profile
@@ -859,6 +885,20 @@ class ProfileUpdateForm(forms.ModelForm):
                 'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20'
             }),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        profile_type = cleaned_data.get('type') or 'individual'
+        if profile_type not in self.BUSINESS_PROFILE_TYPES:
+            cleaned_data['business_name'] = None
+            cleaned_data['business_registration_number'] = None
+            cleaned_data['business_type'] = None
+            cleaned_data['gst_number'] = None
+            cleaned_data['tax_id'] = None
+            return cleaned_data
+        if not cleaned_data.get('business_name'):
+            self.add_error('business_name', 'Business name is required for business/corporate profiles.')
+        return cleaned_data
 
 
 class ProfileCompletionForm(forms.Form):

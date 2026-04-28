@@ -15,17 +15,40 @@ def _split_permission(permission_codename: str, app_label: str = 'portal'):
     return app_label, raw
 
 
+def _user_has_custom_permission(user: User, perm_name: str) -> bool:
+    """
+    Check UserPermission table for an active direct-grant on this user.
+    UserPermission stores per-user permission grants/revokes with audit trail.
+    """
+    try:
+        from portal.models import UserPermission
+        app_label, codename = perm_name.split(".", 1) if "." in perm_name else ("portal", perm_name)
+        return UserPermission.objects.filter(
+            user=user,
+            permission__codename=codename,
+            permission__content_type__app_label=app_label,
+            is_active=True,
+            revoked_at__isnull=True,
+        ).exists()
+    except Exception:
+        return False
+
+
 def user_has_permission(user: User, permission_codename: str, app_label: str = 'portal') -> bool:
     """
-    Check if user has specific permission
-    
+    Check if user has a specific permission via any of:
+      1. Super Admin bypass
+      2. Django group/user permission (role-based via setup_roles)
+      3. UserPermission direct grant (per-user audit trail table)
+      4. Hub RBAC assignment (via UserHubAssignment + HubRole)
+
     Args:
         user: User instance
-        permission_codename: Permission codename
+        permission_codename: Permission codename (e.g. 'change_user' or 'portal.change_user')
         app_label: App label (default: 'portal')
-    
+
     Returns:
-        True if user has permission
+        True if user has permission via any of the above paths
     """
     if not user or not user.is_authenticated:
         return False
@@ -36,9 +59,16 @@ def user_has_permission(user: User, permission_codename: str, app_label: str = '
     if not codename:
         return False
     perm_name = f"{label}.{codename}"
+
+    # Path 2: Django role-based group permissions
     if user.has_perm(perm_name):
         return True
 
+    # Path 3: UserPermission direct grant
+    if _user_has_custom_permission(user, perm_name):
+        return True
+
+    # Path 4: Hub RBAC assignment union (unscoped — any active assignment)
     hub_perms = get_user_hub_permissions(user)
     if hub_perms is None:
         return True

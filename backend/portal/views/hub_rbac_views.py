@@ -12,6 +12,7 @@ from django.urls import reverse_lazy
 from django.contrib import messages
 from django.contrib.auth.models import Permission
 from django.contrib.auth import get_user_model
+from rbac.serializers import HUBROLE_ALLOWED_APP_LABELS
 from django.db.models import Q, Count
 from portal.utils.staff_utils import is_super_admin
 from portal.models import LogEntry
@@ -312,10 +313,17 @@ class HubRoleCreateView(SuperAdminRequiredMixin, CreateView):
         form.fields["project"].queryset = Project.objects.filter(is_active=True).order_by("name")
         return _style_form_fields(form)
 
+    def _allowed_permissions_qs(self):
+        return (
+            Permission.objects.filter(content_type__app_label__in=HUBROLE_ALLOWED_APP_LABELS)
+            .select_related("content_type")
+            .order_by("content_type__app_label", "codename")
+        )
+
     def _permission_groups(self):
         grouped = {}
         action_order = ["view", "add", "change", "delete", "others"]
-        for perm in Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename"):
+        for perm in self._allowed_permissions_qs():
             label = perm.content_type.app_label
             app_bucket = grouped.setdefault(
                 label,
@@ -351,7 +359,7 @@ class HubRoleCreateView(SuperAdminRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["all_permissions"] = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+        ctx["all_permissions"] = self._allowed_permissions_qs()
         ctx["permission_groups"] = self._permission_groups()
         ctx["assigned_ids"] = set()
         return ctx
@@ -361,7 +369,12 @@ class HubRoleCreateView(SuperAdminRequiredMixin, CreateView):
         response = super().form_valid(form)
         perm_ids = self.request.POST.getlist("permissions")
         if perm_ids:
-            self.object.permissions.set(Permission.objects.filter(pk__in=perm_ids))
+            self.object.permissions.set(
+                Permission.objects.filter(
+                    pk__in=perm_ids,
+                    content_type__app_label__in=HUBROLE_ALLOWED_APP_LABELS,
+                )
+            )
         _log_hub_rbac_action(
             self.request,
             action="hubrole.create",
@@ -390,10 +403,17 @@ class HubRoleUpdateView(SuperAdminRequiredMixin, UpdateView):
         form.fields["project"].queryset = Project.objects.order_by("name")
         return _style_form_fields(form)
 
+    def _allowed_permissions_qs(self):
+        return (
+            Permission.objects.filter(content_type__app_label__in=HUBROLE_ALLOWED_APP_LABELS)
+            .select_related("content_type")
+            .order_by("content_type__app_label", "codename")
+        )
+
     def _permission_groups(self):
         grouped = {}
         action_order = ["view", "add", "change", "delete", "others"]
-        for perm in Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename"):
+        for perm in self._allowed_permissions_qs():
             label = perm.content_type.app_label
             app_bucket = grouped.setdefault(
                 label,
@@ -429,7 +449,7 @@ class HubRoleUpdateView(SuperAdminRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["all_permissions"] = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+        ctx["all_permissions"] = self._allowed_permissions_qs()
         ctx["permission_groups"] = self._permission_groups()
         ctx["assigned_ids"] = set(self.object.permissions.values_list("pk", flat=True))
         return ctx
@@ -438,7 +458,12 @@ class HubRoleUpdateView(SuperAdminRequiredMixin, UpdateView):
         form.instance.code = (form.cleaned_data.get("code") or "").strip().lower()
         response = super().form_valid(form)
         perm_ids = self.request.POST.getlist("permissions")
-        self.object.permissions.set(Permission.objects.filter(pk__in=perm_ids))
+        self.object.permissions.set(
+            Permission.objects.filter(
+                pk__in=perm_ids,
+                content_type__app_label__in=HUBROLE_ALLOWED_APP_LABELS,
+            )
+        )
         _log_hub_rbac_action(
             self.request,
             action="hubrole.update",
@@ -482,7 +507,7 @@ class UserHubAssignmentListView(SuperAdminRequiredMixin, ListView):
 class UserHubAssignmentCreateView(SuperAdminRequiredMixin, CreateView):
     model = UserHubAssignment
     template_name = "portal/hub_rbac/assignment_form.html"
-    fields = ("user", "department", "project", "designation", "is_active")
+    fields = ("user", "department", "project", "designation", "is_active", "expires_at")
     success_url = reverse_lazy("hub_rbac_assignment_list")
 
     def get_form(self, form_class=None):
@@ -580,7 +605,7 @@ class UserHubAssignmentCreateView(SuperAdminRequiredMixin, CreateView):
 class UserHubAssignmentUpdateView(SuperAdminRequiredMixin, UpdateView):
     model = UserHubAssignment
     template_name = "portal/hub_rbac/assignment_form.html"
-    fields = ("user", "department", "project", "designation", "is_active")
+    fields = ("user", "department", "project", "designation", "is_active", "expires_at")
     context_object_name = "assignment"
     success_url = reverse_lazy("hub_rbac_assignment_list")
 
@@ -648,6 +673,162 @@ class UserHubAssignmentUpdateView(SuperAdminRequiredMixin, UpdateView):
         )
         messages.success(self.request, "Sub Admin assignment updated.")
         return response
+
+
+class HubEntityDeactivateView(SuperAdminRequiredMixin, TemplateView):
+    """
+    POST /dashboard/hub/<entity>/<pk>/deactivate/
+    Soft-deletes (sets is_active=False) for Department, Project, HubRole, or UserHubAssignment.
+    Entity type is resolved from the URL name via referer or a hidden POST param.
+    Accepts: POST { entity_type: department|project|hubrole|assignment, confirm: 1 }
+    """
+    template_name = "portal/hub_rbac/deactivate_confirm.html"
+
+    _MODEL_MAP = {
+        "department": Department,
+        "project": Project,
+        "hubrole": HubRole,
+        "assignment": UserHubAssignment,
+    }
+
+    _LABEL_MAP = {
+        "department": "Department",
+        "project": "Project",
+        "hubrole": "Hub Role",
+        "assignment": "Sub Admin Assignment",
+    }
+
+    _REDIRECT_MAP = {
+        "department": "hub_rbac_department_list",
+        "project": "hub_rbac_project_list",
+        "hubrole": "hub_rbac_hubrole_list",
+        "assignment": "hub_rbac_assignment_list",
+    }
+
+    def _resolve_entity_type(self, request, pk):
+        entity_type = (request.POST.get("entity_type") or request.GET.get("entity_type") or "").strip().lower()
+        if not entity_type:
+            referer = request.META.get("HTTP_REFERER", "")
+            for key in self._MODEL_MAP:
+                if f"/{key}s/" in referer or f"/{key}/" in referer:
+                    entity_type = key
+                    break
+        return entity_type
+
+    def get(self, request, pk):
+        entity_type = self._resolve_entity_type(request, pk)
+        model = self._MODEL_MAP.get(entity_type)
+        if not model:
+            messages.error(request, "Unknown entity type.")
+            return redirect("/dashboard/hub/")
+        from django.shortcuts import get_object_or_404
+        obj = get_object_or_404(model, pk=pk)
+        return self.render_to_response({
+            "object": obj,
+            "entity_type": entity_type,
+            "entity_label": self._LABEL_MAP.get(entity_type, entity_type),
+            "pk": pk,
+        })
+
+    def post(self, request, pk):
+        entity_type = self._resolve_entity_type(request, pk)
+        model = self._MODEL_MAP.get(entity_type)
+        if not model:
+            messages.error(request, "Unknown entity type.")
+            return redirect("/dashboard/hub/")
+        from django.shortcuts import get_object_or_404
+        obj = get_object_or_404(model, pk=pk)
+        if getattr(obj, "is_active", None) is False:
+            messages.warning(request, f"{self._LABEL_MAP.get(entity_type)} is already inactive.")
+        else:
+            obj.is_active = False
+            obj.save(update_fields=["is_active"])
+            _log_hub_rbac_action(
+                request,
+                action=f"{entity_type}.deactivate",
+                target=f"{entity_type}:{pk}",
+                extra_data={"entity_type": entity_type, "pk": pk},
+            )
+            messages.success(request, f"{self._LABEL_MAP.get(entity_type)} deactivated successfully.")
+        from django.urls import reverse
+        return redirect(reverse(self._REDIRECT_MAP.get(entity_type, "hub_rbac_dashboard")))
+
+
+class HubRbacAuditLogView(SuperAdminRequiredMixin, TemplateView):
+    """
+    Portal view: Audit log of all Hub RBAC actions (create/update/deactivate/auto_expire).
+    Only Super Admin can access.
+    """
+    template_name = "portal/hub_rbac/audit_log.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        qs = (
+            LogEntry.objects
+            .filter(category="security", module_name__icontains="hub_rbac")
+            .order_by("-created_at")
+        )
+        action_filter = (self.request.GET.get("action") or "").strip().lower()
+        user_filter = (self.request.GET.get("user_id") or "").strip()
+        if action_filter:
+            qs = qs.filter(extra_data__action__icontains=action_filter)
+        if user_filter.isdigit():
+            qs = qs.filter(extra_data__user_id=int(user_filter))
+
+        paginator_class = __import__("django.core.paginator", fromlist=["Paginator"]).Paginator
+        paginator = paginator_class(qs, 50)
+        page_number = self.request.GET.get("page", 1)
+        page = paginator.get_page(page_number)
+        ctx["page"] = page
+        ctx["audit_entries"] = page.object_list
+        ctx["action_filter"] = action_filter
+        ctx["user_filter"] = user_filter
+        User = get_user_model()
+        ctx["users_with_assignments"] = User.objects.filter(
+            hub_assignments__isnull=False
+        ).distinct().order_by("username")[:200]
+        return ctx
+
+
+class HubSubAdminDashboardView(TemplateView):
+    """
+    Self-service dashboard for any logged-in user to view their own Hub assignments
+    and effective permissions. Accessible to all authenticated users (not just Super Admin).
+    """
+    template_name = "portal/hub_rbac/sub_admin_dashboard.html"
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        assignments = (
+            UserHubAssignment.objects.filter(user=user, is_active=True)
+            .select_related("department", "project")
+            .prefetch_related("roles__permissions")
+            .order_by("department__name", "project__name")
+        )
+        ctx["assignments"] = list(assignments)
+
+        perm_set = get_user_hub_permissions(user)
+        ctx["is_super_admin"] = perm_set is None
+        if perm_set is None:
+            ctx["permissions_grouped"] = [{"app_label": "all", "permissions": ["Super Admin — full access"]}]
+            ctx["permission_count"] = "∞"
+        else:
+            from collections import defaultdict
+            grouped = defaultdict(list)
+            for perm in sorted(perm_set):
+                app_label = perm.split(".", 1)[0] if "." in perm else "other"
+                grouped[app_label].append(perm)
+            ctx["permissions_grouped"] = [
+                {"app_label": label, "permissions": perms}
+                for label, perms in sorted(grouped.items())
+            ]
+            ctx["permission_count"] = len(perm_set)
+        return ctx
 
 
 @method_decorator(login_required, name="dispatch")

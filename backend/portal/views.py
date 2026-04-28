@@ -48,6 +48,11 @@ from portal.utils.role_utils import (
 )
 
 logger = get_logger('portal.views')
+FLEET_ROLE_CODES = {"fleet_admin", "fleet_manager", "fleet_operator", "fleet_dispatcher"}
+PARTNER_ROLE_CODES = {"super_distributor", "distributor", "retailer"}
+PARKING_ROLE_CODES = {"parking_owner", "parking_manager", "parking_attendant"}
+PORTAL_ALLOWED_ROLE_CODES = {"super_admin", "admin", "employee"}
+NON_PORTAL_ROLE_CODES = FLEET_ROLE_CODES | PARTNER_ROLE_CODES | PARKING_ROLE_CODES | {"customer"}
 
 
 class LandingPageView(TemplateView):
@@ -167,6 +172,21 @@ class SignInView(View):
                             session_id=session_id
                         )
                         messages.error(request, 'Your account is inactive.')
+                        return render(request, self.template_name, {'form': form, 'step': 1})
+
+                    # Only internal hub roles can sign in to Django portal.
+                    if getattr(user, "role_code", "") not in PORTAL_ALLOWED_ROLE_CODES:
+                        role_code = getattr(user, "role_code", "")
+                        app_hint = "the dedicated app"
+                        if role_code in FLEET_ROLE_CODES:
+                            app_hint = "the ParkPe Fleet app"
+                        elif role_code in PARTNER_ROLE_CODES:
+                            app_hint = "the Payswap Partner app"
+                        elif role_code in PARKING_ROLE_CODES:
+                            app_hint = "the ParkPe Parking app"
+                        elif role_code == "customer":
+                            app_hint = "the ParkPe customer app"
+                        messages.error(request, f'This account must log in through {app_hint}, not the admin portal.')
                         return render(request, self.template_name, {'form': form, 'step': 1})
                     
                     if not user.email_verified:
@@ -846,6 +866,10 @@ class DashboardView(TemplateView):
             'distributor': 'distributor',
             'retailer': 'retailer',
             'customer': 'customer',
+            'fleet_admin': 'customer',
+            'fleet_manager': 'customer',
+            'fleet_operator': 'customer',
+            'fleet_dispatcher': 'customer',
         }
         
         dashboard_name = dashboard_map.get(role_code, 'customer')

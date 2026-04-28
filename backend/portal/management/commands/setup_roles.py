@@ -92,6 +92,27 @@ class Command(BaseCommand):
                 'hierarchy_level': 46,
                 'mfa_required': False,
             },
+            {
+                'name': 'Parking Owner',
+                'code': 'parking_owner',
+                'category': 'b2b',
+                'hierarchy_level': 35,
+                'mfa_required': False,
+            },
+            {
+                'name': 'Parking Manager',
+                'code': 'parking_manager',
+                'category': 'b2b',
+                'hierarchy_level': 32,
+                'mfa_required': False,
+            },
+            {
+                'name': 'Parking Attendant',
+                'code': 'parking_attendant',
+                'category': 'b2b',
+                'hierarchy_level': 28,
+                'mfa_required': False,
+            },
         ]
         
         # Create roles
@@ -166,6 +187,29 @@ class Command(BaseCommand):
                 'fleet_dispatcher': [
                     'portal.view_profile',
                     'portal.view_wallet', 'portal.view_wallettransaction',
+                ],
+                'parking_owner': [
+                    'portal.view_profile', 'portal.view_user',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                    'portal.view_parkinglocation', 'portal.add_parkinglocation', 'portal.change_parkinglocation',
+                    'portal.view_parkingoperator', 'portal.add_parkingoperator', 'portal.change_parkingoperator',
+                    'portal.view_parkingslot', 'portal.add_parkingslot', 'portal.change_parkingslot',
+                    'portal.view_parkingbooking', 'portal.change_parkingbooking',
+                ],
+                'parking_manager': [
+                    'portal.view_profile',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                    'portal.view_parkinglocation',
+                    'portal.view_parkingoperator',
+                    'portal.view_parkingslot', 'portal.change_parkingslot',
+                    'portal.view_parkingbooking', 'portal.change_parkingbooking',
+                ],
+                'parking_attendant': [
+                    'portal.view_profile',
+                    'portal.view_wallet', 'portal.view_wallettransaction',
+                    'portal.view_parkinglocation',
+                    'portal.view_parkingslot',
+                    'portal.view_parkingbooking', 'portal.change_parkingbooking',
                 ],
             }
             

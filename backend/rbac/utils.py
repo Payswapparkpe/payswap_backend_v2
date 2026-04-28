@@ -3,6 +3,7 @@ Hub RBAC permission helpers.
 Super Admin bypass: reuse portal's definition. Sub Admin permissions from UserHubAssignment + HubRole.
 """
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 # Reuse portal's Super Admin definition (is_superuser or role_code super_admin)
 from portal.utils.staff_utils import is_super_admin as _portal_is_super_admin
@@ -20,8 +21,10 @@ def get_user_hub_permissions(user, project_code=None, department_code=None):
     """
     Return set of permission strings (e.g. 'rbac.view_department') the user has via Hub assignments.
     Super Admin: returns None as sentinel meaning "all permissions" (caller treats None as allow-all).
-    Otherwise: active UserHubAssignment for user, optionally filtered by project_code/department_code,
-    then union of all HubRole.permissions for assigned roles.
+    Otherwise: active, non-expired UserHubAssignment for user, optionally filtered by
+    project_code/department_code, then union of all HubRole.permissions for assigned active roles.
+    Assignments with expires_at in the past are excluded even if is_active=True (belt-and-suspenders
+    before the Celery expire_hub_assignments task runs).
     """
     User = get_user_model()
     if not user or not isinstance(user, User) or not user.is_authenticated:
@@ -32,9 +35,13 @@ def get_user_hub_permissions(user, project_code=None, department_code=None):
 
     from rbac.models import UserHubAssignment
 
+    now = timezone.now()
     qs = UserHubAssignment.objects.filter(
         user=user,
         is_active=True,
+    ).filter(
+        # Exclude assignments that have already expired
+        models_expires_at_not_expired(now)
     ).prefetch_related("roles__permissions", "department", "project")
 
     if project_code:
@@ -52,3 +59,12 @@ def get_user_hub_permissions(user, project_code=None, department_code=None):
                 perms.add(f"{perm.content_type.app_label}.{perm.codename}")
 
     return perms
+
+
+def models_expires_at_not_expired(now):
+    """
+    Return a Q object that keeps assignments where expires_at is NULL or in the future.
+    Imported in get_user_hub_permissions to avoid circular import with models.
+    """
+    from django.db.models import Q
+    return Q(expires_at__isnull=True) | Q(expires_at__gt=now)

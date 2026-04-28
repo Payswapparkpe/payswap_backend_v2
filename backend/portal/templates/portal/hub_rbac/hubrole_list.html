@@ -4,80 +4,123 @@
 {% block title %}Hub Roles — Hub RBAC{% endblock %}
 {% block content %}
 <div class="space-y-6">
-    <div class="page-header-enterprise">
-        <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
-                <i class="ti ti-shield text-xl text-amber-600"></i>
-            </div>
-            <div>
-                <h1 class="page-title-enterprise">Hub Roles</h1>
-                <p class="page-description-enterprise">Define department+project specific roles and permission packs.</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2">
-            <a href="{% url 'hub_rbac_dashboard' %}" class="btn-enterprise-outline">Hub RBAC</a>
-            <a href="{% url 'hub_rbac_hubrole_create' %}" class="btn-enterprise-primary"><i class="ti ti-plus mr-2"></i>Add Hub Role</a>
-        </div>
+
+  <div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
+        <i class="ti ti-shield text-xl text-amber-600"></i>
+      </div>
+      <div>
+        <h1 class="page-title-enterprise">Hub Roles</h1>
+        <p class="page-description-enterprise">Permission packs scoped to a Department + Project. Assign these to Sub Admins.</p>
+      </div>
     </div>
-
-    <form method="get" class="card-enterprise">
-        <div class="flex gap-2">
-            <input
-                type="text"
-                name="q"
-                value="{{ request.GET.q|default:'' }}"
-                placeholder="Search by role name or code"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-            <button type="submit" class="btn-enterprise-primary">Search</button>
-        </div>
-    </form>
-
-    <div class="table-enterprise">
-        <table class="w-full">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name (code)</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Permissions</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                {% for r in roles %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 text-sm">{{ r.department.name }}</td>
-                    <td class="px-4 py-3 text-sm">{{ r.project.name }}</td>
-                    <td class="px-4 py-3 font-medium text-gray-900">{{ r.name }} <span class="text-gray-500 font-mono text-xs">({{ r.code }})</span></td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ r.permissions.count }}</td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-0.5 rounded text-xs font-medium {% if r.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {% if r.is_active %}Active{% else %}Inactive{% endif %}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3"><a href="{% url 'hub_rbac_hubrole_edit' r.pk %}" class="text-indigo-600 hover:underline font-medium">Edit</a></td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No hub roles. Add departments and projects first, then create roles.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="flex gap-2">
+      <a href="{% url 'hub_rbac_dashboard' %}" class="btn-enterprise-secondary">← Hub RBAC</a>
+      <a href="{% url 'hub_rbac_hubrole_create' %}" class="btn-enterprise-primary">
+        <i class="ti ti-plus mr-1 text-sm"></i> Add Hub Role
+      </a>
     </div>
+  </div>
 
-    {% if is_paginated %}
-    <div class="card-enterprise flex items-center justify-between text-sm">
-        <p class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
-        <div class="flex items-center gap-2">
-            {% if page_obj.has_previous %}
-            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+  <form method="get" class="card-enterprise p-4 flex gap-2">
+    <input type="text" name="q" value="{{ request.GET.q|default:'' }}"
+      placeholder="Search by role name or code…"
+      class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"/>
+    <button type="submit" class="btn-enterprise-primary text-sm">Search</button>
+    {% if request.GET.q %}<a href="{% url 'hub_rbac_hubrole_list' %}" class="btn-enterprise-secondary text-sm">Clear</a>{% endif %}
+  </form>
+
+  <div class="table-enterprise overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr>
+          <th>Department</th>
+          <th>Project</th>
+          <th>Role (code)</th>
+          <th>Permissions</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for r in roles %}
+        <tr class="hover:bg-gray-50 {% if not r.is_active %}opacity-60{% endif %}">
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+              <i class="ti ti-building text-[10px]"></i>{{ r.department.name }}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+              <i class="ti ti-apps text-[10px]"></i>{{ r.project.name }}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <span class="font-semibold text-gray-900">{{ r.name }}</span>
+            <code class="ml-1.5 text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">{{ r.code }}</code>
+          </td>
+          <td class="px-4 py-3">
+            {% with count=r.permissions.count %}
+            {% if count > 0 %}
+            <span class="inline-flex items-center gap-1 text-xs font-semibold
+              {% if count >= 10 %}text-rose-700 bg-rose-50 border border-rose-200
+              {% elif count >= 5 %}text-amber-700 bg-amber-50 border border-amber-200
+              {% else %}text-gray-600 bg-gray-100{% endif %}
+              px-2 py-0.5 rounded-full">
+              <i class="ti ti-key text-[10px]"></i>
+              {{ count }} perm{{ count|pluralize }}
+            </span>
+            {% else %}
+            <span class="text-xs text-rose-400 flex items-center gap-1">
+              <i class="ti ti-alert-circle text-xs"></i> Empty
+            </span>
             {% endif %}
-            {% if page_obj.has_next %}
-            <a class="btn-enterprise-outline" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+            {% endwith %}
+          </td>
+          <td class="px-4 py-3">
+            {% if r.is_active %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+              <i class="ti ti-circle-check text-[10px]"></i> Active
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              <i class="ti ti-circle-x text-[10px]"></i> Inactive
+            </span>
             {% endif %}
-        </div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+              <a href="{% url 'hub_rbac_hubrole_edit' r.pk %}" class="text-xs font-medium text-indigo-600 hover:underline">Edit</a>
+              {% if r.is_active %}
+              <a href="{% url 'hub_rbac_hubrole_deactivate' r.pk %}?entity_type=hubrole" class="text-xs font-medium text-rose-500 hover:underline">Deactivate</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="px-4 py-12 text-center">
+            <i class="ti ti-shield-off text-4xl text-gray-200 block mb-2"></i>
+            <p class="text-sm text-gray-500">No hub roles yet.</p>
+            <p class="text-xs text-gray-400 mt-1">Add departments and projects first, then create roles with permissions.</p>
+            <a href="{% url 'hub_rbac_hubrole_create' %}" class="btn-enterprise-primary text-xs mt-4 inline-flex">+ Add Hub Role</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_paginated %}
+  <div class="card-enterprise flex items-center justify-between text-sm p-4">
+    <p class="text-gray-500 text-xs">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+    <div class="flex gap-2">
+      {% if page_obj.has_previous %}<a class="btn-enterprise-secondary text-xs" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn-enterprise-secondary text-xs" href="?q={{ request.GET.q|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>{% endif %}
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}

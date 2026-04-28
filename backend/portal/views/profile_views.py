@@ -7,10 +7,44 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.views.generic import DetailView, CreateView, UpdateView, TemplateView
 
-from portal.models import Profile
+from portal.models import KYC, Profile, Wallet
 from portal.forms import ProfileCreateForm, ProfileUpdateForm
 from portal.services.settings_service import get_settings_payload, update_user_settings
 from portal.models import UserSettingsAuditLog
+
+
+def _compute_profile_completion(profile):
+    """Return completion percentage and missing profile items."""
+    is_business_profile = getattr(profile, "type", "individual") in {"business", "corporate"}
+    checks = [
+        ("first_name", "Add first name", "/profile/update/"),
+        ("phone", "Add phone number", "/profile/update/"),
+        ("address_line_1", "Add address", "/profile/update/"),
+        ("city", "Add city", "/profile/update/"),
+        ("state", "Add state", "/profile/update/"),
+        ("pincode", "Add pincode", "/profile/update/"),
+        ("pan_number", "Add PAN number", "/profile/update/"),
+        ("date_of_birth", "Add date of birth", "/profile/update/"),
+        ("recovery_email", "Add recovery email", "/profile/update/"),
+        ("phone_verified", "Verify phone number", "/profile/update/"),
+    ]
+    if is_business_profile:
+        checks.extend([
+            ("business_name", "Add business name", "/profile/update/"),
+            ("business_registration_number", "Add business registration number", "/profile/update/"),
+            ("gst_number", "Add GSTIN", "/profile/update/"),
+        ])
+    completed = 0
+    missing = []
+    for field_name, label, link in checks:
+        value = getattr(profile, field_name, None)
+        is_done = bool(value)
+        if is_done:
+            completed += 1
+        else:
+            missing.append({"label": label, "link": link})
+    percentage = int(round((completed / len(checks)) * 100))
+    return percentage, missing
 
 
 class ProfileCreateView(CreateView):
@@ -25,6 +59,7 @@ class ProfileCreateView(CreateView):
         return super().dispatch(*args, **kwargs)
 
     def form_valid(self, form):
+        form.instance.user = self.request.user
         form.instance.created_by = self.request.user
         messages.success(self.request, 'Profile created successfully!')
         return super().form_valid(form)
@@ -45,6 +80,18 @@ class ProfileView(DetailView):
             messages.error(self.request, 'Profile not found. Please create your profile.')
             return redirect('/profile/create/')
         return self.request.user.profile
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        completion_pct, completion_missing_items = _compute_profile_completion(user.profile)
+        ctx["user"] = user
+        ctx["kyc"] = KYC.objects.filter(user=user).order_by("-created_at").first()
+        ctx["wallet"] = Wallet.objects.filter(user=user).first()
+        ctx["completion_pct"] = completion_pct
+        ctx["completion_missing_items"] = completion_missing_items
+        ctx["is_business_profile"] = user.profile.type in {"business", "corporate"}
+        return ctx
 
 
 class ProfileUpdateView(UpdateView):

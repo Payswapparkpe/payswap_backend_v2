@@ -64,6 +64,9 @@ jobs:
       - name: Django check
         working-directory: backend
         run: python manage.py check
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest --tb=short -q
   frontend:
     runs-on: ubuntu-latest
     steps:

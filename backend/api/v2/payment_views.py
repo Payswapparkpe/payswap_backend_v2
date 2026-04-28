@@ -10,7 +10,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
+from api.v2.idempotency_mixin import IdempotencyMixin
 from api.v2.vendor_router import VendorRouter
 from django.utils import timezone
 from django.conf import settings
@@ -35,7 +36,7 @@ def _api_prefix_from_request(request) -> str:
     return "/api/v2"
 
 
-class PaymentInitiateView(StandardResponseMixin, views.APIView):
+class PaymentInitiateView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Initiate payment
     POST /api/v2/payments/initiate/
@@ -45,10 +46,12 @@ class PaymentInitiateView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'payment'
     required_action = 'initiate'
+    idempotency_scope_suffix = "v2:payment_initiate"
+    require_idempotency_key = True
     
     def post(self, request):
         """Initiate payment"""
@@ -107,7 +110,7 @@ class PaymentStatusView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'payment'
     required_action = 'status'
@@ -143,7 +146,7 @@ class PaymentStatusView(StandardResponseMixin, views.APIView):
             )
 
 
-class PaymentRefundView(StandardResponseMixin, views.APIView):
+class PaymentRefundView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Refund payment
     POST /api/v2/payments/{payment_id}/refund/
@@ -153,10 +156,12 @@ class PaymentRefundView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'payment'
     required_action = 'refund'
+    idempotency_scope_suffix = "v2:payment_refund"
+    require_idempotency_key = True
     
     def post(self, request, payment_id):
         """Refund payment"""
@@ -209,7 +214,7 @@ class PaymentListView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'payment'
     required_action = 'status'

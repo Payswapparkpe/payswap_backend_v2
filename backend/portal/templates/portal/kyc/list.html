@@ -119,6 +119,7 @@
                     <th>Document Number</th>
                     <th>Status</th>
                     <th>Vendor</th>
+                    <th>Documents</th>
                     <th>Submitted</th>
                     <th>Verified</th>
                 </tr>
@@ -141,6 +142,15 @@
                         {% endif %}
                     </td>
                     <td class="text-gray-600">{{ kyc.verification_vendor|default:"-" }}</td>
+                    <td class="text-gray-600">
+                        {% if kyc.document_count|default:0 > 0 %}
+                            <a href="{% url 'kyc_document_access' kyc.id 0 %}" class="text-blue-600 hover:underline" target="_blank" rel="noopener">
+                                View ({{ kyc.document_count }})
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td class="text-gray-600">{{ kyc.created_at|date:"M d, Y" }}</td>
                     <td class="text-gray-600">
                         {% if kyc.verified_at %}
@@ -152,7 +162,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center py-16">
+                    <td colspan="8" class="text-center py-16">
                         <div class="flex flex-col items-center justify-center">
                             <i class="ti ti-file-off text-5xl text-gray-300 mb-4"></i>
                             <p class="text-gray-900 font-semibold mb-1">No KYC submissions found</p>

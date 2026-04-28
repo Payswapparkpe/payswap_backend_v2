@@ -522,6 +522,9 @@ class User(AbstractUser):
         ('fleet_manager', 'Fleet Manager'),
         ('fleet_operator', 'Fleet Operator'),
         ('fleet_dispatcher', 'Fleet Dispatcher'),
+        ('parking_owner', 'Parking Owner'),
+        ('parking_manager', 'Parking Manager'),
+        ('parking_attendant', 'Parking Attendant'),
     ]
     
     KYC_STATUS_CHOICES = [
@@ -884,6 +887,11 @@ class KYC(models.Model):
     document_files = models.JSONField(
         default=list,
         help_text="List of S3 URLs for document files"
+    )
+    document_file_keys = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of private S3 object keys for secure document access"
     )
     
     # Verification vendor info
@@ -5941,6 +5949,13 @@ class IdempotencyRecord(models.Model):
         null=True,
         blank=True,
         help_text="Stored response body (JSON) to return on replay when COMPLETED"
+    )
+    request_fingerprint = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="SHA-256 fingerprint of normalized request payload for key reuse validation"
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

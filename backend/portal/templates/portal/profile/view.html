@@ -61,6 +61,21 @@
                             </span>
                             {% endif %}
                         </div>
+                        <div class="mt-4 pt-4 border-t border-gray-100 text-left space-y-2">
+                            <p class="text-gray-600"><strong>Username:</strong> {{ user.username }}</p>
+                            <p class="text-gray-600"><strong>Member Since:</strong> {{ profile.created_at|date:"F Y" }}</p>
+                            <p class="text-gray-600"><strong>Last Login:</strong> {% if user.last_login %}{{ user.last_login|timesince }} ago{% else %}Never{% endif %}</p>
+                            <p class="text-gray-600"><strong>Login Count:</strong> {{ user.login_count }}</p>
+                            <div class="pt-1">
+                                {% if user.is_active and profile.status == 'active' %}
+                                <span class="badge-enterprise badge-enterprise-success">Account Active</span>
+                                {% elif not user.is_active %}
+                                <span class="badge-enterprise badge-enterprise-danger">Account Disabled</span>
+                                {% else %}
+                                <span class="badge-enterprise badge-enterprise-warning">Profile {{ profile.get_status_display }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -68,6 +83,148 @@
         
         <!-- Profile Details -->
         <div class="lg:col-span-2 space-y-6">
+            <!-- Profile Completion Progress -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-progress text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Profile Completion</h3>
+                    </div>
+                    <span class="text-sm font-semibold text-indigo-700">{{ completion_pct }}%</span>
+                </div>
+                <div class="space-y-3">
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="bg-indigo-600 h-3 rounded-full" style="width: {{ completion_pct }}%;"></div>
+                    </div>
+                    {% if completion_missing_items %}
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Pending items</p>
+                        <div class="flex flex-wrap gap-2">
+                            {% for item in completion_missing_items %}
+                            <a href="{{ item.link }}" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100">
+                                <i class="ti ti-alert-circle mr-1"></i>{{ item.label }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-green-700">Your profile is fully completed.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Account Security -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-shield-lock text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Account Security</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">MFA Status</label>
+                        {% if user.mfa_enabled and user.mfa_configured %}
+                        <span class="badge-enterprise badge-enterprise-success">
+                            Enabled ({{ user.get_mfa_method_display|default:"Configured" }})
+                        </span>
+                        {% else %}
+                        <span class="badge-enterprise badge-enterprise-warning">Not configured</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Last Password Change</label>
+                        <p class="text-gray-900 font-semibold">
+                            {% if profile.last_password_change %}
+                            {{ profile.last_password_change|date:"F d, Y h:i A" }}
+                            {% else %}
+                            Not available
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{% url 'mfa_setup' %}" class="btn-enterprise-secondary">
+                        <i class="ti ti-shield-check mr-1"></i>Setup MFA
+                    </a>
+                    <a href="{% url 'password_change' %}" class="btn-enterprise-secondary">
+                        <i class="ti ti-key mr-1"></i>Change Password
+                    </a>
+                </div>
+            </div>
+
+            <!-- KYC Status -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-id-badge-2 text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">KYC Status</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Current Status</label>
+                        {% if user.kyc_status == 'approved' %}
+                        <span class="badge-enterprise badge-enterprise-success">Approved</span>
+                        {% elif user.kyc_status == 'submitted' or user.kyc_status == 'pending' %}
+                        <span class="badge-enterprise badge-enterprise-warning">{{ user.get_kyc_status_display }}</span>
+                        {% elif user.kyc_status == 'rejected' %}
+                        <span class="badge-enterprise badge-enterprise-danger">Rejected</span>
+                        {% else %}
+                        <span class="badge-enterprise">Not Submitted</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Document Type</label>
+                        <p class="text-gray-900 font-semibold">
+                            {% if kyc %}
+                            {{ kyc.get_document_type_display }}
+                            {% else %}
+                            Not available
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <a href="{% url 'kyc_submit' %}" class="btn-enterprise-secondary">
+                        <i class="ti ti-file-certificate mr-1"></i>{% if kyc %}Update KYC{% else %}Submit KYC{% endif %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Wallet Summary -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-wallet text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Wallet Summary</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Available Balance</label>
+                        <p class="text-2xl font-bold text-gray-900">
+                            {% if wallet %}
+                            {{ wallet.currency }} {{ wallet.balance }}
+                            {% else %}
+                            INR 0.00
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Wallet Status</label>
+                        <p class="text-gray-900 font-semibold">
+                            {% if wallet %}{{ wallet.get_status_display }}{% else %}Not created{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <a href="{% url 'wallet_transactions' %}" class="btn-enterprise-secondary">
+                        <i class="ti ti-list-details mr-1"></i>View Transactions
+                    </a>
+                </div>
+            </div>
+
             <!-- Personal Information -->
             <div class="card-enterprise">
                 <div class="card-enterprise-header">
@@ -146,6 +303,54 @@
                 </div>
             </div>
             
+            <!-- KYB Information -->
+            {% if is_business_profile %}
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-briefcase text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">KYB Information</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Profile Type</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.get_type_display }}</p>
+                    </div>
+                    {% if profile.business_name %}
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Business Name</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.business_name }}</p>
+                    </div>
+                    {% endif %}
+                    {% if profile.business_registration_number %}
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Registration Number</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.business_registration_number }}</p>
+                    </div>
+                    {% endif %}
+                    {% if profile.business_type %}
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Business Type</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.business_type }}</p>
+                    </div>
+                    {% endif %}
+                    {% if profile.gst_number %}
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">GSTIN</label>
+                        <p class="text-gray-900 font-semibold font-mono">{{ profile.gst_number }}</p>
+                    </div>
+                    {% endif %}
+                    {% if profile.tax_id %}
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Other Business Tax ID</label>
+                        <p class="text-gray-900 font-semibold font-mono">{{ profile.tax_id }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Banking Information (if available) -->
             {% if profile.bank_name or profile.account_number %}
             <div class="card-enterprise">
@@ -192,13 +397,13 @@
             </div>
             {% endif %}
             
-            <!-- Taxation Information -->
-            {% if profile.pan_number or profile.aadhaar_number or profile.gst_number %}
+            <!-- Individual Identity -->
+            {% if profile.pan_number or profile.aadhaar_number %}
             <div class="card-enterprise">
                 <div class="card-enterprise-header">
                     <div class="flex items-center gap-2">
-                        <i class="ti ti-receipt text-xl text-indigo-600"></i>
-                        <h3 class="card-enterprise-title">Taxation Information</h3>
+                        <i class="ti ti-id text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Individual Identity</h3>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -214,15 +419,42 @@
                         <p class="text-gray-900 font-semibold font-mono">****{{ profile.aadhaar_number|slice:"-4" }}</p>
                     </div>
                     {% endif %}
-                    {% if profile.gst_number %}
-                    <div>
-                        <label class="text-sm font-semibold text-gray-600 mb-1 block">GST Number</label>
-                        <p class="text-gray-900 font-semibold font-mono">{{ profile.gst_number }}</p>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
             {% endif %}
+
+            <!-- Preferences & Recovery -->
+            <div class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-adjustments text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Preferences & Recovery</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Language</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.language_preference|default:"en" }}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Timezone</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.timezone|default:"Asia/Kolkata" }}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Currency</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.currency_preference|default:"INR" }}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-600 mb-1 block">Recovery Email</label>
+                        <p class="text-gray-900 font-semibold">{{ profile.recovery_email|default:"Not configured" }}</p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <a href="{% url 'settings' %}" class="btn-enterprise-secondary">
+                        <i class="ti ti-settings mr-1"></i>Manage Preferences
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>

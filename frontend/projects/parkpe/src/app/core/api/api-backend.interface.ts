@@ -314,6 +314,7 @@ export interface ApiBackend {
   // Auth API
   login(credentials: LoginRequest): Observable<LoginResponse>;
   fleetLogin(credentials: LoginRequest): Observable<LoginResponse>;
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse>;
   requestLoginOtp(phone: string): Observable<OtpRequestResponse>;
   verifyLoginOtp(phone: string, otp: string): Observable<LoginResponse>;
   register(payload: RegisterRequest): Observable<RegisterResponse>;

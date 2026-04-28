@@ -9,6 +9,21 @@ from django.utils import timezone
 from typing import Optional
 
 
+def _incr_with_limit(counter_key: str, ttl_seconds: int, limit: int) -> bool:
+    """
+    Atomically increment cache counter with TTL and enforce limit.
+    Returns True when request is allowed, False when limit exceeded.
+    """
+    if cache.add(counter_key, 1, timeout=ttl_seconds):
+        return True
+    try:
+        current = cache.incr(counter_key)
+    except ValueError:
+        cache.set(counter_key, 1, timeout=ttl_seconds)
+        current = 1
+    return current <= limit
+
+
 class APIKeyRateThrottle(BaseThrottle):
     """
     Rate limiting per API key
@@ -49,24 +64,18 @@ class APIKeyRateThrottle(BaseThrottle):
         
         # Check minute limit
         minute_key = f"{cache_key}:minute"
-        minute_count = cache.get(minute_key, 0)
-        if minute_count >= requests_per_minute:
+        if not _incr_with_limit(minute_key, ttl_seconds=60, limit=requests_per_minute):
             # Calculate wait time
             wait_seconds = 60 - (timezone.now().second)
             raise Throttled(detail=f'Rate limit exceeded. Try again in {wait_seconds} seconds.')
         
         # Check hour limit
         hour_key = f"{cache_key}:hour"
-        hour_count = cache.get(hour_key, 0)
-        if hour_count >= requests_per_hour:
+        if not _incr_with_limit(hour_key, ttl_seconds=3600, limit=requests_per_hour):
             # Calculate wait time
             wait_seconds = 3600 - (timezone.now().minute * 60 + timezone.now().second)
             raise Throttled(detail=f'Hourly rate limit exceeded. Try again in {wait_seconds // 60} minutes.')
-        
-        # Increment counters
-        cache.set(minute_key, minute_count + 1, timeout=60)
-        cache.set(hour_key, hour_count + 1, timeout=3600)
-        
+
         return True
 
 
@@ -101,22 +110,16 @@ class ServiceRateThrottle(BaseThrottle):
         
         # Check minute limit
         minute_key = f"{cache_key}:minute"
-        minute_count = cache.get(minute_key, 0)
-        if minute_count >= requests_per_minute:
+        if not _incr_with_limit(minute_key, ttl_seconds=60, limit=requests_per_minute):
             wait_seconds = 60 - (timezone.now().second)
             raise Throttled(detail=f'Service rate limit exceeded. Try again in {wait_seconds} seconds.')
         
         # Check hour limit
         hour_key = f"{cache_key}:hour"
-        hour_count = cache.get(hour_key, 0)
-        if hour_count >= requests_per_hour:
+        if not _incr_with_limit(hour_key, ttl_seconds=3600, limit=requests_per_hour):
             wait_seconds = 3600 - (timezone.now().minute * 60 + timezone.now().second)
             raise Throttled(detail=f'Service hourly rate limit exceeded. Try again in {wait_seconds // 60} minutes.')
-        
-        # Increment counters
-        cache.set(minute_key, minute_count + 1, timeout=60)
-        cache.set(hour_key, hour_count + 1, timeout=3600)
-        
+
         return True
 
 
@@ -146,20 +149,14 @@ class PartnerRateThrottle(BaseThrottle):
         
         # Check minute limit
         minute_key = f"{cache_key}:minute"
-        minute_count = cache.get(minute_key, 0)
-        if minute_count >= requests_per_minute:
+        if not _incr_with_limit(minute_key, ttl_seconds=60, limit=requests_per_minute):
             wait_seconds = 60 - (timezone.now().second)
             raise Throttled(detail=f'Partner rate limit exceeded. Try again in {wait_seconds} seconds.')
         
         # Check hour limit
         hour_key = f"{cache_key}:hour"
-        hour_count = cache.get(hour_key, 0)
-        if hour_count >= requests_per_hour:
+        if not _incr_with_limit(hour_key, ttl_seconds=3600, limit=requests_per_hour):
             wait_seconds = 3600 - (timezone.now().minute * 60 + timezone.now().second)
             raise Throttled(detail=f'Partner hourly rate limit exceeded. Try again in {wait_seconds // 60} minutes.')
-        
-        # Increment counters
-        cache.set(minute_key, minute_count + 1, timeout=60)
-        cache.set(hour_key, hour_count + 1, timeout=3600)
-        
+
         return True

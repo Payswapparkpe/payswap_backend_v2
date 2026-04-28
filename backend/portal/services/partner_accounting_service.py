@@ -151,18 +151,19 @@ class PartnerAccountingService:
         with transaction.atomic():
             # Reserve reference_id by creating REVENUE PENDING; DB unique prevents double-create
             try:
-                partner_txn = ResellerPartnerTransaction.objects.create(
-                    partner=partner,
-                    service=service,
-                    api_key=api_key,
-                    transaction_type='REVENUE',
-                    amount=amount,
-                    currency='INR',
-                    reference_id=reference_id,
-                    status='PENDING',
-                    description=description,
-                    metadata=metadata,
-                )
+                with transaction.atomic():
+                    partner_txn = ResellerPartnerTransaction.objects.create(
+                        partner=partner,
+                        service=service,
+                        api_key=api_key,
+                        transaction_type='REVENUE',
+                        amount=amount,
+                        currency='INR',
+                        reference_id=reference_id,
+                        status='PENDING',
+                        description=description,
+                        metadata=metadata,
+                    )
             except IntegrityError:
                 # Another request already created REVENUE for this (partner, reference_id); return it
                 existing = ResellerPartnerTransaction.objects.get(
@@ -398,9 +399,10 @@ class PartnerAccountingService:
         if transaction_type == 'REVENUE' and service:
             # Check if wallet was already debited (by checking if there's a recent wallet transaction)
             if partner.wallet:
+                debit_reference_id = reference_id or str(partner_transaction.id)
                 recent_wallet_txn = WalletTransaction.objects.filter(
                     wallet=partner.wallet,
-                    reference__icontains=reference_id or str(partner_transaction.id),
+                    reference_id=debit_reference_id,
                     transaction_type='debit'
                 ).first()
                 
@@ -455,6 +457,7 @@ class PartnerAccountingService:
                 balance_before=balance_before,
                 balance_after=balance_after,
                 reference=f"Partner Transaction #{reference_transaction.id}",
+                reference_id=reference_transaction.reference_id or str(reference_transaction.id),
                 status='completed',
             )
 

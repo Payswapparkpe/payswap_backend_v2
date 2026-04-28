@@ -1,12 +1,14 @@
 """
 Portal KYC views.
 """
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.views import View
 from django.views.generic import ListView
+from django.http import HttpResponseForbidden
+from django.views.generic.base import RedirectView
 from django.db import models
 
 from portal.models import KYC
@@ -41,7 +43,10 @@ class KYCListView(ListView):
                 models.Q(user__username__icontains=search) |
                 models.Q(document_number__icontains=search)
             )
-        return queryset.order_by('-created_at')
+        queryset = queryset.order_by('-created_at')
+        for kyc in queryset:
+            kyc.document_count = len(getattr(kyc, "document_file_keys", None) or kyc.document_files or [])
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -53,7 +58,6 @@ class KYCListView(ListView):
         context['status_choices'] = KYC.STATUS_CHOICES
         context['document_type_choices'] = KYC.DOCUMENT_TYPE_CHOICES
         return context
-
 
 class KYCSubmitView(View):
     """KYC submission view"""
@@ -86,17 +90,59 @@ class KYCSubmitView(View):
             from portal.services.storage_service import StorageService
             storage = StorageService()
             document_urls = []
+            document_keys = []
             for file in files:
-                url = storage.upload_kyc_document(
+                key = storage.build_kyc_document_key(
                     self.request.user.id,
                     form.cleaned_data['document_type'],
-                    file
+                    file.name
                 )
+                url = storage.upload_kyc_document(self.request.user.id, form.cleaned_data['document_type'], file)
                 document_urls.append(url)
-            kyc.document_files = document_urls
-            kyc.save()
+                document_keys.append(key)
+            kyc.document_files = document_urls  # legacy compatibility
+            kyc.document_file_keys = document_keys
+            kyc.save(update_fields=['document_files', 'document_file_keys'])
         if hasattr(self.request.user, 'kyc_status'):
             self.request.user.kyc_status = 'submitted'
             self.request.user.save()
         messages.success(self.request, 'KYC submitted successfully! It will be reviewed soon.')
         return redirect(self.success_url)
+
+
+class KYCDocumentAccessView(RedirectView):
+    """Secure KYC document access via short-lived signed URL."""
+    permanent = False
+
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_redirect_url(self, *args, **kwargs):
+        kyc = get_object_or_404(KYC, id=kwargs["kyc_id"])
+        if not self.request.user.has_perm("portal.view_kyc") and self.request.user.id != kyc.user_id:
+            raise PermissionError("Forbidden")
+        index = kwargs.get("file_index", 0)
+        try:
+            index = int(index)
+        except (TypeError, ValueError):
+            index = 0
+        file_keys = kyc.document_file_keys or []
+        if not file_keys:
+            from portal.services.storage_service import StorageService
+            storage = StorageService()
+            file_keys = [storage.extract_s3_key(url) for url in (kyc.document_files or []) if ".amazonaws.com/" in url]
+        if index < 0 or index >= len(file_keys):
+            raise PermissionError("Document not available")
+        from portal.services.storage_service import StorageService
+        storage = StorageService()
+        signed_url = storage.get_signed_url_for_key(file_keys[index], expiry_hours=1)
+        if not signed_url:
+            raise PermissionError("Document unavailable")
+        return signed_url
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return super().get(request, *args, **kwargs)
+        except PermissionError:
+            return HttpResponseForbidden("You are not authorized to access this document.")

@@ -6,7 +6,7 @@
 {% block page_title %}Update Profile{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
+<div class="max-w-5xl mx-auto">
     <!-- Enterprise Page Header -->
     <div class="page-header-enterprise">
         <div class="flex items-center gap-3">
@@ -15,13 +15,44 @@
             </div>
             <div>
                 <h1 class="page-title-enterprise">Update Profile</h1>
-                <p class="page-description-enterprise">Update your personal and account information</p>
+                <p class="page-description-enterprise">Update personal details, account settings, and KYB information where applicable</p>
             </div>
         </div>
     </div>
     
     <form method="POST" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+
+        <!-- Account Classification Card -->
+        <div class="card-enterprise">
+            <div class="card-enterprise-header">
+                <div class="flex items-center gap-2">
+                    <i class="ti ti-user-scan text-xl text-indigo-600"></i>
+                    <h3 class="card-enterprise-title">Account Classification</h3>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="{{ form.type.id_for_label }}" class="form-label">
+                        Profile Type
+                    </label>
+                    {{ form.type }}
+                    <p class="form-help-text">
+                        Choose Individual for personal users. GST and business details are collected only for Business or Corporate profiles.
+                    </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    <div class="font-semibold text-gray-900 mb-1">Where does GST/KYB go?</div>
+                    <p>GSTIN, registration number, and business type belong to KYB, not individual profile details.</p>
+                </div>
+            </div>
+        </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Personal Information Card -->
@@ -209,12 +240,67 @@
                 </div>
             </div>
             
-            <!-- Taxation Information Card -->
-            <div class="card-enterprise">
+            <!-- KYB Card -->
+            <div id="kyb-card" class="card-enterprise lg:col-span-2">
                 <div class="card-enterprise-header">
                     <div class="flex items-center gap-2">
-                        <i class="ti ti-receipt text-xl text-indigo-600"></i>
-                        <h3 class="card-enterprise-title">Taxation Information</h3>
+                        <i class="ti ti-building-skyscraper text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">KYB Information</h3>
+                    </div>
+                </div>
+                <div class="space-y-6">
+                    <div id="kyb-fields" class="space-y-6">
+                        <div>
+                            <p class="text-sm text-gray-600">
+                                Capture business verification details for corporate and business profiles. These fields stay hidden and cleared for individual users.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="{{ form.business_name.id_for_label }}" class="form-label">
+                                    Business / Corporate Name <span class="text-red-600">*</span>
+                                </label>
+                                {{ form.business_name }}
+                                {% if form.business_name.errors %}
+                                <p class="form-error-message">{{ form.business_name.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label for="{{ form.business_type.id_for_label }}" class="form-label">
+                                    Business Type
+                                </label>
+                                {{ form.business_type }}
+                                <p class="form-help-text">Example: Proprietorship, LLP, Pvt Ltd, Partnership</p>
+                            </div>
+                            <div>
+                                <label for="{{ form.business_registration_number.id_for_label }}" class="form-label">
+                                    Registration / CIN Number
+                                </label>
+                                {{ form.business_registration_number }}
+                            </div>
+                            <div>
+                                <label for="{{ form.gst_number.id_for_label }}" class="form-label">
+                                    GSTIN
+                                </label>
+                                {{ form.gst_number }}
+                            </div>
+                        </div>
+                        <div>
+                            <label for="{{ form.tax_id.id_for_label }}" class="form-label">
+                                Other Business Tax ID
+                            </label>
+                            {{ form.tax_id }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individual Identity Card -->
+            <div id="individual-identity-card" class="card-enterprise">
+                <div class="card-enterprise-header">
+                    <div class="flex items-center gap-2">
+                        <i class="ti ti-id text-xl text-indigo-600"></i>
+                        <h3 class="card-enterprise-title">Individual Identity</h3>
                     </div>
                 </div>
                 <div class="space-y-6">
@@ -223,27 +309,14 @@
                             PAN Number
                         </label>
                         {{ form.pan_number }}
+                        <p class="form-help-text">Personal PAN for individual KYC.</p>
                     </div>
-                    
                     <div>
                         <label for="{{ form.aadhaar_number.id_for_label }}" class="form-label">
                             Aadhaar Number
                         </label>
                         {{ form.aadhaar_number }}
-                    </div>
-                    
-                    <div>
-                        <label for="{{ form.gst_number.id_for_label }}" class="form-label">
-                            GST Number
-                        </label>
-                        {{ form.gst_number }}
-                    </div>
-                    
-                    <div>
-                        <label for="{{ form.tax_id.id_for_label }}" class="form-label">
-                            Other Tax ID
-                        </label>
-                        {{ form.tax_id }}
+                        <p class="form-help-text">Personal Aadhaar for individual KYC.</p>
                     </div>
                 </div>
             </div>
@@ -261,4 +334,29 @@
         </div>
     </form>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const profileType = document.getElementById('id_type');
+    const kybCard = document.getElementById('kyb-card');
+    const kybFields = document.getElementById('kyb-fields');
+    const individualIdentityCard = document.getElementById('individual-identity-card');
+    function toggleKybFields() {
+        if (!profileType) return;
+        const isBusinessProfile = ['business', 'corporate'].includes(profileType.value);
+        if (kybCard) {
+            kybCard.style.display = isBusinessProfile ? 'block' : 'none';
+        }
+        if (kybFields) {
+            kybFields.style.display = isBusinessProfile ? 'block' : 'none';
+        }
+        if (individualIdentityCard) {
+            individualIdentityCard.style.display = isBusinessProfile ? 'none' : 'block';
+        }
+    }
+    if (profileType) {
+        profileType.addEventListener('change', toggleKybFields);
+        toggleKybFields();
+    }
+});
+</script>
 {% endblock %}

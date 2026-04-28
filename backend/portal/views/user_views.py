@@ -10,7 +10,7 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.views import View
 from django.views.generic import ListView, DetailView, CreateView
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.urls import reverse, NoReverseMatch
@@ -28,9 +28,15 @@ class UserListView(ListView):
     context_object_name = 'users'
     paginate_by = 20
 
-    ADMIN_TAB_ROLES = {'super_admin', 'admin', 'employee', 'partner'}
+    ADMIN_TAB_ROLES = {'super_admin', 'admin', 'employee'}
     PAYSWAP_TAB_ROLES = {'retailer', 'distributor', 'super_distributor'}
-    PARKPE_TAB_ROLES = {'customer'}
+    FLEET_TAB_ROLES = {'fleet_admin', 'fleet_manager', 'fleet_operator', 'fleet_dispatcher'}
+    PARKING_TAB_ROLES = {'parking_owner', 'parking_manager', 'parking_attendant'}
+    PARKPE_TAB_ROLES = {
+        'customer',
+        *FLEET_TAB_ROLES,
+        *PARKING_TAB_ROLES,
+    }
 
     @method_decorator(login_required)
     def dispatch(self, *args, **kwargs):
@@ -41,6 +47,10 @@ class UserListView(ListView):
             return self.ADMIN_TAB_ROLES
         if tab == 'payswap':
             return self.PAYSWAP_TAB_ROLES
+        if tab == 'fleet':
+            return self.FLEET_TAB_ROLES
+        if tab == 'parking':
+            return self.PARKING_TAB_ROLES
         if tab == 'parkpe':
             return self.PARKPE_TAB_ROLES
         return None
@@ -70,7 +80,7 @@ class UserListView(ListView):
 
     def get_queryset(self):
         tab = (self.request.GET.get('tab') or 'all').strip().lower()
-        if tab not in {'all', 'admin', 'payswap', 'parkpe'}:
+        if tab not in {'all', 'admin', 'payswap', 'parkpe', 'fleet', 'parking'}:
             tab = 'all'
         q = (self.request.GET.get('q') or '').strip()
         from_date = self._parse_date(self.request.GET.get('from_date'))
@@ -87,7 +97,7 @@ class UserListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tab = (self.request.GET.get('tab') or 'all').strip().lower()
-        if tab not in {'all', 'admin', 'payswap', 'parkpe'}:
+        if tab not in {'all', 'admin', 'payswap', 'parkpe', 'fleet', 'parking'}:
             tab = 'all'
         q = (self.request.GET.get('q') or '').strip()
         from_date_raw = self.request.GET.get('from_date') or ''
@@ -101,6 +111,8 @@ class UserListView(ListView):
             'all': filtered_no_tab.count(),
             'admin': filtered_no_tab.filter(role_code__in=self.ADMIN_TAB_ROLES).count(),
             'payswap': filtered_no_tab.filter(role_code__in=self.PAYSWAP_TAB_ROLES).count(),
+            'fleet': filtered_no_tab.filter(role_code__in=self.FLEET_TAB_ROLES).count(),
+            'parking': filtered_no_tab.filter(role_code__in=self.PARKING_TAB_ROLES).count(),
             'parkpe': filtered_no_tab.filter(role_code__in=self.PARKPE_TAB_ROLES).count(),
         }
 
@@ -110,7 +122,12 @@ class UserListView(ListView):
             if rc in self.PAYSWAP_TAB_ROLES:
                 user_item.platform_label = 'Payswap'
             elif rc in self.PARKPE_TAB_ROLES:
-                user_item.platform_label = 'ParkPe'
+                if rc.startswith('fleet_'):
+                    user_item.platform_label = 'ParkPe Fleet'
+                elif rc.startswith('parking_'):
+                    user_item.platform_label = 'ParkPe Parking'
+                else:
+                    user_item.platform_label = 'ParkPe'
             else:
                 user_item.platform_label = 'Admin'
 
@@ -168,21 +185,53 @@ class UserCreateView(CreateView):
         try:
             with transaction.atomic():
                 username = form.cleaned_data.get('username') or None
+                role_code = form.cleaned_data['role_code']
                 user = User.objects.create_user(
                     username=username,
                     password=form.cleaned_data['password1'],
-                    role_code=form.cleaned_data['role_code'],
+                    role_code=role_code,
                     created_by=self.request.user,
                 )
+                business_role_codes = {
+                    'super_distributor',
+                    'distributor',
+                    'retailer',
+                    'fleet_admin',
+                    'fleet_manager',
+                    'parking_owner',
+                    'parking_manager',
+                }
+                profile_type = 'business' if role_code in business_role_codes else 'individual'
                 Profile.objects.create(
                     user=user,
                     first_name=form.cleaned_data.get('first_name'),
                     email=form.cleaned_data.get('email'),
                     phone=form.cleaned_data.get('phone'),
-                    type='individual',
+                    type=profile_type,
                     created_by=self.request.user,
                 )
                 Wallet.objects.get_or_create(user=user)
+                if role_code.startswith('parking_'):
+                    try:
+                        from portal.models.parking import ParkingOperator, ParkingLocation
+                        location = ParkingLocation.objects.order_by('id').first()
+                        if location:
+                            parking_role_map = {
+                                'parking_owner': ParkingOperator.ROLE_OWNER,
+                                'parking_manager': ParkingOperator.ROLE_MANAGER,
+                                'parking_attendant': ParkingOperator.ROLE_ATTENDANT,
+                            }
+                            ParkingOperator.objects.get_or_create(
+                                user=user,
+                                location=location,
+                                defaults={
+                                    'role': parking_role_map.get(role_code, ParkingOperator.ROLE_ATTENDANT),
+                                    'is_active': True,
+                                    'notes': 'Auto-linked during user creation.',
+                                },
+                            )
+                    except Exception:
+                        pass
                 assignment_url = reverse('hub_rbac_assignment_create') + f'?user_id={user.pk}'
                 messages.success(
                     self.request,
@@ -342,7 +391,7 @@ class UserDeleteView(View):
                 username = user_obj.username
                 user_obj.delete()
                 messages.success(request, f'User {username} has been permanently deleted.')
-            except ProtectedError:
+            except (ProtectedError, IntegrityError):
                 messages.error(
                     request,
                     'Permanent delete blocked because this user is referenced by other records. '

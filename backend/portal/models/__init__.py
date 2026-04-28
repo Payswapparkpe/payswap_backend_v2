@@ -1,6 +1,18 @@
 """
 Portal models package. Re-exports all models from _monolith for backward compatibility.
 """
+from portal.models.parking import (
+    ParkingLocation,
+    ParkingZone,
+    ParkingSlot,
+    ParkingRate,
+    ParkingBooking,
+    ParkingSession,
+    ParkingTicket,
+    ParkingTransaction,
+    ParkingRevenue,
+    ParkingOperator,
+)
 from portal.models._monolith import (
     UserManager,
     Profile,
@@ -88,6 +100,18 @@ from portal.models._monolith import (
 )
 
 __all__ = [
+    # Parking
+    'ParkingLocation',
+    'ParkingZone',
+    'ParkingSlot',
+    'ParkingRate',
+    'ParkingBooking',
+    'ParkingSession',
+    'ParkingTicket',
+    'ParkingTransaction',
+    'ParkingRevenue',
+    'ParkingOperator',
+    # Legacy monolith
     'UserManager',
     'Profile',
     'Role',

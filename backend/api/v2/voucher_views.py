@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
 from portal.models import Service
@@ -14,7 +15,7 @@ from portal.models import Service
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
 from api.v2.permissions import HasAPIKey, HasServicePermission
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
 from api.v2.idempotency_mixin import IdempotencyMixin
 from portal.models import (
     GiftVoucher, GiftVoucherTransaction, BulkVoucherIssuanceBatch,
@@ -71,8 +72,9 @@ class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     idempotency_scope_suffix = "v2:voucher_issue"
+    require_idempotency_key = True
     service_name = 'voucher'
     required_action = 'issue'
     
@@ -119,28 +121,28 @@ class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
                 }
             )
             
-            # Issue voucher (email is required for API single voucher issuance)
-            voucher_service = VoucherService()
-            result = voucher_service.issue_single_voucher(
-                brand_id=brand.id,
-                amount=serializer.validated_data['amount'],
-                mobile_number=serializer.validated_data.get('mobile_number'),
-                recipient_email=serializer.validated_data.get('email'),
-                metadata={
-                    **(serializer.validated_data.get('metadata', {})),
-                    'partner_id': partner.id,
-                    'partner_code': partner.partner_code,
-                    'api_key_id': api_key.id
-                },
-                created_by=api_user,
-                client_id=serializer.validated_data.get('client_id'),
-                issued_by=api_user,
-                issuer_type='API_PARTNER'
-            )
-            
-            # Charge partner for service usage and record transaction
+            # Issue voucher and partner charge in one DB transaction so insufficient
+            # balance or charge failures do not leave an issued-but-unbilled voucher.
             from portal.services.partner_accounting_service import PartnerAccountingService
-            try:
+            with transaction.atomic():
+                voucher_service = VoucherService()
+                result = voucher_service.issue_single_voucher(
+                    brand_id=brand.id,
+                    amount=serializer.validated_data['amount'],
+                    mobile_number=serializer.validated_data.get('mobile_number'),
+                    recipient_email=serializer.validated_data.get('email'),
+                    metadata={
+                        **(serializer.validated_data.get('metadata', {})),
+                        'partner_id': partner.id,
+                        'partner_code': partner.partner_code,
+                        'api_key_id': api_key.id
+                    },
+                    created_by=api_user,
+                    client_id=serializer.validated_data.get('client_id'),
+                    issued_by=api_user,
+                    issuer_type='API_PARTNER'
+                )
+
                 # Get voucher service (try multiple possible codes)
                 voucher_service_obj = Service.objects.filter(
                     Q(code='VOUCHER') | Q(code='GIFT_VOUCHER') | Q(name__icontains='voucher')
@@ -163,7 +165,7 @@ class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
                         charge_amount = Decimal(str(result['amount']))
                     
                     # Charge partner wallet
-                    transaction, success = accounting_service.charge_partner_for_service(
+                    _partner_txn, success = accounting_service.charge_partner_for_service(
                         partner=partner,
                         service=voucher_service_obj,
                         amount=charge_amount,
@@ -177,26 +179,18 @@ class VoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIView):
                     )
                     
                     if not success:
-                        # Insufficient balance - return error
-                        return self.error_response(
-                            message="Insufficient wallet balance",
-                            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                            request=request
-                        )
-                    try:
-                        from portal.services.hub_income_service import record_hub_income
-                        record_hub_income(
-                            'voucher',
-                            amount=charge_amount,
-                            transaction_amount=Decimal(str(result['amount'])),
-                            reference_id=result['reference_number'],
-                            partner=partner,
-                        )
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error(f'Error charging partner for service: {str(e)}', exc_info=True)
-                # Don't fail the request if transaction recording fails, but log it
+                        raise ValueError("Insufficient wallet balance")
+                try:
+                    from portal.services.hub_income_service import record_hub_income
+                    record_hub_income(
+                        'voucher',
+                        amount=charge_amount,
+                        transaction_amount=Decimal(str(result['amount'])),
+                        reference_id=result['reference_number'],
+                        partner=partner,
+                    )
+                except Exception:
+                    pass
             
             # Log operation
             log_voucher_operation(
@@ -246,8 +240,9 @@ class BulkVoucherIssueView(IdempotencyMixin, StandardResponseMixin, views.APIVie
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     idempotency_scope_suffix = "v2:voucher_bulk_issue"
+    require_idempotency_key = True
     service_name = 'voucher'
     required_action = 'issue'
     
@@ -363,8 +358,9 @@ class VoucherRedeemPINView(IdempotencyMixin, StandardResponseMixin, views.APIVie
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     idempotency_scope_suffix = "v2:voucher_redeem_pin"
+    require_idempotency_key = True
     service_name = 'voucher'
     required_action = 'redeem'
     
@@ -476,7 +472,7 @@ class VoucherRedeemPINView(IdempotencyMixin, StandardResponseMixin, views.APIVie
         return request.META.get('REMOTE_ADDR')
 
 
-class VoucherRedeemOTPRequestView(StandardResponseMixin, views.APIView):
+class VoucherRedeemOTPRequestView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Request OTP for voucher redemption
     POST /api/v2/vouchers/redeem-otp/request/
@@ -486,7 +482,9 @@ class VoucherRedeemOTPRequestView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
+    idempotency_scope_suffix = "v2:voucher_redeem_otp_request"
+    require_idempotency_key = True
     
     service_name = 'voucher'
     required_action = 'redeem'
@@ -563,8 +561,9 @@ class VoucherRedeemOTPVerifyView(IdempotencyMixin, StandardResponseMixin, views.
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     idempotency_scope_suffix = "v2:voucher_redeem_otp"
+    require_idempotency_key = True
     service_name = 'voucher'
     required_action = 'redeem'
     
@@ -665,7 +664,7 @@ class VoucherBalanceView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'voucher'
     required_action = 'balance'
@@ -713,7 +712,7 @@ class VoucherBalanceView(StandardResponseMixin, views.APIView):
             )
 
 
-class VoucherPINChangeRequestView(StandardResponseMixin, views.APIView):
+class VoucherPINChangeRequestView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Request OTP for PIN change
     POST /api/v2/vouchers/{voucher_code}/pin/change/request/
@@ -723,7 +722,9 @@ class VoucherPINChangeRequestView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
+    idempotency_scope_suffix = "v2:voucher_pin_change_request"
+    require_idempotency_key = True
     
     service_name = 'voucher'
     required_action = 'pin_change'
@@ -790,7 +791,7 @@ class VoucherPINChangeRequestView(StandardResponseMixin, views.APIView):
             )
 
 
-class VoucherPINChangeVerifyView(StandardResponseMixin, views.APIView):
+class VoucherPINChangeVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Verify OTP and change PIN
     POST /api/v2/vouchers/{voucher_code}/pin/change/verify/
@@ -801,6 +802,8 @@ class VoucherPINChangeVerifyView(StandardResponseMixin, views.APIView):
     permission_classes = [HasAPIKey, HasServicePermission]
     parser_classes = [JSONParser]
     throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    idempotency_scope_suffix = "v2:voucher_pin_change_verify"
+    require_idempotency_key = True
     
     service_name = 'voucher'
     required_action = 'pin_change'

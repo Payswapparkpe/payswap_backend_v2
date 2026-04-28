@@ -80,13 +80,35 @@
         <div class="setting-info"><h3>Country</h3></div>
         <input type="text" class="input" formControlName="countryOfResidence" />
       </div>
-      <div class="setting-item">
-        <div class="setting-info">
-          <h3>GSTIN (optional)</h3>
-          <p>For business purchases; leave blank for individuals.</p>
+      @if (isBusinessProfile()) {
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>Business / corporate name</h3>
+            <p>KYB information for receipts and business verification.</p>
+          </div>
+          <input type="text" class="input" formControlName="businessName" placeholder="Registered business name" />
         </div>
-        <input type="text" class="input" formControlName="gstNumber" maxlength="15" placeholder="15-character GSTIN" />
-      </div>
+        <div class="setting-item">
+          <div class="setting-info"><h3>Registration / CIN number</h3></div>
+          <input type="text" class="input" formControlName="businessRegistrationNumber" placeholder="Registration number" />
+        </div>
+        <div class="setting-item">
+          <div class="setting-info"><h3>Business type</h3></div>
+          <input type="text" class="input" formControlName="businessType" placeholder="Pvt Ltd, LLP, Proprietorship" />
+        </div>
+        <div class="setting-item">
+          <div class="setting-info"><h3>GSTIN</h3></div>
+          <input type="text" class="input" formControlName="gstNumber" maxlength="15" placeholder="15-character GSTIN" />
+        </div>
+        <div class="setting-item">
+          <div class="setting-info"><h3>Other business tax ID</h3></div>
+          <input type="text" class="input" formControlName="taxId" placeholder="Optional" />
+        </div>
+      } @else {
+        <p class="hint" style="margin-bottom: 1rem">
+          GST and business details are collected only on business/corporate profiles.
+        </p>
+      }
       @if (user(); as u) {
         @if (u.billingAddressComplete === false) {
           <p class="error">Billing address is incomplete — save once all required fields are filled.</p>

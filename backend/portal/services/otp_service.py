@@ -89,8 +89,7 @@ class OTPService:
         
         rate_limit_key = f"otp_rate_limit:{normalized_phone}"
         request_count = cache.get(rate_limit_key, 0)
-        # OTP send limit disabled for ParkPe for now (was 3 per window)
-        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 99999)
+        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 3)
         logger.info(
             'OTP - Rate limit check',
             user=None,
@@ -280,7 +279,7 @@ class OTPService:
             }
         )
         
-        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 99999)
+        OTP_SEND_LIMIT = getattr(settings, 'OTP_SEND_RATE_LIMIT', 3)
         if phone_attempts >= OTP_SEND_LIMIT or email_attempts >= OTP_SEND_LIMIT:
             logger.warning(
                 'OTP dual rate limit exceeded',

@@ -24,54 +24,54 @@
             {% csrf_token %}
             <div id="profile-form">
                 <div class="space-y-6">
-                    <div>
-                        <label for="name" class="form-label">Name <span class="text-red-600">*</span></label>
-                        <input 
-                            type="text" 
-                            id="name" 
-                            name="name" 
-                            required
-                            class="input-enterprise"
-                            placeholder="Enter your full name"
-                        >
-                        <p class="form-help-text">Your full name as it appears on official documents</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="{{ form.first_name.id_for_label }}" class="form-label">First Name <span class="text-red-600">*</span></label>
+                            {{ form.first_name }}
+                            {% if form.first_name.errors %}
+                            <p class="form-error-message">{{ form.first_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <label for="{{ form.last_name.id_for_label }}" class="form-label">Last Name</label>
+                            {{ form.last_name }}
+                        </div>
                     </div>
                     
                     <div>
                         <label for="type" class="form-label">Profile Type <span class="text-red-600">*</span></label>
-                        <select 
-                            id="type" 
-                            name="type" 
-                            required
-                            class="input-enterprise"
-                        >
-                            <option value="individual">Individual</option>
-                            <option value="business">Business</option>
-                        </select>
+                        {{ form.type }}
                         <p class="form-help-text">Select whether this is a personal or business profile</p>
                     </div>
                     
-                    <div id="business-fields" style="display: none;">
+                    <div id="kyb-fields" class="space-y-6 rounded-lg border border-indigo-100 bg-indigo-50/40 p-4" style="display: none;">
                         <div>
-                            <label for="business_name" class="form-label">Business Name</label>
-                            <input 
-                                type="text" 
-                                id="business_name" 
-                                name="business_name"
-                                class="input-enterprise"
-                                placeholder="Enter business name"
-                            >
+                            <h2 class="text-base font-semibold text-gray-900">KYB Information</h2>
+                            <p class="form-help-text">Required only for business/corporate profiles. Individual profiles should not carry GST or business details.</p>
                         </div>
-                        
                         <div>
-                            <label for="tax_id" class="form-label">Tax ID (GST/PAN)</label>
-                            <input 
-                                type="text" 
-                                id="tax_id" 
-                                name="tax_id"
-                                class="input-enterprise"
-                                placeholder="Enter tax ID"
-                            >
+                            <label for="{{ form.business_name.id_for_label }}" class="form-label">Business / Corporate Name <span class="text-red-600">*</span></label>
+                            {{ form.business_name }}
+                            {% if form.business_name.errors %}
+                            <p class="form-error-message">{{ form.business_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <label for="{{ form.business_registration_number.id_for_label }}" class="form-label">Registration / CIN Number</label>
+                            {{ form.business_registration_number }}
+                        </div>
+                        <div>
+                            <label for="{{ form.business_type.id_for_label }}" class="form-label">Business Type</label>
+                            {{ form.business_type }}
+                            <p class="form-help-text">Example: Proprietorship, LLP, Pvt Ltd, Partnership</p>
+                        </div>
+                        <div>
+                            <label for="{{ form.gst_number.id_for_label }}" class="form-label">GSTIN</label>
+                            {{ form.gst_number }}
+                        </div>
+                        <div>
+                            <label for="{{ form.tax_id.id_for_label }}" class="form-label">Other Business Tax ID</label>
+                            {{ form.tax_id }}
                         </div>
                     </div>
                     
@@ -79,35 +79,30 @@
                         <label for="phone" class="form-label">Phone Number <span class="text-red-600">*</span></label>
                         <input 
                             type="tel" 
-                            id="phone" 
-                            name="phone" 
+                            id="{{ form.phone.id_for_label }}"
+                            name="{{ form.phone.name }}"
                             required
                             class="input-enterprise"
                             placeholder="Enter phone number"
+                            value="{{ form.phone.value|default:'' }}"
                         >
                         <p class="form-help-text">Include country code (e.g., +91)</p>
                     </div>
                     
                     <div>
                         <label for="email" class="form-label">Email</label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email"
-                            class="input-enterprise"
-                            placeholder="Enter email address"
-                        >
+                        {{ form.email }}
                     </div>
                     
                     <div>
                         <label for="address" class="form-label">Address</label>
                         <textarea 
-                            id="address" 
-                            name="address"
+                            id="{{ form.address_line_1.id_for_label }}"
+                            name="{{ form.address_line_1.name }}"
                             rows="3"
                             class="input-enterprise"
                             placeholder="Enter your address"
-                        ></textarea>
+                        >{{ form.address_line_1.value|default:'' }}</textarea>
                     </div>
                     
                     <div class="flex gap-3 justify-end pt-6 border-t border-gray-200">
@@ -124,14 +119,15 @@
 </div>
 
 <script>
-    // Show/hide business fields
-    document.getElementById('type').addEventListener('change', function() {
-        const businessFields = document.getElementById('business-fields');
-        if (this.value === 'business') {
-            businessFields.style.display = 'block';
-        } else {
-            businessFields.style.display = 'none';
-        }
-    });
+    const profileType = document.getElementById('id_type');
+    const kybFields = document.getElementById('kyb-fields');
+    function toggleKybFields() {
+        if (!profileType || !kybFields) return;
+        kybFields.style.display = ['business', 'corporate'].includes(profileType.value) ? 'block' : 'none';
+    }
+    if (profileType) {
+        profileType.addEventListener('change', toggleKybFields);
+        toggleKybFields();
+    }
 </script>
 {% endblock %}

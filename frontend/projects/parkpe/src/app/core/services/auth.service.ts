@@ -115,6 +115,28 @@ export class AuthService {
     );
   }
 
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    this.logger.info('parking_login_start', { service: 'auth', action: 'parking_login_start' });
+    return this.api.parkingLogin(credentials).pipe(
+      tap((response) => {
+        this.setSession(response);
+        this.logger.info('parking_login_success', {
+          service: 'auth',
+          action: 'parking_login_success',
+          userId: response.user?.id,
+        });
+      }),
+      catchError((err) => {
+        this.logger.warn('parking_login_error', {
+          service: 'auth',
+          action: 'parking_login_error',
+          status: err?.status,
+        });
+        return throwError(() => err);
+      })
+    );
+  }
+
   requestLoginOtp(phone: string): Observable<{ message: string; expires_in: number }> {
     this.logger.info('login_otp_request', { service: 'auth', action: 'login_otp_request' });
     return this.api.requestLoginOtp(phone).pipe(
@@ -409,8 +431,16 @@ export class AuthService {
     return roleCode.startsWith('fleet_') || role === 'fleet';
   }
 
+  isParkingUser(user: User | null | undefined = this.userSubject.value): boolean {
+    const roleCode = String((user as unknown as { roleCode?: string })?.roleCode || '').toLowerCase();
+    const role = String((user as unknown as { role?: string })?.role || '').toLowerCase();
+    return roleCode.startsWith('parking_') || role === 'parking';
+  }
+
   getPostLoginRoute(user: User | null | undefined = this.userSubject.value): string {
-    return this.isFleetUser(user) ? '/fleet/control-center' : '/dashboard';
+    if (this.isFleetUser(user)) return '/fleet/control-center';
+    if (this.isParkingUser(user)) return '/parking/dashboard';
+    return '/dashboard';
   }
 
   private setSession(response: LoginResponse): void {

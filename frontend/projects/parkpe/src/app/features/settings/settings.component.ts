@@ -42,6 +42,10 @@ export class SettingsComponent implements OnInit {
 
   currentTheme = this.themeService.theme;
   user = this.authService.userSignal;
+  isBusinessProfile = computed(() => {
+    const profileType = (this.user()?.profileType || 'individual').toLowerCase();
+    return profileType === 'business' || profileType === 'corporate';
+  });
 
   selectedLanguage = environment.app.defaultLanguage;
   selectedTimezone = 'Asia/Kolkata';
@@ -74,7 +78,11 @@ export class SettingsComponent implements OnInit {
     state: [''],
     pincode: [''],
     countryOfResidence: ['India'],
+    businessName: [''],
+    businessRegistrationNumber: [''],
+    businessType: [''],
     gstNumber: [''],
+    taxId: [''],
   });
   securityOverview = signal<{
     mfa?: { enabled: boolean; configured: boolean; method?: string | null };
@@ -460,7 +468,15 @@ export class SettingsComponent implements OnInit {
         state: v.state.trim(),
         pincode: v.pincode.trim(),
         countryOfResidence: (v.countryOfResidence || 'India').trim(),
-        gstNumber: v.gstNumber.trim(),
+        ...(this.isBusinessProfile()
+          ? {
+              businessName: v.businessName.trim(),
+              businessRegistrationNumber: v.businessRegistrationNumber.trim(),
+              businessType: v.businessType.trim(),
+              gstNumber: v.gstNumber.trim(),
+              taxId: v.taxId.trim(),
+            }
+          : {}),
       })
       .subscribe({
         next: (u) => {
@@ -518,7 +534,11 @@ export class SettingsComponent implements OnInit {
       state: u.state ?? '',
       pincode: u.pincode ?? '',
       countryOfResidence: u.countryOfResidence ?? 'India',
+      businessName: u.businessName ?? '',
+      businessRegistrationNumber: u.businessRegistrationNumber ?? '',
+      businessType: u.businessType ?? '',
       gstNumber: u.gstNumber ?? '',
+      taxId: u.taxId ?? '',
     });
   }
 

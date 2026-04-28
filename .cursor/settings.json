@@ -1,0 +1,7 @@
+{
+  "plugins": {
+    "amazon-location-service": {
+      "enabled": true
+    }
+  }
+}

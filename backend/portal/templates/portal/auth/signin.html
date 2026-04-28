@@ -139,9 +139,9 @@
                     
                     <!-- Django Messages Display -->
                     {% if messages %}
-                    <div class="mb-4 space-y-2">
+                    <div class="mb-4 space-y-2" aria-live="polite" aria-atomic="true">
                         {% for message in messages %}
-                        <div class="p-3 rounded-lg {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% elif message.tags == 'info' %}bg-blue-50 text-blue-800 border border-blue-200{% else %}bg-gray-50 text-gray-800 border border-gray-200{% endif %}">
+                        <div role="alert" class="p-3 rounded-lg {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% elif message.tags == 'info' %}bg-blue-50 text-blue-800 border border-blue-200{% else %}bg-gray-50 text-gray-800 border border-gray-200{% endif %}">
                             <p class="text-sm font-medium">{{ message }}</p>
                         </div>
                         {% endfor %}

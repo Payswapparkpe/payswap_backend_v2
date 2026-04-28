@@ -21,10 +21,15 @@ def user_to_angular(user: "User") -> dict:
         email = user.email or ""
         phone = ""
     role_code = str(getattr(user, "role_code", "") or "").strip().lower()
+    partner_role_codes = {"super_distributor", "distributor", "retailer"}
     if role_code in ("super_admin", "admin"):
         role = "admin"
     elif role_code.startswith("fleet_"):
         role = "fleet"
+    elif role_code.startswith("parking_"):
+        role = "parking"
+    elif role_code in partner_role_codes:
+        role = "partner"
     else:
         role = "user"
     notification_prefs = {}
@@ -33,6 +38,8 @@ def user_to_angular(user: "User") -> dict:
         notification_prefs = profile.notification_preferences if isinstance(profile.notification_preferences, dict) else {}
         settings_blob = profile.settings if isinstance(profile.settings, dict) else {}
     billing_complete = profile_billing_address_complete(profile) if profile else False
+    profile_type = (getattr(profile, "type", None) or "individual").strip() if profile else "individual"
+    is_business_profile = profile_type in {"business", "corporate"}
     return {
         "id": str(user.pk),
         "name": name or user.username,
@@ -56,6 +63,11 @@ def user_to_angular(user: "User") -> dict:
         "state": (getattr(profile, "state", None) or "").strip() if profile else "",
         "pincode": (getattr(profile, "pincode", None) or "").strip() if profile else "",
         "countryOfResidence": (getattr(profile, "country_of_residence", None) or "India").strip() if profile else "India",
-        "gstNumber": (getattr(profile, "gst_number", None) or "").strip() if profile else "",
+        "profileType": profile_type,
+        "businessName": (getattr(profile, "business_name", None) or "").strip() if is_business_profile else "",
+        "businessRegistrationNumber": (getattr(profile, "business_registration_number", None) or "").strip() if is_business_profile else "",
+        "businessType": (getattr(profile, "business_type", None) or "").strip() if is_business_profile else "",
+        "gstNumber": (getattr(profile, "gst_number", None) or "").strip() if is_business_profile else "",
+        "taxId": (getattr(profile, "tax_id", None) or "").strip() if is_business_profile else "",
         "billingAddressComplete": billing_complete,
     }

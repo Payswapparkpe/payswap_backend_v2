@@ -65,6 +65,10 @@ export class MockApiService implements ApiBackend {
       .pipe(delay(this.mockDelay));
   }
 
+  partnerLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.login(credentials);
+  }
+
   requestLoginOtp(phone: string): Observable<{ message: string; expires_in: number }> {
     return of({ message: 'OTP sent to your mobile number.', expires_in: 300 }).pipe(delay(this.mockDelay));
   }

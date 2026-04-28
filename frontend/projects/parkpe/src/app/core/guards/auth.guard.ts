@@ -14,7 +14,13 @@ export const authGuard: CanActivateFn = (route, state) => {
     return true;
   }
 
-  const loginRoute = state.url.startsWith('/fleet') ? '/fleet/login' : '/auth/login';
+  const isFleetRoute = state.url.startsWith('/fleet');
+  const isParkingOwnerRoute =
+    state.url.startsWith('/parking/dashboard') ||
+    state.url.startsWith('/parking/locations') ||
+    state.url.startsWith('/parking/sessions') ||
+    state.url.startsWith('/parking/bookings');
+  const loginRoute = isFleetRoute ? '/fleet/login' : isParkingOwnerRoute ? '/parking/login' : '/auth/login';
   // Redirect to login with return URL
   router.navigate([loginRoute], {
     queryParams: { returnUrl: state.url },

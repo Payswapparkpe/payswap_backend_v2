@@ -118,6 +118,12 @@ class UserHubAssignment(models.Model):
         help_text="E.g. Manager, Executive, Head",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Optional: auto-deactivate after this datetime. Leave blank for permanent access.",
+    )
     roles = models.ManyToManyField(
         HubRole,
         blank=True,

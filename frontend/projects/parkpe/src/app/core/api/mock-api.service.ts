@@ -107,6 +107,22 @@ export class MockApiService implements ApiBackend {
       );
   }
 
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http
+      .get<LoginResponse>('assets/mock/auth/login.json')
+      .pipe(
+        map((res) => {
+          const parkingUser: User = {
+            ...res.user,
+            role: 'parking',
+          };
+          (parkingUser as unknown as Record<string, unknown>)['roleCode'] = 'parking_owner';
+          return { ...res, user: parkingUser };
+        }),
+        delay(this.mockDelay)
+      );
+  }
+
   requestLoginOtp(phone: string): Observable<{ message: string; expires_in: number }> {
     return of({ message: 'OTP sent to your mobile number.', expires_in: 300 }).pipe(delay(this.mockDelay));
   }

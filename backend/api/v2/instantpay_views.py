@@ -8,8 +8,9 @@ from rest_framework.parsers import JSONParser
 
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
+from api.v2.idempotency_mixin import IdempotencyMixin
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
 from api.v2.vendor_router import VendorRouter
 from portal.services.instantpay_hub_service import InstantpayHubService
 from .instantpay_serializers import (
@@ -26,17 +27,23 @@ from .instantpay_serializers import (
 )
 
 
-class InstantpayBaseView(StandardResponseMixin, views.APIView):
+class InstantpayBaseView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
 
     service_name = None
     required_action = None
     api_code = None
     serializer_class = None
     requires_idempotency = False
+    idempotency_scope_suffix = "v2:instantpay"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.require_idempotency_key = bool(self.requires_idempotency)
+        self.idempotency_scope_suffix = f"v2:instantpay:{self.api_code}"
+        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request):
         VendorRouter.get_vendor_for_request(request, self.service_name)
@@ -49,13 +56,7 @@ class InstantpayBaseView(StandardResponseMixin, views.APIView):
             return self.error_response("Instantpay service is not configured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE, request=request)
 
         partner = getattr(request, "partner", None)
-        idempotency_key = request.headers.get("Idempotency-Key")
-        if self.requires_idempotency and not idempotency_key:
-            return self.error_response(
-                "Idempotency-Key header is required",
-                status_code=status.HTTP_400_BAD_REQUEST,
-                request=request,
-            )
+        idempotency_key = request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key")
 
         result = service.execute(
             self.api_code,
@@ -181,7 +182,7 @@ class MerchantOnboardingView(InstantpayBaseView):
 class TransactionStatusView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = "reconciliation"
     required_action = "transaction_status"
 

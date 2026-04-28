@@ -120,14 +120,16 @@ class CanCreateUser(permissions.BasePermission):
 class CanManageKYC(permissions.BasePermission):
     """
     Check if user can manage KYC
-    Admin and Super can verify KYC
+    Admin, Super Admin, and Employee can verify KYC
     """
     
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
+        if is_super_admin(request.user):
+            return True
         if hasattr(request.user, 'role_code'):
-            allowed_roles = ['admin', 'super', 'employee']
+            allowed_roles = {'admin', 'super_admin', 'employee'}
             return request.user.role_code.lower() in allowed_roles
         return False
 
@@ -153,94 +155,82 @@ class CanManagePermissions(permissions.BasePermission):
 class CanAccessVoucherX(permissions.BasePermission):
     """
     Check if user can access VoucherX
-    Default: Admin and Super users
+    Default: Admin and Super Admin users
     Override: Users with 'portal.view_voucherx' permission
     """
     
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Check permission override first
+        if is_super_admin(request.user):
+            return True
         if user_has_permission(request.user, 'view_voucherx', 'portal'):
             return True
-        
-        # Default role-based access
         if hasattr(request.user, 'role_code'):
-            allowed_roles = ['admin', 'super']
+            allowed_roles = {'admin', 'super_admin'}
             if request.user.role_code.lower() in allowed_roles or request.user.is_staff:
                 return True
-        
         return False
 
 
 class CanManageVoucherXBrands(permissions.BasePermission):
     """
     Check if user can manage VoucherX brands (create, onboard)
-    Default: Admin and Super users
+    Default: Admin and Super Admin users
     Override: Users with 'portal.manage_voucherx_brands' permission
     """
     
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Check permission override first
+        if is_super_admin(request.user):
+            return True
         if user_has_permission(request.user, 'manage_voucherx_brands', 'portal'):
             return True
-        
-        # Default role-based access
         if hasattr(request.user, 'role_code'):
-            allowed_roles = ['admin', 'super']
+            allowed_roles = {'admin', 'super_admin'}
             if request.user.role_code.lower() in allowed_roles or request.user.is_staff:
                 return True
-        
         return False
 
 
 class CanIssueVouchers(permissions.BasePermission):
     """
     Check if user can issue vouchers
-    Default: Admin, Super, and Employee users
+    Default: Admin, Super Admin, and Employee users
     Override: Users with 'portal.issue_vouchers' permission
     """
     
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Check permission override first
+        if is_super_admin(request.user):
+            return True
         if user_has_permission(request.user, 'issue_vouchers', 'portal'):
             return True
-        
-        # Default role-based access
         if hasattr(request.user, 'role_code'):
-            allowed_roles = ['admin', 'super', 'employee']
+            allowed_roles = {'admin', 'super_admin', 'employee'}
             if request.user.role_code.lower() in allowed_roles or request.user.is_staff:
                 return True
-        
         return False
 
 
 class CanReviewBrandOnboarding(permissions.BasePermission):
     """
     Check if user can review brand onboarding
-    Default: Admin and Super users
+    Default: Admin and Super Admin users
     Override: Users with 'portal.review_brand_onboarding' permission
     """
     
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Check permission override first
+        if is_super_admin(request.user):
+            return True
         if user_has_permission(request.user, 'review_brand_onboarding', 'portal'):
             return True
-        
-        # Default role-based access
         if hasattr(request.user, 'role_code'):
-            allowed_roles = ['admin', 'super']
+            allowed_roles = {'admin', 'super_admin'}
             if request.user.role_code.lower() in allowed_roles or request.user.is_staff:
                 return True
-        
         return False

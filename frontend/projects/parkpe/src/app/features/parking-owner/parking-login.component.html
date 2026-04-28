@@ -1,0 +1,21 @@
+<div class="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
+  <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8">
+    <h1 class="text-2xl font-semibold mb-2">Parking Owner Login</h1>
+    <p class="text-slate-300 text-sm mb-6">For parking owner, manager, and attendant accounts.</p>
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-4">
+      <div>
+        <label class="block text-sm mb-1">Email</label>
+        <input class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2" type="email" formControlName="email" />
+      </div>
+      <div>
+        <label class="block text-sm mb-1">Password</label>
+        <input class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2" type="password" formControlName="password" />
+      </div>
+      <button type="submit" [disabled]="loading" class="w-full rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-60 py-2 font-medium">
+        {{ loading ? 'Signing in...' : 'Sign in' }}
+      </button>
+    </form>
+    <a routerLink="/home" class="inline-block mt-5 text-sm text-violet-300 hover:text-violet-200">Back to home</a>
+  </div>
+</div>
+

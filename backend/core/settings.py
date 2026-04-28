@@ -37,7 +37,8 @@ AUTH_USER_MODEL = 'portal.User'
 
 SECRET_KEY = payswap_config.get_secret_key()
 DEBUG = payswap_config.DEBUG
-V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', True)
+V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', False)
+OTP_SEND_RATE_LIMIT = int(getattr(payswap_config, "OTP_SEND_RATE_LIMIT", 3))
 PARKPE_REQUIRE_BILLING_ADDRESS = getattr(payswap_config, "PARKPE_REQUIRE_BILLING_ADDRESS", False)
 NOTIFICATIONS_ENABLED = getattr(payswap_config, "NOTIFICATIONS_ENABLED", True)
 NOTIFICATIONS_PUSH_ENABLED = getattr(payswap_config, "NOTIFICATIONS_PUSH_ENABLED", False)
@@ -94,6 +95,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "core.csrf_middleware.CSRFExemptAPIMiddleware",  # CSRF for portal; exempt /api/ for Angular/API clients
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "portal.middleware.FleetPortalBlockMiddleware",  # Block fleet roles from portal session UI
     "rbac.middleware.HubContextMiddleware",  # X-Project-Code / X-Department-Code for Hub RBAC scoping
     "simple_history.middleware.HistoryRequestMiddleware",  # User attribution for django-simple-history (after auth)
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
@@ -328,7 +330,11 @@ else:
     CORS_ALLOWED_ORIGINS = payswap_config.cors_allowed_origins_list
 CORS_ALLOW_CREDENTIALS = payswap_config.CORS_ALLOW_CREDENTIALS
 # Allow X-App header for Parkpe BBPS (product toggle: parkpe/payswap)
-CORS_ALLOW_HEADERS = list(cors_default_headers) + ["x-app"]
+CORS_ALLOW_HEADERS = list(cors_default_headers) + [
+    "x-app",
+    "x-project-code",
+    "x-department-code",
+]
 
 # Cache configuration (Redis)
 CACHES = payswap_config.get_redis_config()
@@ -366,6 +372,10 @@ CELERY_BEAT_SCHEDULE = {
     'clean-old-logs-daily': {
         'task': 'portal.tasks.clean_old_logs',
         'schedule': crontab(hour=2, minute=0),  # daily at 2am
+    },
+    'expire-hub-assignments-hourly': {
+        'task': 'hub_rbac.expire_hub_assignments',
+        'schedule': crontab(minute=0),  # every hour at :00
     },
 }
 
@@ -614,10 +624,17 @@ if payswap_config.SENTRY_ENABLED and _sentry_ok:
     if sentry_dsn and sentry_dsn.strip():
         import sentry_sdk
         from sentry_sdk.integrations.django import DjangoIntegration
+        integrations = [DjangoIntegration()]
+        try:
+            from sentry_sdk.integrations.celery import CeleryIntegration
+            integrations.append(CeleryIntegration())
+        except Exception:
+            pass
 
         sentry_sdk.init(
             dsn=sentry_dsn.strip(),
-            integrations=[DjangoIntegration()],
+            integrations=integrations,
             environment=payswap_config.SENTRY_ENVIRONMENT,
             traces_sample_rate=0.1,
+            send_default_pii=False,
         )

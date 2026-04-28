@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Hub RBAC Audit Log{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center">
+        <i class="ti ti-shield-check text-xl text-indigo-600"></i>
+      </div>
+      <div>
+        <h1 class="page-title-enterprise">Hub RBAC Audit Log</h1>
+        <p class="page-description-enterprise">All permission changes, role assignments, and deactivation events</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'hub_rbac_dashboard' %}" class="btn-enterprise-secondary text-sm">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card-enterprise p-4">
+    <form method="get" class="flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="form-label text-xs">Action</label>
+        <input type="text" name="action" value="{{ action_filter }}"
+          placeholder="e.g. assignment.create"
+          class="input-enterprise text-sm w-52">
+      </div>
+      <div>
+        <label class="form-label text-xs">User</label>
+        <select name="user_id" class="input-enterprise text-sm w-48">
+          <option value="">All Users</option>
+          {% for u in users_with_assignments %}
+          <option value="{{ u.id }}" {% if user_filter == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-enterprise-primary text-sm">Filter</button>
+      <a href="{% url 'hub_rbac_audit_log' %}" class="btn-enterprise-secondary text-sm">Clear</a>
+    </form>
+  </div>
+
+  <!-- Table -->
+  <div class="table-enterprise">
+    <table class="w-full text-sm">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>User</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in audit_entries %}
+        <tr>
+          <td class="text-gray-500 whitespace-nowrap text-xs">{{ entry.created_at|date:"d M Y H:i" }}</td>
+          <td>
+            <span class="badge-enterprise
+              {% if 'create' in entry.extra_data.action %}badge-enterprise-success
+              {% elif 'deactivate' in entry.extra_data.action or 'expire' in entry.extra_data.action %}badge-enterprise-danger
+              {% else %}badge-enterprise-gray{% endif %}">
+              {{ entry.extra_data.action|default:"-" }}
+            </span>
+          </td>
+          <td class="font-mono text-xs text-gray-600">{{ entry.extra_data.target|default:"-" }}</td>
+          <td class="text-gray-600">{{ entry.user.username|default:"system" }}</td>
+          <td class="text-xs text-gray-500 max-w-xs truncate">
+            dept={{ entry.extra_data.department|default:"" }}
+            proj={{ entry.extra_data.project|default:"" }}
+            user_id={{ entry.extra_data.user_id|default:"" }}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-center py-12 text-gray-400">No audit entries found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page.has_other_pages %}
+  <div class="flex justify-center gap-2 mt-4">
+    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&action={{ action_filter }}&user_id={{ user_filter }}" class="btn-enterprise-secondary text-xs">Previous</a>{% endif %}
+    <span class="text-sm text-gray-500">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?page={{ page.next_page_number }}&action={{ action_filter }}&user_id={{ user_filter }}" class="btn-enterprise-secondary text-xs">Next</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -117,6 +117,10 @@ export class RealApiService implements ApiBackend {
     return this.http.post<LoginResponse>(`${this.apiUrl}/auth/fleet/login`, credentials);
   }
 
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/auth/parking/login`, credentials);
+  }
+
   requestLoginOtp(phone: string): Observable<OtpRequestResponse> {
     return this.http.post<OtpRequestResponse>(`${this.apiUrl}/auth/otp/request`, { phone });
   }
@@ -453,25 +457,82 @@ export class RealApiService implements ApiBackend {
     });
   }
 
-  // Parking API – backend routes not yet implemented
-  getLocations(): Observable<ParkingLocation[]> {
+  // ── Parking API ──────────────────────────────────────────────────────────
+
+  getLocations(params?: { lat?: number; lng?: number; radius_km?: number; city?: string }): Observable<ParkingLocation[]> {
     if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
-    return throwError(() => new Error(UNSUPPORTED));
+    let queryParams: Record<string, string> = {};
+    if (params?.lat != null) queryParams['lat'] = String(params.lat);
+    if (params?.lng != null) queryParams['lng'] = String(params.lng);
+    if (params?.radius_km != null) queryParams['radius_km'] = String(params.radius_km);
+    if (params?.city) queryParams['city'] = params.city;
+    return this.http
+      .get<{ locations: ParkingLocation[] }>(`${this.apiUrl}/parking/locations/`, { params: queryParams })
+      .pipe(map((r) => r.locations ?? []));
   }
 
-  getSlots(_locationId: string): Observable<ParkingSlot[]> {
+  getSlots(locationId: string, vehicleType?: string): Observable<ParkingSlot[]> {
     if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
-    return throwError(() => new Error(UNSUPPORTED));
+    const params: Record<string, string> = {};
+    if (vehicleType) params['vehicle_type'] = vehicleType;
+    return this.http
+      .get<{ slots: ParkingSlot[] }>(`${this.apiUrl}/parking/locations/${locationId}/slots/`, { params })
+      .pipe(map((r) => r.slots ?? []));
   }
 
-  createBooking(_payload: BookingRequest): Observable<Booking> {
+  getParkingRateEstimate(locationId: string, vehicleType: string, durationHours: number): Observable<{
+    amount: number; currency: string; base_rate: number; per_hour_rate: number; breakdown: string;
+  }> {
     if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
-    return throwError(() => new Error(UNSUPPORTED));
+    return this.http.get<any>(`${this.apiUrl}/parking/rates/estimate/`, {
+      params: { location_id: locationId, vehicle_type: vehicleType, duration_hours: String(durationHours) },
+    });
   }
 
-  getBooking(_id: string): Observable<Booking> {
+  createBooking(payload: BookingRequest): Observable<Booking> {
     if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
-    return throwError(() => new Error(UNSUPPORTED));
+    return this.http
+      .post<{ success: boolean; booking: Booking }>(`${this.apiUrl}/parking/bookings/`, payload)
+      .pipe(map((r) => r.booking));
+  }
+
+  getBooking(id: string): Observable<Booking> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.get<Booking>(`${this.apiUrl}/parking/bookings/${id}/`);
+  }
+
+  cancelBooking(bookingRef: string, reason?: string): Observable<{ success: boolean }> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.post<{ success: boolean }>(`${this.apiUrl}/parking/bookings/${bookingRef}/cancel/`, { reason: reason ?? '' });
+  }
+
+  recordParkingEntry(bookingRef: string, qrPayload?: string): Observable<any> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.post<any>(`${this.apiUrl}/parking/bookings/${bookingRef}/entry/`, { qrPayload });
+  }
+
+  recordParkingExit(bookingRef: string): Observable<any> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.post<any>(`${this.apiUrl}/parking/bookings/${bookingRef}/exit/`, {});
+  }
+
+  resendParkingTicket(bookingRef: string): Observable<{ whatsapp_sent: boolean; email_sent: boolean }> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.post<any>(`${this.apiUrl}/parking/bookings/${bookingRef}/ticket/resend/`, {});
+  }
+
+  getParkingHistory(page = 1, pageSize = 20): Observable<{ bookings: Booking[]; total: number }> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.get<any>(`${this.apiUrl}/parking/customer/history/`, {
+      params: { page: String(page), page_size: String(pageSize) },
+    });
+  }
+
+  getParkingOwnerRevenue(locationId: string, days = 30): Observable<any> {
+    if (!environment.features?.parking) return throwError(() => new Error(UNSUPPORTED));
+    return this.http.get<any>(`${this.apiUrl}/parking/owner/revenue/`, {
+      params: { location_id: locationId, days: String(days) },
+    });
   }
 
   // BBPS API (Mobikwik backend – backend uses X-App: parkpe for product toggle)

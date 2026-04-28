@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Parkpe Parking Ticket — {{ booking.booking_reference }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  .ticket {
+    max-width: 180mm;
+    margin: 0 auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  /* Header */
+  .header {
+    background: #004aad;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header-brand { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  .header-sub { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+  .header-ref { text-align: right; }
+  .header-ref .ref-label { font-size: 9px; opacity: 0.75; text-transform: uppercase; }
+  .header-ref .ref-value { font-size: 15px; font-weight: 700; font-family: monospace; letter-spacing: 1px; }
+
+  /* Status bar */
+  .status-bar {
+    background: {% if booking.status == 'confirmed' %}#e8f5e9{% elif booking.status == 'active' %}#fff8e1{% elif booking.status == 'completed' %}#f3f3f3{% else %}#fce4ec{% endif %};
+    padding: 6px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 11px;
+    font-weight: 600;
+    color: {% if booking.status == 'confirmed' %}#2e7d32{% elif booking.status == 'active' %}#e65100{% elif booking.status == 'completed' %}#555{% else %}#c62828{% endif %};
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Body */
+  .body { padding: 16px 20px; }
+
+  .two-col { display: flex; gap: 16px; }
+  .left-col { flex: 1; }
+  .right-col { width: 110px; text-align: center; }
+
+  /* QR code */
+  .qr-wrap {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 6px;
+    display: inline-block;
+  }
+  .qr-wrap img { width: 95px; height: 95px; display: block; }
+  .qr-label { font-size: 9px; color: #777; margin-top: 4px; text-align: center; }
+
+  /* Info rows */
+  .info-section { margin-bottom: 12px; }
+  .info-section-title {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #888;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+  }
+  .info-row { display: flex; margin-bottom: 4px; gap: 8px; }
+  .info-label { font-size: 10px; color: #888; min-width: 100px; flex-shrink: 0; }
+  .info-value { font-size: 11px; font-weight: 500; color: #1a1a1a; }
+  .info-value.highlight { color: #004aad; font-size: 13px; font-weight: 700; }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px dashed #ddd;
+    margin: 12px 0;
+  }
+
+  /* Amount block */
+  .amount-block {
+    background: #f8f9ff;
+    border: 1px solid #dde3f5;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .amount-label { font-size: 11px; color: #555; }
+  .amount-value { font-size: 20px; font-weight: 700; color: #004aad; }
+
+  /* Instructions */
+  .instructions {
+    background: #fafafa;
+    border-left: 3px solid #004aad;
+    padding: 8px 12px;
+    font-size: 10px;
+    color: #444;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .instructions strong { color: #1a1a1a; }
+
+  /* Footer */
+  .footer {
+    background: #f5f5f5;
+    border-top: 1px solid #e0e0e0;
+    padding: 8px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: #888;
+  }
+  .footer-brand { font-weight: 700; color: #004aad; font-size: 10px; }
+  .ticket-no { font-family: monospace; font-size: 10px; }
+
+  /* Thermal 80mm override — loaded via separate media query */
+  @media print {
+    @page { size: 80mm auto; margin: 3mm; }
+    .right-col { width: 80px; }
+    .qr-wrap img { width: 72px; height: 72px; }
+    .amount-value { font-size: 16px; }
+    .header-brand { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="ticket">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-brand">PARKPE</div>
+      <div class="header-sub">Smart Parking Platform</div>
+    </div>
+    <div class="header-ref">
+      <div class="ref-label">Booking Reference</div>
+      <div class="ref-value">{{ booking.booking_reference }}</div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">Status: {{ booking.status|upper }}</div>
+
+  <div class="body">
+    <div class="two-col">
+      <div class="left-col">
+
+        <!-- Location -->
+        <div class="info-section">
+          <div class="info-section-title">Parking Location</div>
+          <div class="info-row">
+            <div class="info-label">Name</div>
+            <div class="info-value highlight">{{ location.name }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Address</div>
+            <div class="info-value">{{ location.address }}, {{ location.city }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Slot</div>
+            <div class="info-value highlight">{{ booking.slot.slot_code }}</div>
+          </div>
+          {% if location.opening_hours %}
+          <div class="info-row">
+            <div class="info-label">Open</div>
+            <div class="info-value">{{ location.opening_hours.open|default:"24x7" }} – {{ location.opening_hours.close|default:"" }}</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Booking Details -->
+        <div class="info-section">
+          <div class="info-section-title">Booking Details</div>
+          <div class="info-row">
+            <div class="info-label">Vehicle No.</div>
+            <div class="info-value highlight">{{ booking.vehicle_number }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Vehicle Type</div>
+            <div class="info-value">{{ booking.vehicle_type|title }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">From</div>
+            <div class="info-value">{{ booking.from_dt|date:"d M Y, h:i A" }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">To</div>
+            <div class="info-value">{{ booking.to_dt|date:"d M Y, h:i A" }}</div>
+          </div>
+        </div>
+
+        <!-- Customer -->
+        <div class="info-section">
+          <div class="info-section-title">Customer</div>
+          <div class="info-row">
+            <div class="info-label">Name</div>
+            <div class="info-value">{{ booking.customer_name }}</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Phone</div>
+            <div class="info-value">{{ booking.customer_phone }}</div>
+          </div>
+        </div>
+
+      </div><!-- /left-col -->
+
+      <!-- QR Code -->
+      <div class="right-col">
+        {% if qr_image_base64 %}
+        <div class="qr-wrap">
+          <img src="data:image/png;base64,{{ qr_image_base64 }}" alt="QR Code">
+        </div>
+        <div class="qr-label">Scan at entry gate</div>
+        {% endif %}
+      </div>
+    </div><!-- /two-col -->
+
+    <hr class="divider">
+
+    <!-- Amount -->
+    <div class="amount-block">
+      <div class="amount-label">
+        {% if booking.final_amount %}Final Amount Charged{% else %}Estimated Amount{% endif %}
+      </div>
+      <div class="amount-value">
+        ₹{{ booking.final_amount|default:booking.estimated_amount }}
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions">
+      <strong>Instructions:</strong><br>
+      1. Show this QR code or booking reference at the entry gate.<br>
+      2. This ticket is valid only for the vehicle number shown above.<br>
+      3. Overstay will be charged at the applicable hourly rate.<br>
+      4. This ticket is non-transferable.
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- Footer -->
+  <div class="footer">
+    <div>
+      <div class="footer-brand">PARKPE — Smart Parking</div>
+      <div>support@parkpe.in | www.parkpe.in</div>
+    </div>
+    <div>
+      <div class="ticket-no">Ticket: {{ ticket.ticket_number }}</div>
+      <div>Issued: {{ ticket.created_at|date:"d M Y, h:i A" }}</div>
+    </div>
+  </div>
+
+</div><!-- /ticket -->
+</body>
+</html>

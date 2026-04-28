@@ -1,0 +1,107 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Parking Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ today|date:"l, d F Y" }}</p>
+    </div>
+  </div>
+
+  {% if not location_data %}
+  <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+    <p class="text-yellow-800 font-medium">No parking locations assigned to your account.</p>
+    <p class="text-yellow-600 text-sm mt-1">Contact your Hub administrator to get access.</p>
+  </div>
+  {% endif %}
+
+  <!-- Location Cards -->
+  {% for item in location_data %}
+  <div class="bg-white rounded-xl border border-gray-200 mb-6 overflow-hidden">
+
+    <!-- Location Header -->
+    <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-900">{{ item.location.name }}</h2>
+        <p class="text-sm text-gray-500">{{ item.location.address }}, {{ item.location.city }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+          {% if item.role == 'owner' %}bg-purple-100 text-purple-800
+          {% elif item.role == 'manager' %}bg-blue-100 text-blue-800
+          {% else %}bg-gray-100 text-gray-700{% endif %}">
+          {{ item.role|title }}
+        </span>
+        <a href="{% url 'parking_location_detail' item.location.pk %}"
+           class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+          View Live Map →
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-0 divide-x divide-y md:divide-y-0 divide-gray-100">
+
+      <div class="px-5 py-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Available</div>
+        <div class="text-2xl font-bold text-green-600">{{ item.available_slots }}</div>
+        <div class="text-xs text-gray-400">of {{ item.total_slots }} slots</div>
+      </div>
+
+      <div class="px-5 py-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Occupied</div>
+        <div class="text-2xl font-bold text-red-500">{{ item.occupied_slots }}</div>
+        <div class="text-xs text-gray-400">{{ item.occupancy_pct }}% occupancy</div>
+      </div>
+
+      <div class="px-5 py-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Active Sessions</div>
+        <div class="text-2xl font-bold text-orange-500">{{ item.active_sessions }}</div>
+        <div class="text-xs text-gray-400">vehicles inside now</div>
+      </div>
+
+      <div class="px-5 py-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Today Bookings</div>
+        <div class="text-2xl font-bold text-gray-800">{{ item.today_bookings }}</div>
+        <div class="text-xs text-gray-400">total today</div>
+      </div>
+
+      <div class="px-5 py-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Today Revenue</div>
+        <div class="text-2xl font-bold text-indigo-700">₹{{ item.today_revenue|floatformat:0 }}</div>
+        <div class="text-xs text-gray-400">gross collected</div>
+      </div>
+
+    </div>
+
+    <!-- Occupancy Bar -->
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="flex-1 bg-gray-200 rounded-full h-2">
+          <div class="h-2 rounded-full
+            {% if item.occupancy_pct > 80 %}bg-red-500
+            {% elif item.occupancy_pct > 50 %}bg-orange-400
+            {% else %}bg-green-500{% endif %}"
+            style="width: {{ item.occupancy_pct }}%"></div>
+        </div>
+        <span class="text-xs text-gray-500 w-12 text-right">{{ item.occupancy_pct }}%</span>
+        <div class="flex gap-3">
+          <a href="{% url 'parking_bookings_list' item.location.pk %}"
+             class="text-xs text-gray-600 hover:text-indigo-600 font-medium">Bookings</a>
+          <a href="{% url 'parking_revenue' item.location.pk %}"
+             class="text-xs text-gray-600 hover:text-indigo-600 font-medium">Revenue</a>
+          <a href="{% url 'parking_verify_entry' item.location.pk %}"
+             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Entry/Exit ↗</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

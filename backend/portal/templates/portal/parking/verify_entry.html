@@ -1,0 +1,142 @@
+{% extends "portal/base.html" %}
+{% block title %}Entry / Exit Verification — {{ location.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Entry / Exit Verification</h1>
+    <p class="text-sm text-gray-500 mt-1">{{ location.name }} — {{ location.city }}</p>
+  </div>
+
+  <!-- Action Toggle -->
+  <div class="flex rounded-lg overflow-hidden border border-gray-200 mb-6">
+    <button id="btn-entry" onclick="setAction('entry')"
+      class="flex-1 py-3 text-sm font-semibold bg-green-600 text-white">
+      Vehicle Entry
+    </button>
+    <button id="btn-exit" onclick="setAction('exit')"
+      class="flex-1 py-3 text-sm font-semibold bg-gray-100 text-gray-600">
+      Vehicle Exit
+    </button>
+  </div>
+
+  <form id="verify-form" method="POST">
+    {% csrf_token %}
+    <input type="hidden" name="action" id="action-input" value="entry">
+
+    <div class="bg-white border border-gray-200 rounded-xl p-6 mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Booking Reference</label>
+      <input type="text" name="booking_ref" id="booking-ref-input"
+        placeholder="PKP-20240428-XXXXXX"
+        class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono uppercase
+               focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        autocomplete="off" autocapitalize="characters">
+      <p class="text-xs text-gray-400 mt-1">Or scan QR code using device camera below</p>
+    </div>
+
+    <button type="submit" id="submit-btn"
+      class="w-full py-4 rounded-xl bg-green-600 text-white font-bold text-base hover:bg-green-700 transition">
+      Confirm Entry
+    </button>
+  </form>
+
+  <!-- Result Panel -->
+  <div id="result-panel" class="mt-6 hidden rounded-xl border p-5"></div>
+
+  <!-- Recent Verifications -->
+  <div class="mt-8">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Recent (this session)</h2>
+    <div id="recent-list" class="space-y-2 text-sm text-gray-500">
+      <p class="text-xs italic">No verifications yet this session.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentAction = 'entry';
+const recent = [];
+
+function setAction(action) {
+  currentAction = action;
+  document.getElementById('action-input').value = action;
+  const btn = document.getElementById('submit-btn');
+  const bEntry = document.getElementById('btn-entry');
+  const bExit = document.getElementById('btn-exit');
+  if (action === 'entry') {
+    btn.textContent = 'Confirm Entry';
+    btn.className = btn.className.replace('bg-orange-600 hover:bg-orange-700', 'bg-green-600 hover:bg-green-700');
+    bEntry.className = bEntry.className.replace('bg-gray-100 text-gray-600', 'bg-green-600 text-white');
+    bExit.className = bExit.className.replace('bg-orange-600 text-white', 'bg-gray-100 text-gray-600');
+  } else {
+    btn.textContent = 'Confirm Exit & Charge';
+    btn.className = btn.className.replace('bg-green-600 hover:bg-green-700', 'bg-orange-600 hover:bg-orange-700');
+    bExit.className = bExit.className.replace('bg-gray-100 text-gray-600', 'bg-orange-600 text-white');
+    bEntry.className = bEntry.className.replace('bg-green-600 text-white', 'bg-gray-100 text-gray-600');
+  }
+}
+
+document.getElementById('verify-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const ref = document.getElementById('booking-ref-input').value.trim();
+  if (!ref) return;
+
+  const submitBtn = document.getElementById('submit-btn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Processing...';
+
+  const formData = new FormData(form);
+  try {
+    const resp = await fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const data = await resp.json();
+    showResult(data);
+    if (data.success) {
+      addRecent(data);
+      document.getElementById('booking-ref-input').value = '';
+    }
+  } catch (err) {
+    showResult({ success: false, error: 'Network error. Please try again.' });
+  } finally {
+    submitBtn.disabled = false;
+    setAction(currentAction);
+  }
+});
+
+function showResult(data) {
+  const panel = document.getElementById('result-panel');
+  panel.classList.remove('hidden');
+  if (data.success) {
+    const msg = currentAction === 'exit'
+      ? `Exit recorded. Duration: ${Math.floor(data.duration_minutes/60)}h ${data.duration_minutes%60}m — Charged: ₹${data.final_amount}`
+      : data.message || 'Success!';
+    panel.className = 'mt-6 rounded-xl border border-green-200 bg-green-50 p-5';
+    panel.innerHTML = `<div class="font-semibold text-green-800">✓ ${msg}</div>
+      ${data.vehicle_number ? `<div class="text-sm text-green-700 mt-1">Vehicle: ${data.vehicle_number}</div>` : ''}
+      ${data.entry_time ? `<div class="text-sm text-green-700">Time: ${data.entry_time}</div>` : ''}`;
+  } else {
+    panel.className = 'mt-6 rounded-xl border border-red-200 bg-red-50 p-5';
+    panel.innerHTML = `<div class="font-semibold text-red-800">✗ ${data.error || 'Failed'}</div>`;
+  }
+  setTimeout(() => panel.classList.add('hidden'), 6000);
+}
+
+function addRecent(data) {
+  const list = document.getElementById('recent-list');
+  const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const icon = currentAction === 'exit' ? '←' : '→';
+  const el = document.createElement('div');
+  el.className = 'flex justify-between px-3 py-2 bg-gray-50 rounded-lg text-xs';
+  el.innerHTML = `<span class="font-mono">${data.booking_reference || ''}</span>
+    <span class="text-gray-600">${icon} ${currentAction}</span>
+    <span class="text-gray-400">${time}</span>`;
+  if (list.firstChild && list.firstChild.tagName === 'P') list.innerHTML = '';
+  list.insertBefore(el, list.firstChild);
+}
+</script>
+{% endblock %}
