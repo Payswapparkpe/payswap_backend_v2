@@ -147,7 +147,7 @@ import { ChallanSessionService } from '../services/challan-session.service';
     }
   `],
 })
-export class ChallanListComponent {
+export class ChallanListComponent implements OnInit {
   private api = inject(API_BACKEND_TOKEN);
   private session = inject(ChallanSessionService);
   private route = inject(ActivatedRoute);

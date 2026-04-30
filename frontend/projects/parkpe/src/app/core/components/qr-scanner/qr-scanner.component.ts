@@ -3,7 +3,6 @@ import {
   Component,
   ElementRef,
   OnDestroy,
-  inject,
   input,
   output,
   signal,
