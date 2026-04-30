@@ -1,0 +1,122 @@
+<div class="park-owner-page mx-auto max-w-5xl font-sans">
+
+  <!-- Header + Invite CTA -->
+  <div class="park-section-row mb-6">
+    <div>
+      <h1 class="page-title">Team</h1>
+      <p class="page-subtitle">Invite and manage operator access per location.</p>
+    </div>
+    <button type="button" class="park-btn park-btn-primary text-sm" (click)="toggleInvite()">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        @if (inviteOpen()) {
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        } @else {
+          <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
+        }
+      </svg>
+      {{ inviteOpen() ? 'Close' : '+ Invite' }}
+    </button>
+  </div>
+
+  <!-- Location selector panel -->
+  <div class="park-panel mb-5 flex flex-wrap items-center gap-4">
+    <div class="flex flex-col gap-1 min-w-[220px]">
+      <label class="park-label">Location</label>
+      <select class="park-input" [value]="locationId()" (change)="onLocationChange(($any($event.target).value))">
+        @for (loc of locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    </div>
+    <button type="button" class="park-btn park-btn-ghost text-xs mt-auto" (click)="loadTeam()">
+      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+      </svg>
+      Reload
+    </button>
+  </div>
+
+  <!-- Invite panel -->
+  <div #invitePanel class="invite-panel overflow-hidden" style="height:0">
+    <div class="park-surface mb-6 p-6" style="background:linear-gradient(135deg,rgba(238,244,255,.7) 0%,rgba(245,243,255,.5) 100%)">
+      <h2 class="mb-5 text-sm font-bold text-[var(--kendo-color-primary,#004aad)]">
+        <svg class="inline-block h-4 w-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        New Invitation
+      </h2>
+      <div class="grid gap-4 md:grid-cols-3">
+        <div>
+          <label class="park-label">Email</label>
+          <input class="park-input" [(ngModel)]="email" type="email" placeholder="operator@company.com" />
+        </div>
+        <div>
+          <label class="park-label">Username (optional)</label>
+          <input class="park-input" [(ngModel)]="username" placeholder="login id" />
+        </div>
+        <div>
+          <label class="park-label">Role</label>
+          <select class="park-input" [(ngModel)]="role">
+            <option value="attendant">Attendant</option>
+            <option value="manager">Manager</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-5">
+        <button type="button" class="park-btn park-btn-primary text-sm" (click)="add()">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Invite
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="park-alert park-alert--error mb-4">{{ error() }}</div>
+  }
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    @for (op of operators(); track op['id']) {
+      <div class="park-list-item flex items-start gap-4">
+
+        <!-- Avatar -->
+        <div
+          class="park-avatar h-12 w-12 shrink-0 text-base"
+          [ngClass]="avatarGradient(op['role'])"
+        >{{ initials(op['name'], op['username'], op['email']) }}</div>
+
+        <!-- Info -->
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-bold text-slate-900 leading-tight">{{ op['name'] || op['username'] || '—' }}</div>
+          <div class="mt-0.5 truncate text-sm text-slate-500">{{ op['email'] || '—' }}</div>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="park-chip text-[10px]" [ngClass]="roleClass(op['role'])">{{ op['role'] }}</span>
+            @if (op['isActive'] === false) {
+              <span class="park-chip park-chip--error text-[10px]">Inactive</span>
+            }
+          </div>
+        </div>
+
+        <!-- Deactivate -->
+        <button
+          type="button"
+          class="park-btn park-btn-danger shrink-0 text-xs"
+          style="padding:0.35rem 0.75rem"
+          [disabled]="op['isActive'] === false || busyId() === op['id']"
+          (click)="deactivate(op)"
+        >
+          @if (busyId() === op['id']) {
+            <span class="inline-block h-3 w-3 animate-spin rounded-full border border-rose-400 border-t-rose-800"></span>
+          } @else {
+            Deactivate
+          }
+        </button>
+      </div>
+    } @empty {
+      <div class="park-empty col-span-full">
+        <div class="park-empty__icon">👥</div>
+        <p class="park-empty__title">No operators yet.</p>
+        <p class="park-empty__sub">Send an invite above to add team members.</p>
+      </div>
+    }
+  </div>
+</div>

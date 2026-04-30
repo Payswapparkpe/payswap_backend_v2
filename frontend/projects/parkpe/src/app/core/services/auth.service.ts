@@ -17,10 +17,26 @@ import {
   ForgotPasswordRequest,
 } from 'shared';
 
-/** Storage keys for session persistence (reload keeps user logged in). See docs/AUTH_STORAGE_SECURITY.md for production safety. */
-const PARKPE_TOKEN_KEY = 'parkpe_auth_token';
-const PARKPE_REFRESH_TOKEN_KEY = 'parkpe_refresh_token';
-const PARKPE_USER_KEY = 'parkpe_auth_user';
+/** Consumer / parking-operator / fleet sessions are stored separately so one role never overwrites another. */
+export type AuthPortal = 'consumer' | 'parking' | 'fleet';
+
+const STORAGE: Record<AuthPortal, { token: string; refresh: string; user: string }> = {
+  consumer: { token: 'parkpe_c_token', refresh: 'parkpe_c_refresh', user: 'parkpe_c_user' },
+  parking: { token: 'parkpe_p_token', refresh: 'parkpe_p_refresh', user: 'parkpe_p_user' },
+  fleet: { token: 'parkpe_f_token', refresh: 'parkpe_f_refresh', user: 'parkpe_f_user' },
+};
+
+/** Legacy single-namespace keys (migrated once into STORAGE.consumer). */
+const LEGACY = {
+  token: 'parkpe_auth_token',
+  refresh: 'parkpe_refresh_token',
+  user: 'parkpe_auth_user',
+  portal: 'parkpe_auth_portal',
+} as const;
+
+const ACTIVE_PORTAL_KEY = 'parkpe_active_portal';
+/** Which login screen started this session — drives consumer vs operator shell (`consumerGuard`). */
+const PARKPE_AUTH_PORTAL_KEY = 'parkpe_auth_portal';
 
 /** Inactivity timeout window for session lock. */
 const INACTIVITY_MS = 15 * 60 * 1000;
@@ -52,17 +68,70 @@ export class AuthService {
     this.restoreSessionFromStorage();
   }
 
-  /** Restore token, refresh token and user from localStorage so reload keeps user logged in */
+  /** Restore the last active portal’s session; migrates legacy single-key storage once. */
   private restoreSessionFromStorage(): void {
     try {
-      const token = localStorage.getItem(PARKPE_TOKEN_KEY);
-      const refreshToken = localStorage.getItem(PARKPE_REFRESH_TOKEN_KEY);
-      const userJson = localStorage.getItem(PARKPE_USER_KEY);
+      this.migrateLegacyStorageIfNeeded();
+      const active = this.getActivePortalFromStorage();
+      this.loadPortalIntoMemory(active);
+    } catch {
+      // localStorage not available or disabled
+    }
+  }
+
+  private migrateLegacyStorageIfNeeded(): void {
+    try {
+      const legTok = localStorage.getItem(LEGACY.token);
+      if (!legTok) return;
+      if (localStorage.getItem(STORAGE.consumer.token)) {
+        localStorage.removeItem(LEGACY.token);
+        localStorage.removeItem(LEGACY.refresh);
+        localStorage.removeItem(LEGACY.user);
+        return;
+      }
+      const p = (localStorage.getItem(LEGACY.portal) as AuthPortal) || 'consumer';
+      const portal: AuthPortal = p === 'parking' || p === 'fleet' ? p : 'consumer';
+      const k = STORAGE[portal];
+      localStorage.setItem(k.token, legTok);
+      const r = localStorage.getItem(LEGACY.refresh);
+      if (r) localStorage.setItem(k.refresh, r);
+      const u = localStorage.getItem(LEGACY.user);
+      if (u) localStorage.setItem(k.user, u);
+      if (!localStorage.getItem(ACTIVE_PORTAL_KEY)) {
+        localStorage.setItem(ACTIVE_PORTAL_KEY, portal);
+      }
+      localStorage.removeItem(LEGACY.token);
+      localStorage.removeItem(LEGACY.refresh);
+      localStorage.removeItem(LEGACY.user);
+    } catch {
+      // ignore
+    }
+  }
+
+  private getActivePortalFromStorage(): AuthPortal {
+    try {
+      const a = localStorage.getItem(ACTIVE_PORTAL_KEY) as AuthPortal;
+      if (a === 'parking' || a === 'fleet' || a === 'consumer') return a;
+    } catch {
+      // ignore
+    }
+    return 'consumer';
+  }
+
+  /** Load a namespace into in-memory subjects (e.g. when opening /hub with a stored parking session). */
+  activatePortal(portal: AuthPortal): void {
+    this.loadPortalIntoMemory(portal);
+  }
+
+  private loadPortalIntoMemory(portal: AuthPortal): void {
+    try {
+      const k = STORAGE[portal];
+      const token = localStorage.getItem(k.token);
+      const refreshToken = localStorage.getItem(k.refresh);
+      const userJson = localStorage.getItem(k.user);
       if (token && token.length > 0) {
         this.tokenSubject.next(token);
-        if (refreshToken && refreshToken.length > 0) {
-          this.refreshTokenSubject.next(refreshToken);
-        }
+        this.refreshTokenSubject.next(refreshToken && refreshToken.length > 0 ? refreshToken : null);
         this.isAuthenticatedSignal.set(true);
         if (userJson) {
           try {
@@ -70,12 +139,25 @@ export class AuthService {
             this.userSubject.next(user);
             this.userSignal.set(user);
           } catch {
-            // Invalid user JSON – keep token only; profile can be refetched
+            this.userSubject.next(null);
+            this.userSignal.set(null);
           }
+        } else {
+          this.userSubject.next(null);
+          this.userSignal.set(null);
         }
+        localStorage.setItem(ACTIVE_PORTAL_KEY, portal);
+        localStorage.setItem(PARKPE_AUTH_PORTAL_KEY, portal);
+        this.startInactivityTimer();
+      } else {
+        this.tokenSubject.next(null);
+        this.refreshTokenSubject.next(null);
+        this.userSubject.next(null);
+        this.userSignal.set(null);
+        this.isAuthenticatedSignal.set(false);
       }
     } catch {
-      // localStorage not available or disabled
+      // ignore
     }
   }
 
@@ -97,7 +179,7 @@ export class AuthService {
     this.logger.info('fleet_login_start', { service: 'auth', action: 'fleet_login_start' });
     return this.api.fleetLogin(credentials).pipe(
       tap((response) => {
-        this.setSession(response);
+        this.setSession(response, 'fleet');
         this.logger.info('fleet_login_success', {
           service: 'auth',
           action: 'fleet_login_success',
@@ -119,11 +201,14 @@ export class AuthService {
     this.logger.info('parking_login_start', { service: 'auth', action: 'parking_login_start' });
     return this.api.parkingLogin(credentials).pipe(
       tap((response) => {
-        this.setSession(response);
+        // Parking login endpoint already authorizes parking access on backend.
+        // Normalize user payload so frontend guards always route to parking area.
+        const normalizedUser = this.normalizeParkingUser(response.user);
+        this.setSession({ ...response, user: normalizedUser }, 'parking');
         this.logger.info('parking_login_success', {
           service: 'auth',
           action: 'parking_login_success',
-          userId: response.user?.id,
+          userId: normalizedUser?.id,
         });
       }),
       catchError((err) => {
@@ -204,21 +289,52 @@ export class AuthService {
 
   logout(): void {
     this.logger.info('logout', { service: 'auth', action: 'logout' });
+    const portal = this.getAuthPortal();
     this.api.logout().subscribe({
       next: () => {
         this.clearSession();
-        this.router.navigate(['/auth/login']);
+        this.router.navigate([this.getLoginPathForPortal(portal)]);
       },
       error: () => {
         this.clearSession();
-        this.router.navigate(['/auth/login']);
+        this.router.navigate([this.getLoginPathForPortal(portal)]);
       },
     });
   }
 
-  /** Clear session (memory + localStorage). Call on logout and on 401 when refresh fails. */
+  getLoginPathForPortal(portal: AuthPortal): string {
+    if (portal === 'parking') return '/auth/parking';
+    if (portal === 'fleet') return '/fleet/login';
+    return '/auth/login';
+  }
+
+  /** Remove one portal’s stored tokens (e.g. after 403). If it was active, clear in-memory session too. */
+  clearSessionForPortal(portal: AuthPortal): void {
+    try {
+      const k = STORAGE[portal];
+      localStorage.removeItem(k.token);
+      localStorage.removeItem(k.refresh);
+      localStorage.removeItem(k.user);
+    } catch {
+      // ignore
+    }
+    if (this.getActivePortalFromStorage() === portal) {
+      this.clearSession();
+    }
+  }
+
+  parkingLogout(): void {
+    this.clearSession();
+    this.router.navigate(['/auth/parking']);
+  }
+
+  /**
+   * Clear the active portal session (memory + that namespace in localStorage).
+   * Call on logout and on 401 when refresh fails.
+   */
   clearSession(): void {
     this.stopInactivityTimer();
+    const portal = this.getActivePortalFromStorage();
     this.tokenSubject.next(null);
     this.refreshTokenSubject.next(null);
     this.userSubject.next(null);
@@ -226,12 +342,30 @@ export class AuthService {
     this.isAuthenticatedSignal.set(false);
     this.sessionLock.unlock();
     try {
-      localStorage.removeItem(PARKPE_TOKEN_KEY);
-      localStorage.removeItem(PARKPE_REFRESH_TOKEN_KEY);
-      localStorage.removeItem(PARKPE_USER_KEY);
+      const k = STORAGE[portal];
+      localStorage.removeItem(k.token);
+      localStorage.removeItem(k.refresh);
+      localStorage.removeItem(k.user);
+      localStorage.removeItem(ACTIVE_PORTAL_KEY);
+      localStorage.removeItem(PARKPE_AUTH_PORTAL_KEY);
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * `consumer` = `/auth/login` (or register/OTP).
+   * `parking` = `/auth/parking` — `consumerGuard` redirects away from AppLayout.
+   * `fleet` = `/fleet/login`.
+   */
+  getAuthPortal(): AuthPortal {
+    try {
+      const p = localStorage.getItem(PARKPE_AUTH_PORTAL_KEY);
+      if (p === 'parking' || p === 'fleet') return p;
+    } catch {
+      // ignore
+    }
+    return 'consumer';
   }
 
   /** Start inactivity timer; on timeout lock session (do not logout). */
@@ -264,7 +398,14 @@ export class AuthService {
 
   /** Get stored refresh token (for 401 retry). */
   getRefreshToken(): string | null {
-    return this.refreshTokenSubject.value;
+    const v = this.refreshTokenSubject.value;
+    if (v) return v;
+    try {
+      const portal = this.getActivePortalFromStorage();
+      return localStorage.getItem(STORAGE[portal].refresh);
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -300,7 +441,8 @@ export class AuthService {
         if (access) {
           this.tokenSubject.next(access);
           try {
-            localStorage.setItem(PARKPE_TOKEN_KEY, access);
+            const portal = this.getActivePortalFromStorage();
+            localStorage.setItem(STORAGE[portal].token, access);
           } catch {
             // ignore
           }
@@ -331,7 +473,8 @@ export class AuthService {
         this.userSubject.next(user);
         this.userSignal.set(user);
         try {
-          localStorage.setItem(PARKPE_USER_KEY, JSON.stringify(user));
+          const portal = this.getActivePortalFromStorage();
+          localStorage.setItem(STORAGE[portal].user, JSON.stringify(user));
         } catch {
           // ignore
         }
@@ -345,7 +488,8 @@ export class AuthService {
         this.userSubject.next(user);
         this.userSignal.set(user);
         try {
-          localStorage.setItem(PARKPE_USER_KEY, JSON.stringify(user));
+          const portal = this.getActivePortalFromStorage();
+          localStorage.setItem(STORAGE[portal].user, JSON.stringify(user));
         } catch {
           // ignore
         }
@@ -432,18 +576,30 @@ export class AuthService {
   }
 
   isParkingUser(user: User | null | undefined = this.userSubject.value): boolean {
-    const roleCode = String((user as unknown as { roleCode?: string })?.roleCode || '').toLowerCase();
+    const roleCode = String((user as unknown as { roleCode?: string; role_code?: string })?.roleCode || (user as unknown as { role_code?: string })?.role_code || '').toLowerCase();
     const role = String((user as unknown as { role?: string })?.role || '').toLowerCase();
-    return roleCode.startsWith('parking_') || role === 'parking';
+    const parkingRole = String((user as unknown as { parkingRole?: string })?.parkingRole || '').toLowerCase();
+    return roleCode.startsWith('parking_') || role === 'parking' || ['owner', 'manager', 'attendant'].includes(parkingRole);
   }
 
+  /**
+   * Default landing for guards / “already logged in” redirects.
+   * Uses auth portal: parking sessions → hub; others → consumer dashboard (unless fleet).
+   */
   getPostLoginRoute(user: User | null | undefined = this.userSubject.value): string {
     if (this.isFleetUser(user)) return '/fleet/control-center';
-    if (this.isParkingUser(user)) return '/parking/dashboard';
+    if (this.getAuthPortal() === 'fleet') return '/fleet/control-center';
+    if (this.getAuthPortal() === 'parking') return '/hub/parking/dashboard';
     return '/dashboard';
   }
 
-  private setSession(response: LoginResponse): void {
+  getParkingRole(user: User | null | undefined = this.userSubject.value): 'owner' | 'manager' | 'attendant' | null {
+    const role = String((user as unknown as { parkingRole?: string })?.parkingRole || '').toLowerCase();
+    if (role === 'owner' || role === 'manager' || role === 'attendant') return role;
+    return null;
+  }
+
+  private setSession(response: LoginResponse, portal: AuthPortal = 'consumer'): void {
     this.tokenSubject.next(response.token);
     const refreshToken = response.refreshToken;
     if (refreshToken) {
@@ -454,15 +610,29 @@ export class AuthService {
     this.isAuthenticatedSignal.set(true);
     this.sessionLock.unlock();
     try {
-      localStorage.setItem(PARKPE_TOKEN_KEY, response.token);
+      const k = STORAGE[portal];
+      localStorage.setItem(k.token, response.token);
       if (refreshToken) {
-        localStorage.setItem(PARKPE_REFRESH_TOKEN_KEY, refreshToken);
+        localStorage.setItem(k.refresh, refreshToken);
       }
-      localStorage.setItem(PARKPE_USER_KEY, JSON.stringify(response.user));
+      localStorage.setItem(k.user, JSON.stringify(response.user));
+      localStorage.setItem(PARKPE_AUTH_PORTAL_KEY, portal);
+      localStorage.setItem(ACTIVE_PORTAL_KEY, portal);
     } catch {
       // localStorage full or disabled – session will be lost on reload
     }
     this.startInactivityTimer();
+  }
+
+  private normalizeParkingUser(user: User): User {
+    const anyUser = user as User & { role_code?: string; roleCode?: string; parkingRole?: 'owner' | 'manager' | 'attendant' | null };
+    const existingRoleCode = String(anyUser.roleCode || anyUser.role_code || '').trim();
+    const normalizedRoleCode = existingRoleCode || 'parking_operator';
+    return {
+      ...user,
+      role: 'parking',
+      roleCode: normalizedRoleCode,
+    };
   }
 
   /** Set session from Connect scanner verify-otp (same shape as login). */
@@ -476,5 +646,31 @@ export class AuthService {
 
   getToken(): string | null {
     return this.tokenSubject.value;
+  }
+
+  /** JWT for the request: picks the namespace matching route + URL so hub/fleet APIs get the right token. */
+  getTokenForHttpRequest(requestUrl: string, routerUrl: string): string | null {
+    const portal = this.inferPortalFromUrls(requestUrl, routerUrl);
+    try {
+      const t = localStorage.getItem(STORAGE[portal].token);
+      if (t) return t;
+    } catch {
+      // ignore
+    }
+    return this.tokenSubject.value;
+  }
+
+  inferPortalFromUrls(requestUrl: string, routerUrl: string): AuthPortal {
+    const path = (routerUrl || '').split('?')[0];
+    if (path.startsWith('/hub') || path.startsWith('/auth/parking')) return 'parking';
+    if (path.startsWith('/fleet')) return 'fleet';
+    const u = requestUrl.toLowerCase();
+    if (u.includes('/parking/owner') || u.includes('/owner/locations') || u.includes('/owner/revenue') || u.includes('/owner/bookings')) {
+      return 'parking';
+    }
+    if (u.includes('/dashboard/fleet') || u.includes('/auth/fleet') || u.includes('fleet/vehicles') || u.includes('fleet/drivers')) {
+      return 'fleet';
+    }
+    return 'consumer';
   }
 }

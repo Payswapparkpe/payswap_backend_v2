@@ -1,276 +1,372 @@
-{% extends "base.html" %}
-{% block title %}Entry / Exit Verification — {{ location.name }}{% endblock %}
+{% extends "portal/parking/base_parking.html" %}
+{% block title %}Verify Entry / Exit — {{ location.name }}{% endblock %}
+
+{% block breadcrumb %}
+<div class="flex items-center gap-1 text-xs text-slate-400">
+  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <a href="{% url 'parking_owner_dashboard' %}" class="hover:text-slate-600">Dashboard</a>
+  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <span class="text-slate-600 font-medium">Entry / Exit</span>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto px-4 py-8">
+<div class="max-w-2xl mx-auto px-4 py-6">
 
+  <!-- Page Header -->
   <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Entry / Exit Verification</h1>
-    <p class="text-sm text-gray-500 mt-1">{{ location.name }} — {{ location.city }}</p>
+    <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">Entry / Exit Gate</h1>
+    <p class="text-sm text-slate-500 mt-1">{{ location.name }} · Scan or enter booking reference</p>
   </div>
 
   <!-- Action Toggle -->
-  <div class="flex rounded-lg overflow-hidden border border-gray-200 mb-6">
+  <div class="flex bg-slate-100 rounded-2xl p-1 mb-6 gap-1">
     <button id="btn-entry" onclick="setAction('entry')"
-      class="flex-1 py-3 text-sm font-semibold bg-green-600 text-white">
+      class="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl bg-white text-blue-700 shadow-sm transition">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
       Vehicle Entry
     </button>
     <button id="btn-exit" onclick="setAction('exit')"
-      class="flex-1 py-3 text-sm font-semibold bg-gray-100 text-gray-600">
+      class="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl text-slate-500 hover:text-slate-700 transition">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       Vehicle Exit
     </button>
   </div>
 
-  <form id="verify-form" method="POST">
-    {% csrf_token %}
-    <input type="hidden" name="action" id="action-input" value="entry">
-    <input type="hidden" name="qr_payload" id="qr-payload-input" value="">
+  <!-- Input Card -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-4 shadow-sm">
+    <form id="verify-form" method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="action-input" value="entry">
+      <input type="hidden" name="qr_payload" id="qr-payload-input" value="">
 
-    <div class="bg-white border border-gray-200 rounded-xl p-6 mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-2">Booking Reference</label>
-      <input type="text" name="booking_ref" id="booking-ref-input"
-        placeholder="PKP-20240428-XXXXXX"
-        class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono uppercase
-               focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        autocomplete="off" autocapitalize="characters">
-      <p class="text-xs text-gray-400 mt-1">Or scan QR code using device camera below</p>
-    </div>
-
-    <button type="submit" id="submit-btn"
-      class="w-full py-4 rounded-xl bg-green-600 text-white font-bold text-base hover:bg-green-700 transition">
-      Confirm Entry
-    </button>
-  </form>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">Booking Reference</label>
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <input type="text" name="booking_ref" id="booking-ref-input"
+            placeholder="PKP-20260428-XXXXXX"
+            class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50"
+            autocomplete="off" autocapitalize="characters">
+        </div>
+        <button type="submit" id="submit-btn"
+          class="px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-bold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Confirm
+        </button>
+      </div>
+      <p class="text-xs text-slate-400 mt-2">Or use camera scanner below to scan the QR code</p>
+    </form>
+  </div>
 
   <!-- Camera Scanner -->
-  <div class="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <h3 class="text-sm font-semibold text-gray-700">Camera QR Scanner</h3>
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-4 shadow-sm">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <span class="text-sm font-semibold text-slate-700">Camera QR Scanner</span>
+      </div>
       <div class="flex gap-2">
         <button id="start-scan-btn" type="button"
-          class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700">
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           Start Camera
         </button>
         <button id="stop-scan-btn" type="button"
-          class="px-3 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs font-medium hover:bg-gray-300 hidden">
+          class="hidden flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-300 transition">
           Stop
         </button>
       </div>
     </div>
-    <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-2">
-      <video id="scanner-video" class="w-full max-h-64 rounded-md hidden" playsinline muted></video>
-      <div id="scanner-placeholder" class="py-10 text-center text-xs text-gray-500">
-        Start camera and point to QR code
+    <div class="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden">
+      <video id="scanner-video" class="w-full max-h-60 rounded-xl hidden object-cover" playsinline muted></video>
+      <div id="scanner-placeholder" class="py-10 text-center">
+        <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <p class="text-xs text-slate-400">Start camera and point to customer's QR code</p>
       </div>
     </div>
-    <p id="scanner-status" class="mt-2 text-xs text-gray-500">Scanner is idle.</p>
+    <p id="scanner-status" class="mt-2 text-xs text-slate-400">Scanner is idle.</p>
   </div>
 
   <!-- Result Panel -->
-  <div id="result-panel" class="mt-6 hidden rounded-xl border p-5"></div>
+  <div id="result-panel" class="hidden rounded-2xl border p-5 mb-4"></div>
+
+  <!-- Exit Payment Panel -->
+  <div id="exit-payment-panel" class="hidden bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 mb-4">
+    <div class="flex items-start gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="flex-1">
+        <h3 class="font-bold text-amber-900 text-sm">Payment Required at Exit</h3>
+        <p class="text-xs text-amber-700 mt-1" id="exit-due-msg"></p>
+      </div>
+      <div class="bg-amber-100 border border-amber-200 rounded-xl px-3 py-1.5 text-sm font-extrabold text-amber-800" id="exit-due-chip"></div>
+    </div>
+
+    <!-- Voucher Option -->
+    <div id="voucher-option" class="hidden bg-white border border-slate-200 rounded-xl p-4 mb-3">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">💳</div>
+          <span class="text-sm font-semibold text-slate-800">Pay from Voucher</span>
+        </div>
+        <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5" id="voucher-balance-label"></span>
+      </div>
+      <p class="text-xs text-slate-500 mb-3">Customer enters their 4–6 digit Parking PIN to auto-debit all vouchers.</p>
+      <div class="flex gap-2">
+        <input type="password" id="tx-pin-input" maxlength="6" placeholder="• • • •  PIN"
+          class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-center text-xl tracking-[.4em] font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"/>
+        <button id="voucher-pay-btn" type="button"
+          class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition shadow-sm">
+          Pay Now
+        </button>
+      </div>
+      <p id="voucher-pay-error" class="mt-2 text-xs text-red-600 hidden"></p>
+    </div>
+
+    <!-- UPI Option -->
+    <div id="upi-option" class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">📱</div>
+          <span class="text-sm font-semibold text-slate-800">Pay via UPI</span>
+        </div>
+        <span class="text-xs text-blue-600 font-semibold">Scan & Pay</span>
+      </div>
+      <button id="generate-upi-btn" type="button"
+        class="w-full py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-bold rounded-xl shadow-sm hover:shadow-md transition mb-3">
+        Generate UPI QR for Customer
+      </button>
+      <div id="upi-qr-section" class="hidden text-center">
+        <canvas id="upi-qr-canvas" class="mx-auto rounded-xl border border-slate-200 mb-2 shadow-sm"></canvas>
+        <p class="text-xs font-semibold text-slate-700" id="upi-amount-label"></p>
+        <p class="text-xs text-slate-500 mt-1">Customer scans with any UPI app — PhonePe, GPay, Paytm</p>
+        <div id="upi-waiting" class="mt-3 flex items-center justify-center gap-2 text-xs text-blue-600 font-medium">
+          <svg class="w-3.5 h-3.5 spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          Waiting for payment...
+        </div>
+        <div id="upi-success-banner" class="hidden mt-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-emerald-800 text-sm font-bold flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Payment received! Exit complete.
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Recent Verifications -->
-  <div class="mt-8">
-    <h2 class="text-sm font-semibold text-gray-700 mb-3">Recent (this session)</h2>
-    <div id="recent-list" class="space-y-2 text-sm text-gray-500">
-      <p class="text-xs italic">No verifications yet this session.</p>
+  <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+      <span class="text-sm font-semibold text-slate-700">Recent Verifications</span>
+      <span class="text-xs text-slate-400">This session</span>
+    </div>
+    <div id="recent-list" class="divide-y divide-slate-100">
+      <div class="px-5 py-4 text-xs text-slate-400 text-center italic">No verifications yet this session.</div>
     </div>
   </div>
 
 </div>
+{% endblock %}
 
+{% block extra_body %}
 <script>
 let currentAction = 'entry';
-const recent = [];
-let scannerStream = null;
-let scannerRaf = null;
-let scannerRunning = false;
+let scannerStream = null, scannerRaf = null, scannerRunning = false;
+let currentExitPaymentId = null, upiPollTimer = null, currentBookingRef = null;
 
+// ── Action Toggle ─────────────────────────────────────────────────────────
 function setAction(action) {
   currentAction = action;
   document.getElementById('action-input').value = action;
-  const btn = document.getElementById('submit-btn');
   const bEntry = document.getElementById('btn-entry');
-  const bExit = document.getElementById('btn-exit');
+  const bExit  = document.getElementById('btn-exit');
+  const btn    = document.getElementById('submit-btn');
   if (action === 'entry') {
-    btn.textContent = 'Confirm Entry';
-    btn.className = btn.className.replace('bg-orange-600 hover:bg-orange-700', 'bg-green-600 hover:bg-green-700');
-    bEntry.className = bEntry.className.replace('bg-gray-100 text-gray-600', 'bg-green-600 text-white');
-    bExit.className = bExit.className.replace('bg-orange-600 text-white', 'bg-gray-100 text-gray-600');
+    bEntry.classList.add('bg-white','text-blue-700','shadow-sm');
+    bEntry.classList.remove('text-slate-500');
+    bExit.classList.remove('bg-white','text-blue-700','shadow-sm');
+    bExit.classList.add('text-slate-500');
+    btn.querySelector('span') && (btn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Confirm Entry`);
   } else {
-    btn.textContent = 'Confirm Exit & Charge';
-    btn.className = btn.className.replace('bg-green-600 hover:bg-green-700', 'bg-orange-600 hover:bg-orange-700');
-    bExit.className = bExit.className.replace('bg-gray-100 text-gray-600', 'bg-orange-600 text-white');
-    bEntry.className = bEntry.className.replace('bg-green-600 text-white', 'bg-gray-100 text-gray-600');
+    bExit.classList.add('bg-white','text-orange-700','shadow-sm');
+    bExit.classList.remove('text-slate-500');
+    bEntry.classList.remove('bg-white','text-blue-700','shadow-sm');
+    bEntry.classList.add('text-slate-500');
   }
 }
 
+// ── Form Submit ────────────────────────────────────────────────────────────
 document.getElementById('verify-form').addEventListener('submit', async function(e) {
   e.preventDefault();
-  const form = e.target;
   const ref = document.getElementById('booking-ref-input').value.trim();
   if (!ref) return;
-
-  const submitBtn = document.getElementById('submit-btn');
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Processing...';
-
-  const formData = new FormData(form);
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-4 h-4 spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Processing...`;
   try {
-    const resp = await fetch(window.location.href, {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
+    const fd = new FormData(e.target);
+    const resp = await fetch(window.location.href, { method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'} });
     const data = await resp.json();
-    showResult(data);
-    if (data.success) {
-      addRecent(data);
-      document.getElementById('booking-ref-input').value = '';
-      document.getElementById('qr-payload-input').value = '';
+    if (data.status === 'payment_required') {
+      showPaymentPanel(data, ref);
+    } else {
+      showResult(data);
+      if (data.success || data.status === 'completed') {
+        addRecent(data); document.getElementById('booking-ref-input').value = ''; document.getElementById('qr-payload-input').value = '';
+      }
     }
-  } catch (err) {
-    showResult({ success: false, error: 'Network error. Please try again.' });
-  } finally {
-    submitBtn.disabled = false;
-    setAction(currentAction);
-  }
+  } catch { showResult({ success:false, error:'Network error.' }); }
+  finally { btn.disabled=false; btn.innerHTML=`<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Confirm`; }
 });
 
+// ── Result Panel ───────────────────────────────────────────────────────────
 function showResult(data) {
   const panel = document.getElementById('result-panel');
   panel.classList.remove('hidden');
-  if (data.success) {
+  if (data.success || data.status === 'completed') {
     const msg = currentAction === 'exit'
-      ? `Exit recorded. Duration: ${Math.floor(data.duration_minutes/60)}h ${data.duration_minutes%60}m — Charged: ₹${data.final_amount}`
-      : data.message || 'Success!';
-    panel.className = 'mt-6 rounded-xl border border-green-200 bg-green-50 p-5';
-    panel.innerHTML = `<div class="font-semibold text-green-800">✓ ${msg}</div>
-      ${data.vehicle_number ? `<div class="text-sm text-green-700 mt-1">Vehicle: ${data.vehicle_number}</div>` : ''}
-      ${data.entry_time ? `<div class="text-sm text-green-700">Time: ${data.entry_time}</div>` : ''}`;
+      ? `Exit recorded. Duration: ${Math.floor((data.duration_minutes||0)/60)}h ${(data.duration_minutes||0)%60}m · Charged: ₹${data.final_amount||0}`
+      : (data.message || 'Entry recorded successfully!');
+    panel.className = 'rounded-2xl border border-emerald-200 bg-emerald-50 p-5 mb-4';
+    panel.innerHTML = `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="font-bold text-emerald-800 text-sm">${msg}</div>${data.vehicle_number?`<div class="text-xs text-emerald-600 mt-1">Vehicle: <strong>${data.vehicle_number}</strong></div>`:''}</div></div>`;
   } else {
-    panel.className = 'mt-6 rounded-xl border border-red-200 bg-red-50 p-5';
-    panel.innerHTML = `<div class="font-semibold text-red-800">✗ ${data.error || 'Failed'}</div>`;
+    panel.className = 'rounded-2xl border border-red-200 bg-red-50 p-5 mb-4';
+    panel.innerHTML = `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="font-bold text-red-800 text-sm">${data.error||'Verification failed.'}</div></div>`;
   }
-  setTimeout(() => panel.classList.add('hidden'), 6000);
+  setTimeout(() => panel.classList.add('hidden'), 7000);
 }
 
+// ── Recent List ────────────────────────────────────────────────────────────
 function addRecent(data) {
   const list = document.getElementById('recent-list');
-  const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  const icon = currentAction === 'exit' ? '←' : '→';
+  const time = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const isExit = currentAction === 'exit';
+  const placeholder = list.querySelector('.italic');
+  if (placeholder) list.innerHTML = '';
   const el = document.createElement('div');
-  el.className = 'flex justify-between px-3 py-2 bg-gray-50 rounded-lg text-xs';
-  el.innerHTML = `<span class="font-mono">${data.booking_reference || ''}</span>
-    <span class="text-gray-600">${icon} ${currentAction}</span>
-    <span class="text-gray-400">${time}</span>`;
-  if (list.firstChild && list.firstChild.tagName === 'P') list.innerHTML = '';
+  el.className = 'px-5 py-3 flex items-center gap-3';
+  el.innerHTML = `<div class="w-2 h-2 rounded-full flex-shrink-0 ${isExit?'bg-blue-500':'bg-emerald-500'}"></div><div class="flex-1 min-w-0"><div class="text-xs font-semibold text-slate-700 truncate">${data.booking_reference||''}</div><div class="text-xs text-slate-400">${isExit?'Exit':'Entry'} · ${time}</div></div>${data.final_amount?`<div class="text-xs font-bold text-violet-700">₹${data.final_amount}</div>`:''}`;
   list.insertBefore(el, list.firstChild);
 }
 
-function updateScannerStatus(msg, isError = false) {
-  const status = document.getElementById('scanner-status');
-  status.textContent = msg;
-  status.className = `mt-2 text-xs ${isError ? 'text-red-600' : 'text-gray-500'}`;
+// ── Camera Scanner ──────────────────────────────────────────────────────────
+function updateScannerStatus(msg, isError=false) {
+  const el = document.getElementById('scanner-status');
+  el.textContent = msg;
+  el.className = `mt-2 text-xs ${isError?'text-red-500':'text-slate-400'}`;
 }
-
-function applyScannedValue(rawValue) {
-  const refInput = document.getElementById('booking-ref-input');
-  const qrPayloadInput = document.getElementById('qr-payload-input');
-  const val = String(rawValue || '').trim();
-  if (!val) return false;
-
-  try {
-    const payload = JSON.parse(val);
-    if (payload && payload.ref) {
-      refInput.value = String(payload.ref).toUpperCase();
-      qrPayloadInput.value = val;
-      updateScannerStatus('QR scanned. Booking reference auto-filled.');
-      return true;
-    }
-  } catch (_) {}
-
-  refInput.value = val.toUpperCase();
-  qrPayloadInput.value = '';
-  updateScannerStatus('Code scanned. Booking reference auto-filled.');
-  return true;
+function applyScannedValue(raw) {
+  const val = String(raw||'').trim(); if(!val) return false;
+  try { const p=JSON.parse(val); if(p&&p.ref){ document.getElementById('booking-ref-input').value=p.ref.toUpperCase(); document.getElementById('qr-payload-input').value=val; updateScannerStatus('QR scanned! Reference auto-filled.'); return true; } } catch(_){}
+  document.getElementById('booking-ref-input').value=val.toUpperCase(); updateScannerStatus('Code scanned — reference auto-filled.'); return true;
 }
-
 function stopScanner() {
-  scannerRunning = false;
-  if (scannerRaf) cancelAnimationFrame(scannerRaf);
-  scannerRaf = null;
-  if (scannerStream) {
-    scannerStream.getTracks().forEach((track) => track.stop());
-    scannerStream = null;
-  }
-  const video = document.getElementById('scanner-video');
-  video.pause();
-  video.srcObject = null;
-  video.classList.add('hidden');
+  scannerRunning=false; if(scannerRaf) cancelAnimationFrame(scannerRaf); scannerRaf=null;
+  if(scannerStream) { scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null; }
+  const v=document.getElementById('scanner-video'); v.pause(); v.srcObject=null; v.classList.add('hidden');
   document.getElementById('scanner-placeholder').classList.remove('hidden');
   document.getElementById('start-scan-btn').classList.remove('hidden');
   document.getElementById('stop-scan-btn').classList.add('hidden');
   updateScannerStatus('Scanner stopped.');
 }
-
-async function scanLoopWithBarcodeDetector() {
-  const video = document.getElementById('scanner-video');
-  if (!('BarcodeDetector' in window)) {
-    updateScannerStatus('QR scanning is not supported in this browser. Use manual entry.', true);
-    return;
-  }
-
-  let detector;
-  try {
-    detector = new BarcodeDetector({ formats: ['qr_code'] });
-  } catch (_) {
-    updateScannerStatus('QR detector init failed. Use manual entry.', true);
-    return;
-  }
-
-  async function loop() {
-    if (!scannerRunning) return;
-    try {
-      const barcodes = await detector.detect(video);
-      if (barcodes && barcodes.length > 0) {
-        const rawValue = barcodes[0].rawValue;
-        if (applyScannedValue(rawValue)) {
-          stopScanner();
-          return;
-        }
-      }
-    } catch (_) {}
-    scannerRaf = requestAnimationFrame(loop);
-  }
-  loop();
-}
-
 async function startScanner() {
-  if (scannerRunning) return;
-  const video = document.getElementById('scanner-video');
+  if(scannerRunning) return;
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false
-    });
-    video.srcObject = scannerStream;
-    await video.play();
-    scannerRunning = true;
-    video.classList.remove('hidden');
+    scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    const v=document.getElementById('scanner-video'); v.srcObject=scannerStream; await v.play();
+    scannerRunning=true; v.classList.remove('hidden');
     document.getElementById('scanner-placeholder').classList.add('hidden');
     document.getElementById('start-scan-btn').classList.add('hidden');
     document.getElementById('stop-scan-btn').classList.remove('hidden');
-    updateScannerStatus('Scanning... keep QR inside frame.');
-    await scanLoopWithBarcodeDetector();
-  } catch (err) {
-    stopScanner();
-    updateScannerStatus('Camera permission denied or unavailable.', true);
-  }
+    updateScannerStatus('Scanning… keep QR inside camera view.');
+    if(!('BarcodeDetector'in window)){updateScannerStatus('QR detection not supported in this browser.',true);return;}
+    const det=new BarcodeDetector({formats:['qr_code']});
+    const loop=async()=>{ if(!scannerRunning) return; try{ const bc=await det.detect(v); if(bc&&bc.length>0&&applyScannedValue(bc[0].rawValue)){stopScanner();return;} }catch(_){} scannerRaf=requestAnimationFrame(loop); };
+    loop();
+  } catch{ stopScanner(); updateScannerStatus('Camera permission denied.',true); }
+}
+document.getElementById('start-scan-btn').addEventListener('click',startScanner);
+document.getElementById('stop-scan-btn').addEventListener('click',stopScanner);
+window.addEventListener('beforeunload',stopScanner);
+
+// ── Exit Payment Panel ─────────────────────────────────────────────────────
+function showPaymentPanel(data, bookingRef) {
+  currentBookingRef=bookingRef;
+  document.getElementById('exit-payment-panel').classList.remove('hidden');
+  document.getElementById('exit-due-msg').textContent = `Duration: ${Math.floor((data.duration_minutes||0)/60)}h ${(data.duration_minutes||0)%60}m · Overstay: ₹${(data.overstay_amount||0).toFixed(2)}`;
+  document.getElementById('exit-due-chip').textContent = `₹${(data.due||0).toFixed(2)}`;
+  document.getElementById('upi-amount-label').textContent = `₹${(data.due||0).toFixed(2)}`;
+  const vo=document.getElementById('voucher-option');
+  if(data.voucher_sufficient){
+    vo.classList.remove('hidden');
+    document.getElementById('voucher-balance-label').textContent=`Voucher ₹${(data.voucher_balance||0).toFixed(2)}`;
+  } else { vo.classList.add('hidden'); }
 }
 
-document.getElementById('start-scan-btn').addEventListener('click', startScanner);
-document.getElementById('stop-scan-btn').addEventListener('click', stopScanner);
-window.addEventListener('beforeunload', stopScanner);
+document.getElementById('voucher-pay-btn').addEventListener('click', async()=>{
+  const pin=document.getElementById('tx-pin-input').value.trim();
+  const errEl=document.getElementById('voucher-pay-error');
+  errEl.classList.add('hidden');
+  if(!pin){errEl.textContent='Enter parking PIN.';errEl.classList.remove('hidden');return;}
+  const btn=document.getElementById('voucher-pay-btn');
+  btn.disabled=true; btn.textContent='Processing...';
+  try {
+    const resp=await fetch(`/api/parking/bookings/${currentBookingRef}/pay-exit/voucher/`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({pin})});
+    const data=await resp.json();
+    if(resp.ok&&data.success){
+      document.getElementById('exit-payment-panel').classList.add('hidden');
+      showResult({success:true,message:`Exit complete! Voucher debited ₹${data.final_amount}`,vehicle_number:''});
+      addRecent({booking_reference:currentBookingRef,final_amount:data.final_amount});
+      document.getElementById('booking-ref-input').value='';
+    } else { errEl.textContent=data.detail||'Payment failed.'; errEl.classList.remove('hidden'); }
+  } catch { errEl.textContent='Network error.'; errEl.classList.remove('hidden'); }
+  finally { btn.disabled=false; btn.textContent='Pay Now'; }
+});
+
+document.getElementById('generate-upi-btn').addEventListener('click', async()=>{
+  const btn=document.getElementById('generate-upi-btn');
+  btn.disabled=true; btn.textContent='Generating...';
+  try {
+    const resp=await fetch(`/api/parking/bookings/${currentBookingRef}/pay-exit/upi/`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({})});
+    const data=await resp.json();
+    if(resp.ok&&data.success){
+      currentExitPaymentId=data.exit_payment_id;
+      const qd=data.upi_qr_data||data.upi_link;
+      if(qd&&window.QRCode) QRCode.toCanvas(document.getElementById('upi-qr-canvas'),qd,{width:200,margin:1,errorCorrectionLevel:'H'},()=>{});
+      document.getElementById('upi-qr-section').classList.remove('hidden');
+      btn.classList.add('hidden'); startUpiPoll();
+    } else { alert(data.detail||'Could not generate UPI QR.'); }
+  } catch { alert('Network error.'); }
+  finally { btn.disabled=false; btn.textContent='Generate UPI QR for Customer'; }
+});
+
+function startUpiPoll(){
+  if(upiPollTimer) clearInterval(upiPollTimer);
+  upiPollTimer=setInterval(async()=>{
+    if(!currentExitPaymentId) return;
+    try {
+      const r=await fetch(`/api/parking/exit-payments/${currentExitPaymentId}/status/`);
+      const d=await r.json();
+      if(d.paid){
+        clearInterval(upiPollTimer);
+        document.getElementById('upi-waiting').classList.add('hidden');
+        document.getElementById('upi-success-banner').classList.remove('hidden');
+        setTimeout(()=>{
+          document.getElementById('exit-payment-panel').classList.add('hidden');
+          showResult({success:true,message:`Exit complete! UPI payment ₹${d.amount}`,vehicle_number:''});
+          addRecent({booking_reference:currentBookingRef,final_amount:d.amount});
+          document.getElementById('booking-ref-input').value='';
+        },2500);
+      } else if(d.status==='expired'||d.status==='failed'){
+        clearInterval(upiPollTimer);
+        document.getElementById('upi-waiting').textContent=`Payment ${d.status}. Generate a new QR.`;
+      }
+    } catch(_){}
+  },3000);
+}
+
+function getCsrfToken(){
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';
+}
 </script>
 {% endblock %}

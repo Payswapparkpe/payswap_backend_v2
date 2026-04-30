@@ -1,0 +1,136 @@
+<div class="park-owner-page mx-auto max-w-5xl font-sans">
+
+  <!-- Header -->
+  <div class="park-section-row mb-6">
+    <div>
+      <h1 class="page-title">Bookings</h1>
+      <p class="page-subtitle">Filter by location, date, and status to find the right booking.</p>
+    </div>
+    <button type="button" class="park-btn park-btn-ghost text-sm" [disabled]="loading()" (click)="load()">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+      </svg>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Filters panel -->
+  <div class="park-panel mb-5 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
+    <div class="flex flex-col gap-1 min-w-[200px]">
+      <label class="park-label">Location</label>
+      <select class="park-input" [ngModel]="locationId()" (ngModelChange)="locationId.set($event); load()">
+        @for (loc of locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="park-label">Date (optional)</label>
+      <input type="date" class="park-input font-mono" [ngModel]="date()" (ngModelChange)="date.set($event)" (change)="load()" />
+    </div>
+  </div>
+
+  <!-- Summary stat strip -->
+  <div class="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label">Total</div>
+      <div class="park-stat-tile__value">{{ summaryCounts().total }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-[var(--kendo-color-primary,#004aad)]">Confirmed</div>
+      <div class="park-stat-tile__value text-[var(--kendo-color-primary,#004aad)]">{{ summaryCounts().confirmed }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-emerald-600">Active</div>
+      <div class="park-stat-tile__value text-emerald-700">{{ summaryCounts().active }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label">Done</div>
+      <div class="park-stat-tile__value text-slate-700">{{ summaryCounts().completed }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-rose-500">Cancelled</div>
+      <div class="park-stat-tile__value text-rose-700">{{ summaryCounts().cancelled }}</div>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div class="mb-6 flex flex-wrap gap-2">
+    @for (c of chipFilters; track c.id) {
+      <button
+        type="button"
+        class="park-chip"
+        [class.park-chip--active]="statusFilter() === c.id"
+        [class.park-chip--inactive]="statusFilter() !== c.id"
+        (click)="setChip(c.id)"
+      >{{ c.label }}</button>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="park-alert park-alert--error mb-4">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="park-loader-shell">
+      <div class="park-spinner"></div>
+    </div>
+  } @else if (!filteredBookings().length) {
+    <div class="park-empty">
+      <div class="park-empty__icon">📋</div>
+      <p class="park-empty__title">No bookings match your filters.</p>
+      <p class="park-empty__sub">Try another date or status filter.</p>
+    </div>
+  } @else {
+    <ul class="flex flex-col gap-3">
+      @for (b of filteredBookings(); track $index) {
+        <li data-booking-card class="park-list-item opacity-0">
+          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <!-- Left: ref, vehicle, slot -->
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-sm font-bold text-slate-900">{{ bookingRef(b) }}</span>
+                <span class="park-chip text-[10px]" [ngClass]="statusBadgeClass(b)">{{ statusLabel(b) }}</span>
+              </div>
+              <div class="mt-1.5 font-mono text-base font-semibold tracking-wide text-slate-800">
+                {{ vehicle(b) }}
+              </div>
+              <div class="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <svg class="h-3.5 w-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Slot <span class="font-semibold text-slate-700">{{ slotCode(b) }}</span>
+              </div>
+            </div>
+            <!-- Right: amount + actions -->
+            <div class="flex shrink-0 flex-col items-end gap-2.5">
+              @if (amount(b) != null) {
+                <span class="font-mono text-lg font-extrabold tabular-nums text-[var(--kendo-color-primary,#004aad)]">₹{{ amount(b) }}</span>
+              }
+              <div class="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  class="park-btn park-btn-success text-xs"
+                  style="padding: 0.35rem 0.75rem"
+                  [disabled]="actionBusy() === bookingRef(b)"
+                  (click)="verifyEntry(b)"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                  Entry
+                </button>
+                <button
+                  type="button"
+                  class="park-btn park-btn-outline text-xs"
+                  style="padding: 0.35rem 0.75rem"
+                  [disabled]="actionBusy() === bookingRef(b)"
+                  (click)="verifyExit(b)"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

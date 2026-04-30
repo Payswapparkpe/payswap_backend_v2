@@ -2,6 +2,7 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { AuthService } from '../services/auth.service';
 import { environment } from '../../../environments/environment';
+import { Router } from '@angular/router';
 
 /**
  * Auth Interceptor
@@ -11,7 +12,8 @@ import { environment } from '../../../environments/environment';
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
-  const token = authService.getToken();
+  const router = inject(Router);
+  const token = authService.getTokenForHttpRequest(req.url, router.url);
 
   const url = req.url;
   const isRelativeApi = url.startsWith('/api/');

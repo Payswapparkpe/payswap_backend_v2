@@ -1,68 +1,115 @@
-{% extends "base.html" %}
+{% extends "portal/parking/base_parking.html" %}
+{% block title %}Live Map — {{ location.name }}{% endblock %}
 
-{% block page_title %}{{ page_title|default:"Parking Location" }}{% endblock %}
+{% block breadcrumb %}
+<div class="flex items-center gap-1 text-xs text-slate-400">
+  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <a href="{% url 'parking_owner_dashboard' %}" class="hover:text-slate-600">Dashboard</a>
+  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <span class="text-slate-600 font-medium">Live Map</span>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="mb-6 flex items-center justify-between gap-4">
-  <div>
-    <h1 class="text-2xl font-semibold text-gray-900">{{ location.name }}</h1>
-    <p class="text-sm text-gray-500">{{ location.address }}, {{ location.city }}</p>
-  </div>
-  <a href="{% url 'parking_owner_dashboard' %}" class="text-sm text-primary-600 hover:underline">Back to dashboard</a>
-</div>
+<div class="max-w-6xl mx-auto px-4 py-6">
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <span class="w-2 h-2 bg-emerald-500 rounded-full pulse-green inline-block"></span>
+        Live Slot Map
+      </h1>
+      <p class="text-sm text-slate-500 mt-1">{{ location.name }} · {{ location.address }}, {{ location.city }}</p>
+    </div>
+    <a href="{% url 'parking_verify_entry' location.pk %}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Entry / Exit Gate
+    </a>
+  </div>
+
+  <!-- Legend -->
+  <div class="flex items-center gap-4 bg-white border border-slate-200 rounded-xl px-5 py-3 mb-5 shadow-sm text-xs font-semibold flex-wrap">
+    <span class="text-slate-500">Legend:</span>
+    <span class="flex items-center gap-1.5"><span class="w-4 h-3 rounded bg-emerald-200 border border-emerald-400 inline-block"></span>Available</span>
+    <span class="flex items-center gap-1.5"><span class="w-4 h-3 rounded bg-red-200 border border-red-400 inline-block"></span>Occupied</span>
+    <span class="flex items-center gap-1.5"><span class="w-4 h-3 rounded bg-amber-200 border border-amber-400 inline-block"></span>Reserved</span>
+    <span class="flex items-center gap-1.5"><span class="w-4 h-3 rounded bg-slate-200 border border-slate-400 inline-block"></span>Blocked</span>
+  </div>
+
+  <!-- Zone Cards -->
   {% for item in zone_data %}
-  <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-    <div class="mb-3 flex items-center justify-between">
-      <h2 class="font-medium text-gray-900">{{ item.zone.zone_name }}</h2>
-      <span class="text-xs text-gray-500">F{{ item.zone.floor_level }}</span>
-    </div>
-    <div class="mb-3 text-sm text-gray-600">
-      Available: <span class="font-semibold text-green-600">{{ item.available }}</span> |
-      Occupied: <span class="font-semibold text-red-600">{{ item.occupied }}</span> |
-      Reserved: <span class="font-semibold text-amber-600">{{ item.reserved }}</span>
-    </div>
-    <div class="grid grid-cols-4 gap-2">
-      {% for slot in item.slots %}
-      <div class="rounded border px-2 py-1 text-xs text-center
-        {% if slot.status == 'available' %}border-green-200 bg-green-50 text-green-700
-        {% elif slot.status == 'occupied' %}border-red-200 bg-red-50 text-red-700
-        {% elif slot.status == 'reserved' %}border-amber-200 bg-amber-50 text-amber-700
-        {% else %}border-gray-200 bg-gray-50 text-gray-700{% endif %}">
-        {{ slot.slot_code }}
+  <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-5">
+
+    <!-- Zone Header -->
+    <div class="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+          F{{ item.zone.floor_level }}
+        </div>
+        <div>
+          <div class="text-sm font-bold text-slate-800">{{ item.zone.zone_name }}</div>
+          <div class="text-xs text-slate-500">{{ item.zone.zone_type }}</div>
+        </div>
       </div>
-      {% empty %}
-      <div class="col-span-4 text-sm text-gray-500">No active slots.</div>
-      {% endfor %}
+      <div class="flex items-center gap-3 text-xs">
+        <span class="flex items-center gap-1 font-semibold text-emerald-700"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>{{ item.available }} free</span>
+        <span class="flex items-center gap-1 font-semibold text-red-600"><span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>{{ item.occupied }} occupied</span>
+        <span class="flex items-center gap-1 font-semibold text-amber-600"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>{{ item.reserved }} reserved</span>
+      </div>
+    </div>
+
+    <!-- Slot Grid -->
+    <div class="p-5">
+      <div class="flex flex-wrap gap-2">
+        {% for slot in item.slots %}
+        <div class="relative group w-14 h-10 rounded-xl border-2 text-xs font-bold flex items-center justify-center cursor-default select-none transition hover:scale-105
+          {% if slot.status == 'available' %}bg-emerald-50 border-emerald-300 text-emerald-800
+          {% elif slot.status == 'occupied' %}bg-red-50 border-red-300 text-red-800
+          {% elif slot.status == 'reserved' %}bg-amber-50 border-amber-300 text-amber-800
+          {% else %}bg-slate-100 border-slate-300 text-slate-500{% endif %}"
+          title="{{ slot.slot_code }} — {{ slot.status|title }}">
+          {{ slot.slot_code }}
+          <!-- Tooltip -->
+          <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10">
+            <div class="bg-slate-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+              {{ slot.slot_code }} · {{ slot.get_status_display }}<br>
+              {{ slot.get_vehicle_type_display }}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-sm text-slate-400">No active slots in this zone.</p>
+        {% endfor %}
+      </div>
     </div>
   </div>
   {% empty %}
-  <div class="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500">No zones configured for this location.</div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+    <div class="text-3xl mb-3">🗂️</div>
+    <p class="text-sm font-semibold text-slate-600">No zones configured for this location.</p>
+  </div>
   {% endfor %}
-</div>
 
-{% if active_bookings %}
-<div class="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-  <h2 class="px-4 py-3 bg-gray-50 border-b border-gray-200 font-medium text-gray-900">Active bookings</h2>
-  <table class="min-w-full divide-y divide-gray-200">
-    <thead class="bg-gray-50">
-      <tr>
-        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehicle</th>
-        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Slot</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-200">
+  <!-- Active Bookings -->
+  {% if active_bookings %}
+  <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mt-5">
+    <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+      <span class="w-2 h-2 bg-emerald-500 rounded-full pulse-green"></span>
+      <h2 class="text-sm font-bold text-slate-700">Active Bookings Inside</h2>
+    </div>
+    <div class="divide-y divide-slate-100">
       {% for booking in active_bookings %}
-      <tr>
-        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.booking_reference }}</td>
-        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.vehicle_number }}</td>
-        <td class="px-4 py-2 text-sm text-gray-900">{{ booking.slot.slot_code }}</td>
-      </tr>
+      <div class="px-5 py-3.5 flex items-center gap-4">
+        <span class="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">{{ booking.booking_reference }}</span>
+        <span class="text-sm font-semibold text-slate-800">{{ booking.vehicle_number }}</span>
+        <span class="text-xs text-slate-500 ml-auto">Slot {{ booking.slot.slot_code }}</span>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
-{% endif %}
 {% endblock %}

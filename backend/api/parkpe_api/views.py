@@ -26,6 +26,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
+
+from api.permissions import IsFleetRole
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -56,6 +58,8 @@ from portal.models import (
     FleetWorkspaceInterest,
     FleetDriverRoster,
     ParkPeChallanRecord,
+    ParkPeChallanPayment,
+    ParkPeSavedVehicle,
 )
 from portal.services.parkpe_voucherx_bridge import (
     get_parkpe_brand_id,
@@ -75,6 +79,7 @@ from portal.utils.voucher_utils import unformat_voucher_code
 from portal.services.voucher_service import VoucherService
 from portal.services.cashfree_vehicle_rc import fetch_vehicle_rc
 from portal.services.vendors.instantpay import InstantpayClient
+from portal.tasks.parkpe_tasks import send_challan_payment_notification_task
 from api.connect.serializers import VehicleCreateSerializer
 from api.connect.views.vehicle_views import _normalize_registration
 from api.utils.client_ip import get_client_ip
@@ -205,7 +210,7 @@ class DashboardSummaryView(APIView):
 class FleetControlCenterView(APIView):
     """GET /api/dashboard/fleet/control-center – KPI + alerts + module cards for fleet workspace."""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
 
     def get(self, request):
         if not _parkpe_user_has_fleet_role(request.user):
@@ -513,7 +518,7 @@ class FleetVehiclesView(APIView):
     """GET/POST /api/dashboard/fleet/vehicles — fleet workspace vehicles for the logged-in user."""
 
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
     parser_classes = [JSONParser]
 
     def get(self, request):
@@ -662,7 +667,7 @@ class FleetDriverRosterView(APIView):
     """GET/POST /api/dashboard/fleet/roster — list or add drivers a fleet admin/manager may register vehicles for."""
 
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
     parser_classes = [JSONParser]
 
     def get(self, request):
@@ -717,7 +722,7 @@ class FleetDriverRosterUnlinkView(APIView):
     """DELETE /api/dashboard/fleet/roster/<driver_id> — remove a driver from roster."""
 
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
 
     def delete(self, request, driver_id):
         if not _parkpe_user_has_fleet_role(request.user):
@@ -739,7 +744,7 @@ class FleetDriverRosterUnlinkView(APIView):
 class FleetDriversView(APIView):
     """GET /api/dashboard/fleet/drivers"""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
 
     def get(self, request):
         if not _parkpe_user_has_fleet_role(request.user):
@@ -750,9 +755,15 @@ class FleetDriversView(APIView):
         page = max(_safe_int(request.GET.get("page"), 1), 1)
         limit = min(max(_safe_int(request.GET.get("limit"), 20), 1), 100)
         search = (request.GET.get("search") or "").strip()
-        qs = Profile.objects.select_related("user").filter(
-            user__connect_vehicles__connect_scope=Vehicle.SCOPE_FLEET,
-        ).distinct()
+        scope_ids = _fleet_vehicle_owner_user_ids_for_scope(request.user)
+        qs = (
+            Profile.objects.select_related("user")
+            .filter(
+                user_id__in=scope_ids,
+                user__connect_vehicles__connect_scope=Vehicle.SCOPE_FLEET,
+            )
+            .distinct()
+        )
         if search:
             qs = qs.filter(
                 Q(first_name__icontains=search)
@@ -831,7 +842,7 @@ def _serialize_fleet_trip_log(row: ConnectScanLog) -> dict:
 class FleetTripsView(APIView):
     """GET/POST /api/dashboard/fleet/trips — list Connect scan logs; POST logs a manual visit (no QR at site)."""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
     parser_classes = [JSONParser]
 
     def get(self, request):
@@ -938,7 +949,7 @@ class FleetTripsView(APIView):
 class FleetComplianceView(APIView):
     """GET /api/dashboard/fleet/compliance"""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
 
     def get(self, request):
         if not _parkpe_user_has_fleet_role(request.user):
@@ -992,7 +1003,7 @@ class FleetComplianceView(APIView):
 class FleetTrendsView(APIView):
     """GET /api/dashboard/fleet/trends?days=7"""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFleetRole]
 
     def get(self, request):
         if not _parkpe_user_has_fleet_role(request.user):
@@ -3559,17 +3570,331 @@ class ChallanDetailView(APIView):
 
 @method_decorator(csrf_exempt, name="dispatch")
 class ChallanPayView(APIView):
-    """POST /api/challan/<id>/pay — lookup is live, payment flow pending gateway integration."""
+    """POST /api/challan/<id>/pay — execute challan payment via Instantpay."""
 
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser]
 
     def post(self, request, challan_id: str):
+        vehicle_number, challan_number = _decode_challan_id(challan_id)
+        if not vehicle_number or not challan_number:
+            return Response({"detail": "Invalid challan id."}, status=status.HTTP_400_BAD_REQUEST)
+
+        raw_amount = request.data.get("amount")
+        payment_method = str(request.data.get("paymentMode") or request.data.get("payment_method") or "upi").strip().lower()
+        if raw_amount in (None, ""):
+            return Response({"detail": "amount is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            amount = Decimal(str(raw_amount))
+        except Exception:
+            return Response({"detail": "Invalid amount."}, status=status.HTTP_400_BAD_REQUEST)
+        if amount <= 0:
+            return Response({"detail": "amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+        challan_row = (
+            ParkPeChallanRecord.objects.filter(
+                user=request.user,
+                vehicle_number=vehicle_number,
+                challan_number=challan_number,
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+        if challan_row:
+            cached_amount = Decimal(str(challan_row.total_amount or 0))
+            if cached_amount > 0 and amount != cached_amount:
+                return Response(
+                    {"detail": f"Amount mismatch. Expected {cached_amount} for this challan."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        paid_existing = (
+            ParkPeChallanPayment.objects.filter(
+                user=request.user,
+                vehicle_number=vehicle_number,
+                challan_number=challan_number,
+                status=ParkPeChallanPayment.STATUS_SUCCESS,
+            )
+            .order_by("-paid_at", "-updated_at")
+            .first()
+        )
+        if paid_existing:
+            return Response(
+                {
+                    "success": True,
+                    "transactionId": paid_existing.transaction_id,
+                    "challanId": challan_id,
+                    "receiptNumber": paid_existing.receipt_number or paid_existing.transaction_id,
+                    "amount": float(paid_existing.amount or 0),
+                    "status": "success",
+                    "paidAt": paid_existing.paid_at.isoformat() if paid_existing.paid_at else paid_existing.updated_at.isoformat(),
+                    "message": "Already paid.",
+                }
+            )
+
+        partner_txn_id = f"parkpe_challan_pay_{timezone.now().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}"
+        payload = {
+            "partner_txn_id": partner_txn_id,
+            "vehicleNumber": vehicle_number,
+            "vehicleRegistrationNumber": vehicle_number,
+            "challanNumber": challan_number,
+            "amount": str(amount),
+            "paymentMode": payment_method,
+            "consent": "Y",
+            "customerName": str(request.data.get("customerName") or request.user.name or request.user.username or "User"),
+            "customerEmail": str(request.data.get("customerEmail") or request.user.email or ""),
+            "customerPhone": str(request.data.get("customerPhone") or request.user.phone or ""),
+            "challanId": challan_id,
+        }
+
+        pay_record = ParkPeChallanPayment.objects.create(
+            user=request.user,
+            challan=challan_row,
+            challan_ref=challan_id,
+            challan_number=challan_number,
+            vehicle_number=vehicle_number,
+            amount=amount,
+            currency="INR",
+            payment_method=payment_method,
+            status=ParkPeChallanPayment.STATUS_PENDING,
+            request_json=payload,
+        )
+
+        result = InstantpayClient().request(
+            "vehicle_challan_pay",
+            payload,
+            log_context={
+                "request": request,
+                "chain_step": 2,
+                "correlation_id": partner_txn_id,
+            },
+        )
+        vendor_json = result.get("json") if isinstance(result.get("json"), dict) else {}
+        vendor_status = str(result.get("vendor_status") or vendor_json.get("status") or "")
+        vendor_message = str(result.get("message") or result.get("error") or vendor_json.get("message") or "").strip()
+        transaction_id = str(
+            vendor_json.get("transactionId")
+            or vendor_json.get("txnId")
+            or vendor_json.get("referenceId")
+            or partner_txn_id
+        ).strip()
+        receipt_number = str(
+            vendor_json.get("receiptNumber")
+            or vendor_json.get("receiptNo")
+            or vendor_json.get("rrn")
+            or transaction_id
+        ).strip()
+
+        success = bool(result.get("success"))
+        pay_record.transaction_id = transaction_id
+        pay_record.receipt_number = receipt_number
+        pay_record.vendor_status = vendor_status
+        pay_record.vendor_message = vendor_message
+        pay_record.response_json = vendor_json or {"raw": result}
+        pay_record.status = ParkPeChallanPayment.STATUS_SUCCESS if success else ParkPeChallanPayment.STATUS_FAILED
+        if success:
+            pay_record.paid_at = timezone.now()
+        pay_record.save(
+            update_fields=[
+                "transaction_id",
+                "receipt_number",
+                "vendor_status",
+                "vendor_message",
+                "response_json",
+                "status",
+                "paid_at",
+                "updated_at",
+            ]
+        )
+
+        if success:
+            if challan_row:
+                challan_row.status = "paid"
+                challan_row.save(update_fields=["status", "updated_at", "last_seen_at"])
+            send_challan_payment_notification_task.delay(
+                user_id=request.user.id,
+                challan_number=challan_number,
+                amount=str(amount),
+                transaction_id=transaction_id,
+            )
+            return Response(
+                {
+                    "success": True,
+                    "transactionId": transaction_id,
+                    "challanId": challan_id,
+                    "receiptNumber": receipt_number,
+                    "amount": float(amount),
+                    "status": "success",
+                    "paidAt": pay_record.paid_at.isoformat() if pay_record.paid_at else timezone.now().isoformat(),
+                    "message": vendor_message or "Challan paid successfully.",
+                }
+            )
+
         return Response(
             {
-                "detail": "Challan payment is not enabled yet. Vehicle challan lookup is live.",
+                "detail": vendor_message or "Challan payment failed.",
                 "challanId": challan_id,
+                "vendorStatus": vendor_status,
             },
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+            status=status.HTTP_502_BAD_GATEWAY,
         )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanHistoryView(APIView):
+    """GET /api/challan/history — paid/failed challan payment history."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        limit = min(max(int(request.GET.get("limit", 30) or 30), 1), 100)
+        status_filter = str(request.GET.get("status") or "").strip().lower()
+        qs = ParkPeChallanPayment.objects.filter(user=request.user).order_by("-created_at")
+        if status_filter in {ParkPeChallanPayment.STATUS_SUCCESS, ParkPeChallanPayment.STATUS_FAILED, ParkPeChallanPayment.STATUS_PENDING}:
+            qs = qs.filter(status=status_filter)
+        rows = []
+        for row in qs[:limit]:
+            rows.append(
+                {
+                    "id": row.id,
+                    "challanId": row.challan_ref,
+                    "challanNumber": row.challan_number,
+                    "vehicleNumber": row.vehicle_number,
+                    "amount": float(row.amount or 0),
+                    "status": row.status,
+                    "transactionId": row.transaction_id,
+                    "receiptNumber": row.receipt_number,
+                    "paymentMode": row.payment_method,
+                    "paidAt": row.paid_at.isoformat() if row.paid_at else None,
+                    "updatedAt": row.updated_at.isoformat(),
+                }
+            )
+        return Response({"items": rows, "total": qs.count()})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanReceiptView(APIView):
+    """GET /api/challan/<id>/receipt — generate receipt JSON/PDF-ish text."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, challan_id: str):
+        vehicle_number, challan_number = _decode_challan_id(challan_id)
+        if not vehicle_number or not challan_number:
+            return Response({"detail": "Invalid challan id."}, status=status.HTTP_400_BAD_REQUEST)
+        row = (
+            ParkPeChallanPayment.objects.filter(
+                user=request.user,
+                challan_ref=challan_id,
+                status=ParkPeChallanPayment.STATUS_SUCCESS,
+            )
+            .order_by("-paid_at", "-updated_at")
+            .first()
+        )
+        if not row:
+            return Response({"detail": "No paid receipt found for this challan."}, status=status.HTTP_404_NOT_FOUND)
+        if str(request.GET.get("format") or "").strip().lower() == "pdf":
+            paid_at_text = row.paid_at.strftime("%d-%m-%Y %H:%M:%S") if row.paid_at else "-"
+            content = (
+                "ParkPe Challan Receipt\n"
+                f"Receipt Number: {row.receipt_number or row.transaction_id}\n"
+                f"Transaction ID: {row.transaction_id}\n"
+                f"Challan Number: {row.challan_number}\n"
+                f"Vehicle Number: {row.vehicle_number}\n"
+                f"Amount: INR {row.amount}\n"
+                f"Paid At: {paid_at_text}\n"
+            )
+            response = HttpResponse(content, content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="challan-receipt-{row.challan_number}.pdf"'
+            return response
+        return Response(
+            {
+                "success": True,
+                "challanId": challan_id,
+                "challanNumber": row.challan_number,
+                "vehicleNumber": row.vehicle_number,
+                "receiptNumber": row.receipt_number or row.transaction_id,
+                "transactionId": row.transaction_id,
+                "amount": float(row.amount or 0),
+                "status": row.status,
+                "paidAt": row.paid_at.isoformat() if row.paid_at else None,
+            }
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanSavedVehiclesView(APIView):
+    """GET/POST /api/challan/vehicles — save and list quick-search vehicles."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def get(self, request):
+        rows = (
+            ParkPeSavedVehicle.objects.filter(user=request.user, is_active=True)
+            .order_by("-is_primary", "-updated_at")
+        )
+        return Response(
+            [
+                {
+                    "id": row.id,
+                    "registrationNumber": row.registration_number,
+                    "nickname": row.nickname,
+                    "isPrimary": row.is_primary,
+                    "lastKnownPendingCount": row.last_known_pending_count,
+                    "lastCheckedAt": row.last_checked_at.isoformat() if row.last_checked_at else None,
+                    "updatedAt": row.updated_at.isoformat(),
+                }
+                for row in rows
+            ]
+        )
+
+    def post(self, request):
+        registration_number = _normalize_registration(request.data.get("registrationNumber") or request.data.get("vehicleNumber") or "")
+        if not registration_number:
+            return Response({"detail": "registrationNumber is required."}, status=status.HTTP_400_BAD_REQUEST)
+        nickname = str(request.data.get("nickname") or "").strip()
+        is_primary = bool(request.data.get("isPrimary") is True)
+        if is_primary:
+            ParkPeSavedVehicle.objects.filter(user=request.user, is_primary=True).update(is_primary=False)
+        row, _ = ParkPeSavedVehicle.objects.update_or_create(
+            user=request.user,
+            registration_number=registration_number,
+            defaults={
+                "nickname": nickname,
+                "is_primary": is_primary,
+                "is_active": True,
+            },
+        )
+        return Response(
+            {
+                "id": row.id,
+                "registrationNumber": row.registration_number,
+                "nickname": row.nickname,
+                "isPrimary": row.is_primary,
+                "lastKnownPendingCount": row.last_known_pending_count,
+                "lastCheckedAt": row.last_checked_at.isoformat() if row.last_checked_at else None,
+                "updatedAt": row.updated_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ChallanSavedVehicleDeleteView(APIView):
+    """DELETE /api/challan/vehicles/<id> — remove saved vehicle."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, vehicle_id: int):
+        row = ParkPeSavedVehicle.objects.filter(user=request.user, id=vehicle_id).first()
+        if not row:
+            return Response({"detail": "Saved vehicle not found."}, status=status.HTTP_404_NOT_FOUND)
+        row.is_active = False
+        row.save(update_fields=["is_active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)

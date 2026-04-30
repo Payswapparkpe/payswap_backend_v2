@@ -1,0 +1,106 @@
+<div class="park-owner-page mx-auto max-w-6xl font-sans">
+
+  <!-- Page Header -->
+  <div class="park-section-row mb-6">
+    <div>
+      <h1 class="page-title">Live Slot Map</h1>
+      <p class="page-subtitle">Select a location to scan occupancy at a glance.</p>
+    </div>
+    @if (locations().length) {
+      <button type="button" class="park-btn park-btn-ghost text-sm" [disabled]="loading()" (click)="loadSlots()">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+        </svg>
+        Refresh
+      </button>
+    }
+  </div>
+
+  <!-- Location tabs -->
+  @if (locations().length) {
+    <div class="park-panel mb-6 flex flex-wrap gap-2">
+      @for (loc of locations(); track loc.id) {
+        <button
+          type="button"
+          class="park-chip"
+          [class.park-chip--active]="selectedLocationId() === loc.id"
+          [class.park-chip--inactive]="selectedLocationId() !== loc.id"
+          (click)="setLocation(loc.id)"
+        >{{ loc.name }}</button>
+      }
+    </div>
+  }
+
+  <!-- KPI stat strip -->
+  <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-emerald-600">Free</div>
+      <div class="park-stat-tile__value text-emerald-700">{{ slotCounts().free }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-rose-600">Occupied</div>
+      <div class="park-stat-tile__value text-rose-700">{{ slotCounts().occupied }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label text-amber-600">Reserved</div>
+      <div class="park-stat-tile__value text-amber-700">{{ slotCounts().reserved }}</div>
+    </div>
+    <div class="park-stat-tile">
+      <div class="park-stat-tile__label">Total</div>
+      <div class="park-stat-tile__value">{{ slotCounts().total }}</div>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div class="mb-6 flex flex-wrap gap-2">
+    @for (c of chipFilters; track c.id) {
+      <button
+        type="button"
+        class="park-chip"
+        [class.park-chip--active]="filter() === c.id"
+        [class.park-chip--inactive]="filter() !== c.id"
+        (click)="setFilter(c.id)"
+      >{{ c.label }}</button>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="park-alert park-alert--error mb-4">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="park-loader-shell">
+      <div class="park-spinner"></div>
+    </div>
+  } @else if (!filteredSlots().length) {
+    <div class="park-empty">
+      <div class="park-empty__icon">🅿️</div>
+      <p class="park-empty__title">No slots match this filter.</p>
+      <p class="park-empty__sub">Try selecting "All" or a different status.</p>
+    </div>
+  } @else {
+    <div class="relative grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2.5 md:gap-3">
+      @for (slot of filteredSlots(); track $index) {
+        <button
+          type="button"
+          data-slot-cell
+          class="slot-cell relative rounded-xl px-2 py-3.5 text-center text-xs font-bold ring-1 opacity-0"
+          [ngClass]="slotClasses(slot)"
+          (mouseenter)="onSlotEnter($event, slot)"
+          (mouseleave)="onSlotLeave($event)"
+        >
+          {{ code(slot) }}
+          <div class="mt-1 text-[10px] font-semibold opacity-75">{{ slot.status || '—' }}</div>
+        </button>
+      }
+    </div>
+
+    @if (hoverSlot(); as hs) {
+      <div class="park-surface pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-sm -translate-x-1/2 px-4 py-3 text-sm shadow-2xl md:left-auto md:right-8 md:translate-x-0">
+        <div class="font-mono font-bold text-slate-900">{{ code(hs) }}</div>
+        <div class="mt-0.5 text-xs text-slate-500">Status: {{ hs.status || '—' }}</div>
+        <div class="text-xs text-slate-500">Available: {{ hs.available ? 'Yes' : 'No' }}</div>
+      </div>
+    }
+  }
+</div>

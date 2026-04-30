@@ -369,6 +369,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'portal.tasks.reconcile_pending_parkpe_orders',
         'schedule': 600,  # every 10 minutes
     },
+    'scan-saved-vehicles-for-challans': {
+        'task': 'portal.tasks.scan_saved_vehicles_for_challans',
+        'schedule': 1800,  # every 30 minutes
+    },
     'clean-old-logs-daily': {
         'task': 'portal.tasks.clean_old_logs',
         'schedule': crontab(hour=2, minute=0),  # daily at 2am
@@ -376,6 +380,10 @@ CELERY_BEAT_SCHEDULE = {
     'expire-hub-assignments-hourly': {
         'task': 'hub_rbac.expire_hub_assignments',
         'schedule': crontab(minute=0),  # every hour at :00
+    },
+    'reconcile-pending-parking-transactions': {
+        'task': 'portal.tasks.parking_reconcile.reconcile_pending_parking_transactions',
+        'schedule': 60,
     },
 }
 
@@ -433,7 +441,7 @@ REST_FRAMEWORK = {
 }
 
 # Simple JWT (access + refresh for API consumers)
-# Payload: only user_id (and standard exp, iat, jti, token_type) – no sensitive PII in token
+# Access payload: user_id + role_code (+ parking_location_ids / fleet_role when applicable); refresh unchanged.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_ACCESS_TOKEN_LIFETIME),
     "REFRESH_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_REFRESH_TOKEN_LIFETIME),
@@ -441,6 +449,7 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
+    "TOKEN_REFRESH_SERIALIZER": "api.auth_parkpe.tokens.ParkPeTokenRefreshSerializer",
 }
 
 # Trusted proxy IPs for client IP resolution (VAPT-002/003). When REMOTE_ADDR is in this list,

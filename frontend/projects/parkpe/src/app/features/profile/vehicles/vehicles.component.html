@@ -1,0 +1,34 @@
+<div class="veh-page px-4 py-6">
+  <h1 class="text-xl font-bold text-slate-900">Vehicles &amp; FASTag</h1>
+  <p class="mt-1 text-sm text-slate-500">Link your FASTag for seamless automated parking entry &amp; exit.</p>
+
+  @if (loading()) {
+    <p class="mt-8 text-sm text-slate-500">Loading…</p>
+  } @else if (error()) {
+    <p class="mt-8 text-sm text-red-600">{{ error() }}</p>
+  } @else if (!rows().length) {
+    <p class="mt-8 text-sm text-slate-600">
+      No saved vehicles yet. Add one from <a routerLink="/challan" class="text-[#004aad] underline">Challan</a> saved vehicles.
+    </p>
+  } @else {
+    <ul class="mt-6 space-y-3">
+      @for (row of rows(); track row.vehicle.id) {
+        <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div>
+            <div class="font-semibold text-slate-900">{{ row.vehicle.registrationNumber }}</div>
+            <div class="text-xs text-slate-500">{{ row.vehicle.nickname || 'Saved vehicle' }}</div>
+          </div>
+          <span class="rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide" [ngClass]="chipClass(row.mapping)">
+            {{ chipLabel(row.mapping) }}
+          </span>
+          <a
+            [routerLink]="['/profile/vehicles', row.vehicle.id, 'fastag']"
+            class="rounded-lg bg-[#004aad] px-3 py-2 text-xs font-semibold text-white hover:bg-[#003a8c]"
+          >
+            {{ row.mapping ? 'Manage FASTag' : 'Link FASTag' }}
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>

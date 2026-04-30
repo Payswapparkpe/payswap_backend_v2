@@ -1,0 +1,30 @@
+.qr-scanner-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qr-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.qr-tool-btn {
+  font-size: 12px;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-1, #fff);
+  color: var(--text-secondary, #64748b);
+}
+
+.qr-host {
+  min-height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.qr-host.low-light {
+  filter: brightness(1.3) contrast(1.2);
+}

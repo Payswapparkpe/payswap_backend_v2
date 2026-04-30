@@ -1,0 +1,474 @@
+/*
+ * parking-owner-shared.scss
+ * Brand-aligned utilities shared across all parking-owner pages.
+ * Generated with Kendo Design System guidance (no Kendo package required).
+ */
+
+/* ──────────────────────────────────────────────────────────────────
+   PAGE SHELL
+───────────────────────────────────────────────────────────────── */
+.park-owner-page {
+  min-height: 100%;
+  padding-bottom: 4rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   PAGE HEADER (h1 + subtitle)
+───────────────────────────────────────────────────────────────── */
+.page-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary, #0f172a);
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+  line-height: 1.5;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CARDS
+───────────────────────────────────────────────────────────────── */
+.park-surface {
+  background: var(--park-card-bg, #fff);
+  border: var(--park-card-border, 1px solid rgba(226,232,240,.9));
+  border-radius: var(--park-card-radius, 16px);
+  box-shadow: var(--park-card-shadow, 0 6px 16px rgba(15,23,42,.08));
+}
+
+.park-panel {
+  background: linear-gradient(180deg, rgba(255,255,255,.8) 0%, rgba(248,250,252,.7) 100%);
+  border: 1px solid rgba(226,232,240,.9);
+  border-radius: var(--kendo-border-radius-md, 12px);
+  padding: 1rem 1.25rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   FORM INPUTS (select, text input, date)
+───────────────────────────────────────────────────────────────── */
+.park-input {
+  display: block;
+  width: 100%;
+  background: var(--park-input-bg, #fff);
+  border: var(--park-input-border, 1px solid rgba(226,232,240,.9));
+  border-radius: var(--park-input-radius, 12px);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f172a);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.park-input:focus {
+  border-color: var(--park-input-focus-border, #5f95ff);
+  box-shadow: var(--park-input-focus-ring, 0 0 0 3px rgba(0,74,173,.14));
+}
+
+.park-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.35rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   BUTTONS
+───────────────────────────────────────────────────────────────── */
+
+/* Primary — filled, ParkPe blue (Kendo themeColor="primary" fillMode="solid") */
+.park-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border: none;
+  border-radius: var(--kendo-border-radius-md, 12px);
+  cursor: pointer;
+  padding: 0.6rem 1.15rem;
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.park-btn-primary {
+  background: linear-gradient(135deg, var(--kendo-color-primary,#004aad), #5f95ff);
+  color: var(--kendo-color-on-primary, #fff);
+  box-shadow: 0 6px 20px rgba(0,74,173,.22);
+}
+
+.park-btn-primary:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(0,74,173,.28);
+}
+
+.park-btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Secondary — outline (Kendo fillMode="outline" themeColor="primary") */
+.park-btn-outline {
+  background: transparent;
+  color: var(--kendo-color-primary, #004aad);
+  border: 1.5px solid var(--kendo-color-primary, #004aad);
+  box-shadow: none;
+}
+
+.park-btn-outline:hover {
+  background: var(--kendo-color-primary-subtle, #e6effb);
+  transform: translateY(-1px);
+}
+
+/* Ghost — flat on white (Kendo fillMode="flat") */
+.park-btn-ghost {
+  background: rgba(0,74,173,.06);
+  color: var(--kendo-color-primary, #004aad);
+  border: none;
+  box-shadow: none;
+}
+
+.park-btn-ghost:hover {
+  background: var(--kendo-color-primary-subtle, #e6effb);
+  transform: translateY(-1px);
+}
+
+/* Danger — error theme (Kendo themeColor="error") */
+.park-btn-danger {
+  background: var(--kendo-color-error-subtle, #ffe4e6);
+  color: var(--kendo-color-error, #e11d48);
+  border: 1px solid rgba(225,29,72,.2);
+  box-shadow: none;
+}
+
+.park-btn-danger:hover {
+  background: #ffd1d9;
+  border-color: rgba(225,29,72,.35);
+  transform: translateY(-1px);
+}
+
+/* Success — emerald */
+.park-btn-success {
+  background: var(--kendo-color-success-subtle, #d1fae5);
+  color: var(--kendo-color-success, #0ea070);
+  border: 1px solid rgba(14,160,112,.2);
+}
+
+.park-btn-success:hover {
+  background: #b9f5d8;
+  transform: translateY(-1px);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   CHIPS / STATUS BADGES (Kendo Chip / Badge inspiration)
+───────────────────────────────────────────────────────────────── */
+.park-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: var(--kendo-border-radius-full, 9999px);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+/* Active chip (selected filter) */
+.park-chip--active {
+  background: var(--kendo-color-primary, #004aad);
+  color: #fff;
+  border-color: var(--kendo-color-primary, #004aad);
+}
+
+/* Inactive chip */
+.park-chip--inactive {
+  background: #fff;
+  color: var(--text-secondary, #475569);
+  border-color: rgba(226,232,240,.95);
+}
+
+.park-chip--inactive:hover {
+  background: var(--kendo-color-primary-subtle, #e6effb);
+  border-color: rgba(0,74,173,.22);
+  color: var(--kendo-color-primary, #004aad);
+}
+
+/* Status chips */
+.park-chip--success {
+  background: var(--kendo-color-success-subtle, #d1fae5);
+  color: #047857;
+  border-color: rgba(5,150,105,.2);
+}
+
+.park-chip--error {
+  background: var(--kendo-color-error-subtle, #ffe4e6);
+  color: #be123c;
+  border-color: rgba(225,29,72,.2);
+}
+
+.park-chip--warning {
+  background: var(--kendo-color-warning-subtle, #fef3c7);
+  color: #92400e;
+  border-color: rgba(195,125,9,.2);
+}
+
+.park-chip--info {
+  background: var(--kendo-color-info-subtle, #e0f2fe);
+  color: #0369a1;
+  border-color: rgba(13,150,210,.2);
+}
+
+.park-chip--primary {
+  background: var(--kendo-color-primary-subtle, #e6effb);
+  color: var(--kendo-color-primary, #004aad);
+  border-color: rgba(0,74,173,.18);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   STAT TILES (KPI mini-cards)
+───────────────────────────────────────────────────────────────── */
+.park-stat-tile {
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid rgba(226,232,240,.92);
+  border-radius: var(--kendo-border-radius-md, 12px);
+  padding: 0.9rem 1rem;
+  box-shadow: var(--kendo-elevation-2, 0 2px 6px rgba(15,23,42,.06));
+}
+
+.park-stat-tile__label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.25rem;
+}
+
+.park-stat-tile__value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--text-primary, #0f172a);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   SECTION HEADING ROW
+───────────────────────────────────────────────────────────────── */
+.park-section-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   LIST ITEMS (bookings, team, recent verifications)
+───────────────────────────────────────────────────────────────── */
+.park-list-item {
+  background: var(--park-card-bg, #fff);
+  border: var(--park-card-border, 1px solid rgba(226,232,240,.9));
+  border-radius: var(--kendo-border-radius-lg, 16px);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--kendo-elevation-2, 0 2px 6px rgba(15,23,42,.06));
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.park-list-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--kendo-elevation-4, 0 10px 24px rgba(15,23,42,.10));
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   PROGRESS BAR (occupancy)
+───────────────────────────────────────────────────────────────── */
+.park-progress-track {
+  height: 0.5rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--kendo-border-radius-full, 9999px);
+  background: rgba(226,232,240,.9);
+  box-shadow: inset 0 1px 2px rgba(15,23,42,.04);
+}
+
+.park-progress-fill {
+  height: 100%;
+  border-radius: var(--kendo-border-radius-full, 9999px);
+  transition: width 0.7s ease;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   LOADER
+───────────────────────────────────────────────────────────────── */
+.park-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid rgba(226,232,240,.7);
+  border-top-color: var(--kendo-color-primary, #004aad);
+  border-radius: 50%;
+  animation: park-spin 0.8s linear infinite;
+}
+
+@keyframes park-spin {
+  to { transform: rotate(360deg); }
+}
+
+.park-loader-shell {
+  display: flex;
+  min-height: 30vh;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--kendo-border-radius-lg, 16px);
+  background: var(--park-card-bg, #fff);
+  border: 1px solid rgba(226,232,240,.9);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   EMPTY STATE
+───────────────────────────────────────────────────────────────── */
+.park-empty {
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+  border-radius: var(--kendo-border-radius-lg, 16px);
+  background: var(--park-card-bg, #fff);
+  border: 1px solid rgba(226,232,240,.9);
+}
+
+.park-empty__icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.park-empty__title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary, #0f172a);
+}
+
+.park-empty__sub {
+  margin-top: 0.35rem;
+  font-size: 0.825rem;
+  color: var(--text-muted, #64748b);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   SEGMENTED TAB (Verify entry/exit)
+───────────────────────────────────────────────────────────────── */
+.park-seg-tabs {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(241,245,249,.9);
+  border: 1px solid rgba(226,232,240,.9);
+  border-radius: var(--kendo-border-radius-md, 12px);
+  padding: 0.3rem;
+}
+
+.park-seg-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 0.55rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  color: var(--text-muted, #64748b);
+  background: transparent;
+}
+
+.park-seg-tab--entry.park-seg-tab--active {
+  background: #fff;
+  color: #059669;
+  border-color: rgba(5,150,105,.22);
+  box-shadow: 0 2px 8px rgba(5,150,105,.12);
+}
+
+.park-seg-tab--exit.park-seg-tab--active {
+  background: #fff;
+  color: #0369a1;
+  border-color: rgba(3,105,161,.22);
+  box-shadow: 0 2px 8px rgba(3,105,161,.12);
+}
+
+.park-seg-tab:not(.park-seg-tab--active):hover {
+  background: rgba(255,255,255,.7);
+  color: var(--text-primary, #0f172a);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   ERROR / SUCCESS ALERT INLINE
+───────────────────────────────────────────────────────────────── */
+.park-alert {
+  border-radius: var(--kendo-border-radius-md, 12px);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.park-alert--error {
+  background: var(--kendo-color-error-subtle, #ffe4e6);
+  color: #9f1239;
+  border: 1px solid rgba(225,29,72,.2);
+}
+
+.park-alert--success {
+  background: var(--kendo-color-success-subtle, #d1fae5);
+  color: #065f46;
+  border: 1px solid rgba(5,150,105,.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   AVATAR
+───────────────────────────────────────────────────────────────── */
+.park-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.875rem;
+  color: #fff;
+  border-radius: var(--kendo-border-radius-md, 12px);
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   REDUCED MOTION
+───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .park-btn,
+  .park-chip,
+  .park-list-item,
+  .park-stat-tile {
+    transition: none !important;
+  }
+  .park-spinner {
+    animation-duration: 0.01ms !important;
+  }
+}

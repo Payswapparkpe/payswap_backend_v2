@@ -46,6 +46,7 @@ INSTANTPAY_API_CATEGORIES = [
             {"code": "credit_card_bill_pay", "name": "Credit Card Bill Payment", "method": "POST", "icon": "ti-credit-card-pay"},
             {"code": "rc_verification", "name": "RC Verification", "method": "POST", "icon": "ti-car"},
             {"code": "vehicle_challan_lookup", "name": "Vehicle Challan Lookup", "method": "POST", "icon": "ti-alert-circle"},
+            {"code": "vehicle_challan_pay", "name": "Vehicle Challan Pay", "method": "POST", "icon": "ti-receipt-2"},
         ],
     },
     {
@@ -80,6 +81,7 @@ class InstantpayClient:
         "rc_verification": ("POST", "/vehicle/rc-verification"),
         # Instantpay identity verification suite (documented endpoint).
         "vehicle_challan_lookup": ("POST", "/identity/vehicleChallan"),
+        "vehicle_challan_pay": ("POST", "/identity/vehicleChallanPay"),
         "digilocker_init": ("POST", "/digilocker/init"),
         "digilocker_status": ("GET", "/digilocker/status"),
         "card_bin_lookup": ("POST", "/cards/bin-lookup"),
@@ -324,6 +326,23 @@ class InstantpayClient:
                 "longitude": str(body.get("longitude") or "0.0"),
                 "externalRef": str(body.get("externalRef") or body.get("partner_txn_id") or request_id),
             }
+        elif api_code == "vehicle_challan_pay":
+            vehicle_number = (
+                body.get("vehicleRegistrationNumber")
+                or body.get("vehicleNumber")
+                or body.get("vehicle_number")
+                or ""
+            )
+            prepared_body = {
+                "vehicleRegistrationNumber": str(vehicle_number).strip().upper(),
+                "challanNumber": str(body.get("challanNumber") or body.get("challan_number") or ""),
+                "amount": str(body.get("amount") or "0"),
+                "paymentMode": str(body.get("paymentMode") or body.get("payment_method") or "upi"),
+                "externalRef": str(body.get("externalRef") or body.get("partner_txn_id") or request_id),
+                "consent": str(body.get("consent") or "Y"),
+                "latitude": str(body.get("latitude") or "0.0"),
+                "longitude": str(body.get("longitude") or "0.0"),
+            }
         elif api_code == "business_wallet_balance":
             # Business wallet endpoint expects plain JSON keys (not encrypted envelope).
             prepared_body = {
@@ -337,7 +356,7 @@ class InstantpayClient:
         else:
             prepared_body = self._encrypt_optional(body)
         auth_candidates = [None]
-        if api_code in {"vehicle_challan_lookup", "account_statement", "business_wallet_balance"}:
+        if api_code in {"vehicle_challan_lookup", "vehicle_challan_pay", "account_statement", "business_wallet_balance"}:
             # Identity challan + business wallet statement follow fixed header contracts.
             # Do not probe alternate auth code values for these endpoints.
             auth_candidates = [None]
@@ -353,9 +372,9 @@ class InstantpayClient:
                             request_id=request_id,
                             body=body,
                             auth_code=auth_candidate,
-                            auth_code_only=(api_code in {"vehicle_challan_lookup", "account_statement", "business_wallet_balance"}),
+                            auth_code_only=(api_code in {"vehicle_challan_lookup", "vehicle_challan_pay", "account_statement", "business_wallet_balance"}),
                         )
-                        if api_code in {"vehicle_challan_lookup", "business_wallet_balance"}:
+                        if api_code in {"vehicle_challan_lookup", "vehicle_challan_pay", "business_wallet_balance"}:
                             request_meta["normalized_payload"] = dict(prepared_body)
                         if method == "GET":
                             response = client.get(

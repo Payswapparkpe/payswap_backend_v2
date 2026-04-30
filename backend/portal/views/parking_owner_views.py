@@ -2,11 +2,14 @@
 Parking Owner Hub Portal Views — Django template-based views.
 Accessible to parking operators (owner/manager/attendant) via Hub login.
 """
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
 from django.db.models import Sum, Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views import View
 from django.views.generic import TemplateView, ListView
 from datetime import timedelta, date
 from decimal import Decimal
@@ -25,6 +28,15 @@ from portal.utils.logging_helper import get_logger
 
 logger = get_logger("portal.views.parking_owner")
 
+PARKING_LOGIN_URL = "/parking/login/"
+
+_FEATURES = [
+    ("📍", "Live Slot Map", "Real-time occupancy across all your locations"),
+    ("📷", "QR Entry/Exit", "Scan customer QR codes for instant gate clearance"),
+    ("💰", "Revenue Analytics", "Daily/monthly revenue, overstay charges, settlements"),
+    ("🎫", "Booking Management", "View, filter and manage all bookings"),
+]
+
 
 def _require_parking_access(user, location_id=None):
     """Returns operator queryset for user, optionally filtered by location."""
@@ -35,15 +47,103 @@ def _require_parking_access(user, location_id=None):
 
 
 class ParkingOperatorRequiredMixin(LoginRequiredMixin):
-    """Mixin: user must have at least one active ParkingOperator record."""
+    """
+    Mixin: user must be authenticated AND have at least one active ParkingOperator record.
+    Unauthenticated users → /parking/login/
+    Authenticated but no operator role → /parking/login/ with error message
+    Staff users bypass the operator check.
+    """
+    login_url = PARKING_LOGIN_URL
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return self.handle_no_permission()
-        if not ParkingOperator.objects.filter(user=request.user, is_active=True).exists():
-            if not request.user.is_staff:
-                return redirect("landing")
+            return redirect(f"{PARKING_LOGIN_URL}?next={request.path}")
+        if not request.user.is_staff:
+            if not ParkingOperator.objects.filter(user=request.user, is_active=True).exists():
+                messages.error(
+                    request,
+                    "You don't have parking operator access. "
+                    "Contact your administrator to get assigned as an operator.",
+                )
+                return redirect(PARKING_LOGIN_URL)
         return super().dispatch(request, *args, **kwargs)
+
+
+# ─── Parking Owner Login / Logout ─────────────────────────────────────────────
+
+class ParkingOwnerLoginView(View):
+    """
+    Dedicated login page for parking operators.
+    URL: /parking/login/
+    POST: authenticate → verify ParkingOperator role → redirect to /parking/ (or ?next=)
+    """
+    template_name = "portal/parking/login.html"
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            if ParkingOperator.objects.filter(user=request.user, is_active=True).exists() or request.user.is_staff:
+                return redirect(request.GET.get("next") or "/parking/")
+        return render(request, self.template_name, {
+            "features": _FEATURES,
+            "next": request.GET.get("next", "/parking/"),
+        })
+
+    def post(self, request):
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+        next_url = request.POST.get("next", "/parking/")
+
+        if not username or not password:
+            return render(request, self.template_name, {
+                "error": "Username and password are required.",
+                "features": _FEATURES,
+                "next": next_url,
+            })
+
+        user = authenticate(request, username=username, password=password)
+        if not user:
+            logger.warning("parking_login_failed", extra_data={"username": username})
+            return render(request, self.template_name, {
+                "error": "Invalid username or password.",
+                "features": _FEATURES,
+                "next": next_url,
+            })
+
+        if not user.is_active:
+            return render(request, self.template_name, {
+                "error": "Your account is inactive. Please contact support.",
+                "features": _FEATURES,
+                "next": next_url,
+            })
+
+        is_operator = ParkingOperator.objects.filter(user=user, is_active=True).exists()
+        if not is_operator and not user.is_staff:
+            return render(request, self.template_name, {
+                "error": "You don't have parking operator access. "
+                         "Contact your administrator to be assigned as a parking operator.",
+                "features": _FEATURES,
+                "next": next_url,
+            })
+
+        login(request, user)
+        logger.info("parking_login_success", extra_data={"user_id": user.pk, "is_operator": is_operator})
+
+        # Safe redirect — only allow relative paths
+        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
+        return redirect("/parking/")
+
+
+class ParkingOwnerLogoutView(View):
+    """POST /parking/logout/ — logout and redirect to /parking/login/"""
+
+    def post(self, request):
+        logout(request)
+        return redirect(PARKING_LOGIN_URL)
+
+    def get(self, request):
+        logout(request)
+        return redirect(PARKING_LOGIN_URL)
 
 
 # ─── Owner Dashboard ──────────────────────────────────────────────────────────

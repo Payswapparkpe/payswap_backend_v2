@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Parkpe Parking Hub{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --blue: #2563eb; --blue-dark: #1d4ed8; --blue-light: #eff6ff;
+      --green: #16a34a; --red: #dc2626; --amber: #d97706; --purple: #7c3aed;
+      --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --surface: #f8fafc;
+    }
+    @keyframes pulseGreen { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.6)} 50%{box-shadow:0 0 0 5px rgba(34,197,94,0)} }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .pulse-green { animation: pulseGreen 2s infinite; }
+    .spin { animation: spin .8s linear infinite; }
+    body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f8fafc; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:#f1f5f9; }
+    ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- ── TOPBAR ──────────────────────────────────────────────────────── -->
+<header class="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+
+    <!-- Logo + Breadcrumb -->
+    <div class="flex items-center gap-4">
+      <a href="{% url 'parking_owner_dashboard' %}" class="flex items-center gap-2 no-underline">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="3" width="18" height="18" rx="4"/>
+            <path d="M8 12h8M8 8h5a3 3 0 010 6H8V8z"/>
+          </svg>
+        </div>
+        <span class="text-sm font-bold text-slate-900 tracking-tight">Parkpe <span class="text-blue-600">Hub</span></span>
+      </a>
+
+      {% block breadcrumb %}{% endblock %}
+    </div>
+
+    <!-- Right: user + logout -->
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-1.5">
+        <div class="w-1.5 h-1.5 rounded-full bg-green-500 pulse-green"></div>
+        <span class="text-xs text-green-700 font-semibold">Live</span>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-100 rounded-full px-3 py-1.5">
+        <div class="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold">
+          {{ user.get_full_name|default:user.username|slice:":1"|upper }}
+        </div>
+        <span class="text-xs font-semibold text-slate-700 hidden sm:block">{{ user.get_full_name|default:user.username }}</span>
+      </div>
+      <form method="POST" action="{% url 'parking_owner_logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          Sign Out
+        </button>
+      </form>
+    </div>
+  </div>
+</header>
+
+<!-- ── PAGE CONTENT ────────────────────────────────────────────────── -->
+<main class="flex-1">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── FOOTER ──────────────────────────────────────────────────────── -->
+<footer class="border-t border-slate-200 bg-white">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <span class="text-xs text-slate-400">© Parkpe · Payswap Hub · All rights reserved</span>
+    <span class="text-xs text-slate-400">v2.0</span>
+  </div>
+</footer>
+
+{% block extra_body %}{% endblock %}
+</body>
+</html>

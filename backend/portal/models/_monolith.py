@@ -1666,6 +1666,98 @@ class ParkPeChallanRecord(models.Model):
         return f"{self.vehicle_number} · {self.challan_number} ({self.status})"
 
 
+class ParkPeChallanPayment(models.Model):
+    """One row per challan payment attempt/result."""
+
+    STATUS_PENDING = "pending"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parkpe_challan_payments",
+    )
+    challan = models.ForeignKey(
+        ParkPeChallanRecord,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_attempts",
+    )
+    challan_ref = models.CharField(max_length=255, db_index=True, default="")
+    challan_number = models.CharField(max_length=128, db_index=True)
+    vehicle_number = models.CharField(max_length=32, db_index=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    currency = models.CharField(max_length=8, default="INR")
+    payment_method = models.CharField(max_length=32, blank=True, default="")
+    transaction_id = models.CharField(max_length=128, db_index=True, default="")
+    receipt_number = models.CharField(max_length=128, db_index=True, default="")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    vendor_status = models.CharField(max_length=255, blank=True, default="")
+    vendor_message = models.TextField(blank=True, default="")
+    request_json = models.JSONField(null=True, blank=True)
+    response_json = models.JSONField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_parkpe_challan_payment"
+        verbose_name = "ParkPe Challan Payment"
+        verbose_name_plural = "ParkPe Challan Payments"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "status", "-updated_at"]),
+            models.Index(fields=["challan_number", "vehicle_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.challan_number} · {self.transaction_id or '-'} ({self.status})"
+
+
+class ParkPeSavedVehicle(models.Model):
+    """User-saved vehicle for quick challan lookup and notification scans."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parkpe_saved_vehicles",
+    )
+    registration_number = models.CharField(max_length=32, db_index=True)
+    nickname = models.CharField(max_length=64, blank=True, default="")
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_known_pending_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "portal_parkpe_saved_vehicle"
+        verbose_name = "ParkPe Saved Vehicle"
+        verbose_name_plural = "ParkPe Saved Vehicles"
+        ordering = ["-is_primary", "-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "registration_number"],
+                name="uniq_parkpe_saved_vehicle_user_reg",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "-updated_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.registration_number}"
+
+
 class UserPermission(models.Model):
     """Custom user permission assignments"""
     

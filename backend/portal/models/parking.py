@@ -3,6 +3,7 @@ Parkpe Parking Platform Models
 Covers: Location, Zone, Slot, Rate, Booking, Session, Ticket, Transaction, Revenue, Operator
 """
 import uuid
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -64,6 +65,21 @@ class ParkingLocation(models.Model):
     images = models.JSONField(default=list, blank=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+
+    # Hardware integration: FASTag scanner webhook HMAC + stable site code for payloads
+    location_code = models.CharField(
+        max_length=40,
+        blank=True,
+        null=True,
+        unique=True,
+        db_index=True,
+        help_text='Stable code from ops (e.g. PKP-LOC-005) — sent by gate hardware',
+    )
+    webhook_secret = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text='HMAC-SHA256 secret for /api/parking/webhooks/fastag-scanner/',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -265,7 +281,6 @@ class ParkingRate(models.Model):
             return self.base_rate
 
         billable_minutes = duration_minutes - self.grace_minutes
-        hours = Decimal(str(billable_minutes)) / Decimal("60")
         import math
         # Ceil to nearest 30 min slab
         slabs = math.ceil(billable_minutes / 30)
@@ -275,6 +290,40 @@ class ParkingRate(models.Model):
             amount = self.daily_cap
 
         return amount.quantize(Decimal("0.01"))
+
+    def compute_exact_charge(self, entry_time: datetime, exit_time: datetime) -> Decimal:
+        """
+        Final charge with overnight rate, weekend multiplier, and daily cap.
+        Used at exit; estimate() remains for pre-booking preview.
+        """
+        if exit_time <= entry_time:
+            return self.base_rate.quantize(Decimal("0.01"))
+
+        total_minutes = int((exit_time - entry_time).total_seconds() / 60)
+        if total_minutes <= self.grace_minutes:
+            return self.base_rate.quantize(Decimal("0.01"))
+
+        charge = self.base_rate
+        current = entry_time
+        while current < exit_time:
+            hour = current.hour
+            is_overnight = (hour >= 22) or (hour < 6)
+            rate = self.per_hour_rate
+            if is_overnight and self.overnight_rate is not None:
+                rate = self.overnight_rate
+
+            if current.weekday() >= 5:
+                rate = (rate * self.weekend_multiplier).quantize(Decimal("0.0001"))
+
+            segment_end = min(current + timedelta(minutes=30), exit_time)
+            fraction = Decimal(str((segment_end - current).total_seconds() / 1800))
+            charge += (rate / Decimal("2")) * fraction
+            current = segment_end
+
+        if self.daily_cap and charge > self.daily_cap:
+            charge = self.daily_cap
+
+        return charge.quantize(Decimal("0.01"))
 
 
 # ─── Booking ─────────────────────────────────────────────────────────────────
@@ -385,6 +434,22 @@ class ParkingBooking(models.Model):
 class ParkingSession(models.Model):
     """Records vehicle entry/exit at the physical location."""
 
+    STATE_INITIATED = "initiated"
+    STATE_ENTERED = "entered"
+    STATE_PAYMENT_PENDING = "payment_pending"
+    STATE_COMPLETED = "completed"
+    STATE_DISPUTED = "disputed"
+    STATE_ABORTED = "aborted"
+
+    STATE_CHOICES = [
+        (STATE_INITIATED, "Initiated"),
+        (STATE_ENTERED, "Entered"),
+        (STATE_PAYMENT_PENDING, "Payment pending"),
+        (STATE_COMPLETED, "Completed"),
+        (STATE_DISPUTED, "Disputed"),
+        (STATE_ABORTED, "Aborted"),
+    ]
+
     ENTRY_METHOD_APP = "app"
     ENTRY_METHOD_QR = "qr"
     ENTRY_METHOD_OTP = "otp"
@@ -422,6 +487,12 @@ class ParkingSession(models.Model):
     entry_photo_url = models.CharField(max_length=500, blank=True)
     exit_photo_url = models.CharField(max_length=500, blank=True)
     notes = models.TextField(blank=True)
+    state = models.CharField(
+        max_length=30,
+        choices=STATE_CHOICES,
+        default=STATE_ENTERED,
+        db_index=True,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -573,6 +644,204 @@ class ParkingRevenue(models.Model):
 
     def __str__(self):
         return f"{self.location.name} — {self.date} ₹{self.gross_revenue}"
+
+
+class ParkingExitPayment(models.Model):
+    """
+    Tracks an in-flight exit payment when the customer's voucher balance is
+    insufficient.  One record per exit attempt; resolved by either a successful
+    voucher debit or a Cashfree UPI payment.
+    """
+
+    METHOD_VOUCHER = "voucher"
+    METHOD_UPI = "upi"
+
+    STATUS_PENDING = "pending"
+    STATUS_PAID = "paid"
+    STATUS_EXPIRED = "expired"
+    STATUS_FAILED = "failed"
+
+    booking = models.ForeignKey(
+        ParkingBooking, on_delete=models.CASCADE, related_name="exit_payments"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="INR")
+    method = models.CharField(
+        max_length=20,
+        choices=[(METHOD_VOUCHER, "Voucher"), (METHOD_UPI, "UPI")],
+        blank=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            (STATUS_PENDING, "Pending"),
+            (STATUS_PAID, "Paid"),
+            (STATUS_EXPIRED, "Expired"),
+            (STATUS_FAILED, "Failed"),
+        ],
+        default=STATUS_PENDING,
+    )
+
+    # Cashfree fields (UPI path)
+    cf_order_id = models.CharField(max_length=100, blank=True, db_index=True)
+    cf_payment_session_id = models.CharField(max_length=500, blank=True)
+    upi_qr_data = models.TextField(blank=True, help_text="Raw UPI string / QR data for deep-link")
+    upi_link = models.CharField(max_length=1000, blank=True)
+
+    # Cashfree webhook payload snapshot
+    webhook_data = models.JSONField(default=dict, blank=True)
+
+    # Voucher used (if paid via voucher auto-debit)
+    parking_transaction = models.ForeignKey(
+        ParkingTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="exit_payment"
+    )
+
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="Auto-expire pending UPI orders after 15 min")
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "parking_exit_payment"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["booking", "status"]),
+            models.Index(fields=["cf_order_id"]),
+        ]
+
+    def __str__(self):
+        return f"ExitPayment ₹{self.amount} {self.status} — {self.booking.booking_reference}"
+
+
+class VehicleFasTagMapping(models.Model):
+    """Links a FASTag transponder to a ParkPe user account for automated parking."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="vehicle_fastag_mappings",
+    )
+    vehicle_number = models.CharField(max_length=20, db_index=True)
+    fastag_issuer = models.CharField(max_length=20, default="npci")
+    fastag_id = models.CharField(max_length=100, db_index=True)
+    fastag_wallet_id = models.CharField(max_length=200, blank=True)
+    is_verified = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    linked_vehicle = models.ForeignKey(
+        "portal.Vehicle",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fastag_mappings",
+    )
+    last_balance_inr = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    balance_fetched_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "vehicle_fastag_mapping"
+        indexes = [
+            models.Index(fields=["vehicle_number"]),
+            models.Index(fields=["fastag_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "vehicle_number"],
+                name="uniq_user_vehicle_fastag_reg",
+            ),
+            models.UniqueConstraint(fields=["fastag_id"], name="uniq_vehicle_fastag_fastag_id"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.vehicle_number:
+            self.vehicle_number = self.vehicle_number.upper().replace(" ", "")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.vehicle_number} → {self.fastag_id}"
+
+
+class FasTagGatewayEvent(models.Model):
+    """Immutable ledger of FASTag / scanner hardware events at a gate."""
+
+    EVENT_ENTRY = "entry"
+    EVENT_EXIT = "exit"
+    EVENT_TYPE_CHOICES = [(EVENT_ENTRY, "Entry"), (EVENT_EXIT, "Exit")]
+
+    STATUS_RECEIVED = "received"
+    STATUS_MATCHED = "matched"
+    STATUS_UNMATCHED = "unmatched"
+    STATUS_ERROR = "error"
+    STATUS_TAILGATING_SUSPECT = "tailgating_suspect"
+    STATUS_CHOICES = [
+        (STATUS_RECEIVED, "Received"),
+        (STATUS_MATCHED, "Matched"),
+        (STATUS_UNMATCHED, "Unmatched"),
+        (STATUS_ERROR, "Error"),
+        (STATUS_TAILGATING_SUSPECT, "Tailgating suspect"),
+    ]
+
+    location = models.ForeignKey(
+        ParkingLocation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fastag_gateway_events",
+    )
+    gate_id = models.CharField(max_length=100, db_index=True)
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPE_CHOICES)
+    fastag_id = models.CharField(max_length=100, db_index=True)
+    vehicle_number = models.CharField(max_length=20, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_RECEIVED)
+    session = models.ForeignKey(
+        ParkingSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fastag_events",
+    )
+    idempotency_key = models.CharField(max_length=200, unique=True)
+
+    class Meta:
+        db_table = "fastag_gateway_event"
+        ordering = ["-received_at"]
+        indexes = [
+            models.Index(fields=["gate_id", "event_type", "received_at"]),
+            models.Index(fields=["fastag_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.gate_id} {self.event_type} {self.status}"
+
+
+class ParkingTransactionPin(models.Model):
+    """
+    Per-user profile-level transaction PIN for parking auto-debit from vouchers.
+    Eliminates the need to enter per-voucher PIN at the parking gate.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="parking_tx_pin"
+    )
+    pin_hash = models.CharField(max_length=255, help_text="bcrypt hash of 4–6 digit PIN")
+    is_active = models.BooleanField(default=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "parking_transaction_pin"
+
+    def __str__(self):
+        return f"TxPin for {self.user}"
 
 
 class ParkingOperator(models.Model):

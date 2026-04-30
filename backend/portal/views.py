@@ -1346,73 +1346,7 @@ def change_role_view(request):
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'errors': form.errors})
 
-
-class ForgotPasswordView(View):
-    """Forgot password view - request password reset"""
-    template_name = 'portal/auth/forgot_password.html'
-    
-    def get(self, request):
-        if request.user.is_authenticated:
-            return redirect('/dashboard/')
-        form = ForgotPasswordForm()
-        return render(request, self.template_name, {'form': form})
-    
-    def post(self, request):
-        form = ForgotPasswordForm(request.POST)
-        if form.is_valid():
-            email = form.cleaned_data['email']
-            try:
-                profile = Profile.objects.get(email=email)
-                user = profile.user
-                
-                if not user.is_active:
-                    messages.error(request, 'This account is inactive. Please contact support.')
-                    return render(request, self.template_name, {'form': form})
-                
-                # Generate password reset token
-                token = default_token_generator.make_token(user)
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                
-                # Create reset URL
-                reset_url = request.build_absolute_uri(f'/password/reset/{uid}/{token}/')
-                
-                # Send password reset email via unified notification service
-                try:
-                    from portal.services.notification_service_v2 import NotificationServiceV2
-                    notification_service = NotificationServiceV2()
-                    result = notification_service.send_email(
-                        to_email=email,
-                        subject='Password Reset Request - Payswap',
-                        template_name='portal/emails/password_reset.html',
-                        context={
-                            'user': user,
-                            'reset_url': reset_url,
-                            'expiry_hours': 1
-                        },
-                        user_id=user.id,
-                        async_send=True
-                    )
-                except Exception as e:
-                    logger.error(f'Failed to send password reset email: {str(e)}')
-                    # Continue anyway - don't reveal if email exists
-                
-                log_security_event_task.delay(
-                    event_type='password_reset_requested',
-                    message='Password reset requested',
-                    user_id=user.id,
-                    severity='low',
-                    extra_data={'email': email}
-                )
-                
-                # Always show success message (security: don't reveal if email exists)
-                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
-                return redirect('/signin/')
-            except Profile.DoesNotExist:
-                # Don't reveal if email exists
-                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
-                return redirect('/signin/')
-        
-        return render(request, self.template_name, {'form': form})
+# ForgotPasswordView lives in portal.views.legacy (imported by portal.views package — not this file).
 
 
 class PasswordResetView(View):

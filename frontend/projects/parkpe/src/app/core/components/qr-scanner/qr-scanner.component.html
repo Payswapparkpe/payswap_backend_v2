@@ -1,0 +1,15 @@
+<div class="qr-scanner-wrap">
+  <div class="qr-toolbar">
+    <button type="button" class="qr-tool-btn" (click)="toggleLowLight()">
+      {{ lowLight() ? 'Low light: on' : 'Low light: off' }}
+    </button>
+  </div>
+  <div
+    #host
+    [id]="containerId()"
+    class="qr-host"
+    [class.low-light]="lowLight()"
+    role="region"
+    aria-label="Camera QR scanner"
+  ></div>
+</div>

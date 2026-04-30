@@ -1,11 +1,14 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { fleetAuthGuard } from './core/guards/fleet-auth.guard';
-import { parkingAuthGuard } from './core/guards/parking-auth.guard';
 import { guestGuard } from './core/guards/guest.guard';
 import { homeEntryGuard } from './core/guards/root-redirect.guard';
 import { sessionLockGuard } from './core/guards/session-lock.guard';
+import { consumerGuard } from './core/guards/consumer.guard';
+import { parkingOwnerGuard } from './core/guards/parking-owner.guard';
+import { parkingRoleGuard } from './core/guards/parking-role.guard';
 import { AppLayoutComponent } from './layouts/app-layout/app-layout.component';
+import { ParkingOwnerLayoutComponent } from './layouts/parking-owner-layout/parking-owner-layout.component';
 
 /**
  * Application Routes
@@ -67,12 +70,18 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'parking/login',
+    path: 'auth/parking',
     canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/parking-owner/parking-login.component').then(
         (m) => m.ParkingLoginComponent
       ),
+  },
+  // Backward-compatible alias; keep old route functional.
+  {
+    path: 'parking/login',
+    redirectTo: 'auth/parking',
+    pathMatch: 'full',
   },
   {
     path: 'unlock',
@@ -83,9 +92,67 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'hub',
+    component: ParkingOwnerLayoutComponent,
+    canActivate: [parkingOwnerGuard],
+    canActivateChild: [sessionLockGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'parking/dashboard' },
+      {
+        path: 'parking/dashboard',
+        loadComponent: () =>
+          import('./features/parking-owner/parking-dashboard.component').then(
+            (m) => m.ParkingDashboardComponent
+          ),
+      },
+      {
+        path: 'parking/verify',
+        loadComponent: () =>
+          import('./features/parking-owner/parking-verify.component').then(
+            (m) => m.ParkingVerifyComponent
+          ),
+      },
+      {
+        path: 'parking/bookings',
+        loadComponent: () =>
+          import('./features/parking-owner/parking-bookings.component').then(
+            (m) => m.ParkingBookingsComponent
+          ),
+      },
+      {
+        path: 'parking/revenue',
+        canActivate: [parkingRoleGuard('manager')],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-revenue.component').then(
+            (m) => m.ParkingRevenueComponent
+          ),
+      },
+      {
+        path: 'parking/locations',
+        loadComponent: () =>
+          import('./features/parking-owner/parking-locations.component').then(
+            (m) => m.ParkingLocationsComponent
+          ),
+      },
+      {
+        path: 'parking/team',
+        canActivate: [parkingRoleGuard('owner')],
+        loadComponent: () =>
+          import('./features/parking-owner/parking-team.component').then(
+            (m) => m.ParkingTeamComponent
+          ),
+      },
+    ],
+  },
+  { path: 'parking/dashboard', redirectTo: '/hub/parking/dashboard', pathMatch: 'full' },
+  { path: 'parking/locations', redirectTo: '/hub/parking/locations', pathMatch: 'full' },
+  { path: 'parking/bookings', redirectTo: '/hub/parking/bookings', pathMatch: 'full' },
+  { path: 'parking/revenue', redirectTo: '/hub/parking/revenue', pathMatch: 'full' },
+  { path: 'parking/verify', redirectTo: '/hub/parking/verify', pathMatch: 'full' },
+  {
     path: '',
     component: AppLayoutComponent,
-    canActivate: [authGuard],
+    canActivate: [authGuard, consumerGuard],
     canActivateChild: [sessionLockGuard],
     children: [
       {
@@ -131,38 +198,6 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/fleet/fleet-compliance.component').then(
             (m) => m.FleetComplianceComponent
-          ),
-      },
-      {
-        path: 'parking/dashboard',
-        canActivate: [parkingAuthGuard],
-        loadComponent: () =>
-          import('./features/parking-owner/parking-dashboard.component').then(
-            (m) => m.ParkingDashboardComponent
-          ),
-      },
-      {
-        path: 'parking/locations',
-        canActivate: [parkingAuthGuard],
-        loadComponent: () =>
-          import('./features/parking-owner/parking-dashboard.component').then(
-            (m) => m.ParkingDashboardComponent
-          ),
-      },
-      {
-        path: 'parking/sessions',
-        canActivate: [parkingAuthGuard],
-        loadComponent: () =>
-          import('./features/parking-owner/parking-dashboard.component').then(
-            (m) => m.ParkingDashboardComponent
-          ),
-      },
-      {
-        path: 'parking/bookings',
-        canActivate: [parkingAuthGuard],
-        loadComponent: () =>
-          import('./features/parking-owner/parking-dashboard.component').then(
-            (m) => m.ParkingDashboardComponent
           ),
       },
       {

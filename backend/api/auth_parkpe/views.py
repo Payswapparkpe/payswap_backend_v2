@@ -18,7 +18,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from rest_framework_simplejwt.tokens import RefreshToken
+from api.auth_parkpe.tokens import ParkPeRefreshToken
 
 from django.core.cache import cache
 
@@ -203,15 +203,23 @@ class AuthLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        rc = str(getattr(user, "role_code", "") or "").strip().lower()
+        if rc.startswith("fleet_") or rc.startswith("parking_"):
+            return Response(
+                {
+                    "detail": "This account must sign in through the Fleet or Parking login, not the consumer login.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         user.last_full_auth_at = timezone.now()
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_login success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "Login success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         # SimpleJWT access token default lifetime (e.g. 5 min) in seconds for expiresIn
-        from django.conf import settings
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
         access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
         expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
@@ -288,7 +296,7 @@ class AuthFleetLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -368,7 +376,7 @@ class AuthPartnerLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -436,7 +444,10 @@ class AuthParkingLoginView(APIView):
             )
 
         role_code = str(getattr(user, "role_code", "") or "").strip().lower()
-        if role_code not in PARKING_ROLE_CODES:
+        has_parking_role = role_code in PARKING_ROLE_CODES
+        has_operator_assignment = user.parking_operator_roles.filter(is_active=True).exists()
+        # Allow explicit parking roles OR mapped operator assignments OR staff users.
+        if not (has_parking_role or has_operator_assignment or user.is_staff):
             return Response(
                 {"detail": "Parking operator access is not enabled for this account."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -448,7 +459,7 @@ class AuthParkingLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -570,7 +581,7 @@ class AuthOTPVerifyView(APIView):
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_otp_verify success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "OTP verify success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -979,7 +990,7 @@ class AuthRegisterVerifyView(APIView):
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_register_verify success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "Register success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings

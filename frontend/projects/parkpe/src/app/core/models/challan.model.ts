@@ -61,6 +61,42 @@ export interface ChallanPaymentResponse {
   message?: string;
 }
 
+export interface ChallanHistoryItem {
+  id: number;
+  challanId: string;
+  challanNumber: string;
+  vehicleNumber: string;
+  amount: number;
+  status: 'pending' | 'success' | 'failed';
+  transactionId: string;
+  receiptNumber: string;
+  paymentMode?: string;
+  paidAt?: Date | string | null;
+  updatedAt?: Date | string;
+}
+
+export interface ChallanReceipt {
+  success: boolean;
+  challanId: string;
+  challanNumber: string;
+  vehicleNumber: string;
+  receiptNumber: string;
+  transactionId: string;
+  amount: number;
+  status: string;
+  paidAt?: Date | string | null;
+}
+
+export interface SavedVehicle {
+  id: number;
+  registrationNumber: string;
+  nickname?: string;
+  isPrimary: boolean;
+  lastKnownPendingCount?: number;
+  lastCheckedAt?: Date | string | null;
+  updatedAt?: Date | string;
+}
+
 // Challan State (for NgRx)
 export interface ChallanState {
   challans: Challan[];

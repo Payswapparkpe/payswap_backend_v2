@@ -154,13 +154,19 @@ export class ProfileEditComponent implements OnInit {
     }
 
     this.loading = true;
-    const updates = this.profileForm.getRawValue();
-    
-    // TODO: Implement actual API call
-    setTimeout(() => {
-      this.notification.showSuccess('Profile updated successfully!');
-      this.router.navigate(['/profile/view']);
-    }, 1000);
+    const { name, phone } = this.profileForm.getRawValue();
+    this.authService.updateProfile({ name, phone }).subscribe({
+      next: () => {
+        this.loading = false;
+        this.notification.showSuccess('Profile updated successfully!');
+        this.router.navigate(['/profile/view']);
+      },
+      error: (err) => {
+        this.loading = false;
+        const msg = err?.error?.detail || 'Failed to update profile. Please try again.';
+        this.notification.showError(msg);
+      },
+    });
   }
 
   cancel() {

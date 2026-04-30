@@ -104,6 +104,12 @@ class Command(BaseCommand):
              [VIEW_USER, VIEW_LOG]),
             ("operations", "parkpe", "ops_manager", "Operations Manager",
              [VIEW_USER, CHANGE_USER, VIEW_LOG, VIEW_KYC]),
+            ("operations", "parkpe", "parking_owner", "Parking Owner",
+             [VIEW_USER, CHANGE_USER, VIEW_LOG]),
+            ("operations", "parkpe", "parking_manager", "Parking Manager",
+             [VIEW_USER, VIEW_LOG]),
+            ("operations", "parkpe", "parking_attendant", "Parking Attendant",
+             [VIEW_USER]),
 
             # Business > ParkPe
             ("business", "parkpe", "partner_manager", "Partner Manager",

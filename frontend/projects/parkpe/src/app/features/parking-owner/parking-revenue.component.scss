@@ -1,0 +1,10 @@
+@use '../../../app/features/parking-owner/parking-owner-shared' as *;
+
+:host {
+  display: block;
+}
+
+[data-rev-bar] {
+  transform: scaleY(0);
+  transform-origin: bottom center;
+}

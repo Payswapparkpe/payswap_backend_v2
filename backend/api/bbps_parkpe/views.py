@@ -899,15 +899,37 @@ class BBPSPayBillView(APIView):
             operator_id_for_api = _resolve_operator_id_for_mobikwik(operator_id)
             customer_mobile = str(body.get("customerPhone") or body.get("customerMobile") or "").strip()
             payment_account_info = str(body.get("paymentAccountInfo") or "").strip()
-            if not payment_account_info:
-                # Mobikwik rejects empty paymentAccountInfo; fallback to customer mobile for voucher flow.
-                payment_account_info = customer_mobile
-            # Mobikwik retailer payment: Cash (agent tier rejects UPI); funds already secured via ParkPe voucher/PG.
+
+            # Detect FASTag: check BBPSOperator category/name so paymentMode and paymentAccountInfo
+            # are set correctly (FASTag requires UPI; Cash triggers "Unexpected error" from Mobikwik).
+            is_fastag_payment = False
+            try:
+                from portal.models import BBPSOperator as _BBPSOp
+                _op_rec = _BBPSOp.objects.filter(biller_id=operator_id.strip(), is_active=True).first()
+                if _op_rec:
+                    _cat = str(getattr(_op_rec, "category", "") or "").upper()
+                    _name = str(getattr(_op_rec, "name", "") or "").upper()
+                    if "FASTAG" in _cat or "FASTAG" in _name:
+                        is_fastag_payment = True
+            except Exception:
+                pass
+
+            if is_fastag_payment:
+                # FASTag: Mobikwik requires paymentMode UPI; use generic_upi as account info when not provided.
+                payment_mode = "UPI"
+                if not payment_account_info:
+                    payment_account_info = "generic_upi"
+            else:
+                # Non-FASTag: Cash mode; fallback paymentAccountInfo to customer mobile.
+                payment_mode = "Cash"
+                if not payment_account_info:
+                    payment_account_info = customer_mobile
+
             pay_extra = {
                 "remitterName": str(body.get("customerName") or body.get("remitterName") or "").strip(),
                 "customerMobile": customer_mobile,
                 "paymentAccountInfo": payment_account_info,
-                "paymentMode": "Cash",
+                "paymentMode": payment_mode,
                 "paymentRefID": str(body.get("paymentRefID") or ref_id).strip() or ref_id,
             }
             # remove empty optional keys (Mobikwik rejects mandatory remitterName; keep that key as-is)

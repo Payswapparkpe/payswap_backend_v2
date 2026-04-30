@@ -148,7 +148,7 @@
             }
             <a
               [routerLink]="['/challan']"
-              [queryParams]="{ registration_number: vehicle().registration_number }"
+              [queryParams]="{ vehicleNumber: vehicle().registration_number }"
               class="vehicle-card-smart__action"
               aria-label="Check challans for this vehicle">
               <span class="material-icons" aria-hidden="true">gavel</span>
@@ -303,7 +303,7 @@
         @if (isDashboard()) {
           <a
             [routerLink]="['/challan']"
-            [queryParams]="{ registration_number: vehicle().registration_number }"
+            [queryParams]="{ vehicleNumber: vehicle().registration_number }"
             class="vehicle-card-smart__action"
             aria-label="Check challans for this vehicle">
             <span class="material-icons" aria-hidden="true">gavel</span>

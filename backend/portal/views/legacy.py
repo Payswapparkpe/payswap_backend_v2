@@ -39,7 +39,7 @@ from portal.forms import (
     SetPinForm, UnlockPinForm,
     ProfileCreateForm, UserCreateForm, KYCSubmitForm,
     PermissionAssignForm, RoleChangeForm,
-    ForgotPasswordForm, PasswordResetForm, PasswordChangeForm, ProfileUpdateForm,
+    PasswordResetForm, PasswordChangeForm, ProfileUpdateForm,
     BrandOnboardingStep1Form, BrandOnboardingStep2Form, BrandOnboardingStep3Form,
     BrandOnboardingStep4Form, BrandOnboardingStep5Form, BrandOnboardingReviewForm,
     BrandOnboardingAdminApprovalForm, BrandAdminOnboardingForm,
@@ -2293,71 +2293,204 @@ def change_role_view(request):
 
 
 class ForgotPasswordView(View):
-    """Forgot password view - request password reset"""
+    """
+    OTP-based password reset — 3 steps at /forgot-password/ (session state).
+    Implemented here so portal.views (package) actually uses this class.
+    """
     template_name = 'portal/auth/forgot_password.html'
-    
+    _CACHE_PREFIX = 'pwd_reset_otp:'
+    _OTP_TTL = 300  # 5 minutes
+    _MAX_ATTEMPTS = 5
+    _RATE_KEY = 'pwd_reset_attempts:'
+
+    @staticmethod
+    def _coerce_step(raw):
+        if raw in (1, 2, 3):
+            return raw
+        if raw in ('1', '2', '3'):
+            return int(raw)
+        return 1
+
     def get(self, request):
         if request.user.is_authenticated:
             return redirect('/dashboard/')
-        form = ForgotPasswordForm()
-        return render(request, self.template_name, {'form': form})
-    
+        if request.GET.get('restart'):
+            for k in ('pwd_reset_step', 'pwd_reset_identifier', 'pwd_reset_uid', 'pwd_reset_verified'):
+                request.session.pop(k, None)
+        raw = request.session.get('pwd_reset_step')
+        step = self._coerce_step(raw)
+        request.session['pwd_reset_step'] = step
+        ctx = {'step': step, 'identifier': request.session.get('pwd_reset_identifier', '')}
+        return render(request, self.template_name, ctx)
+
     def post(self, request):
-        form = ForgotPasswordForm(request.POST)
-        if form.is_valid():
-            email = form.cleaned_data['email']
+        if request.user.is_authenticated:
+            return redirect('/dashboard/')
+        step = self._coerce_step(request.session.get('pwd_reset_step'))
+        request.session['pwd_reset_step'] = step
+        client_ip = get_client_ip(request)
+
+        if step == 1:
+            return self._handle_step1(request, client_ip)
+        if step == 2:
+            return self._handle_step2(request, client_ip)
+        if step == 3:
+            return self._handle_step3(request, client_ip)
+        return redirect('/forgot-password/')
+
+    def _handle_step1(self, request, client_ip):
+        """Validate identifier → send OTP → advance to step 2."""
+        identifier = (request.POST.get('identifier') or '').strip()
+        if not identifier:
+            return render(request, self.template_name, {
+                'step': 1, 'error': 'Please enter your email or mobile number.', 'identifier': '',
+            })
+
+        rate_key = f'{self._RATE_KEY}{client_ip}'
+        if cache.get(rate_key, 0) >= self._MAX_ATTEMPTS:
+            return render(request, self.template_name, {
+                'step': 1, 'error': 'Too many attempts. Please try again in 15 minutes.', 'identifier': identifier,
+            })
+        cache.set(rate_key, cache.get(rate_key, 0) + 1, timeout=900)
+
+        user = None
+        masked = identifier
+        try:
+            import re
+            is_phone = bool(re.match(r'^[+0-9]{10,15}$', identifier.replace(' ', '')))
+            if is_phone:
+                from portal.utils.phone_utils import phone_lookup_candidates
+                candidates = phone_lookup_candidates(identifier)
+                profile = Profile.objects.filter(phone__in=candidates).select_related('user').first()
+                if profile:
+                    user = profile.user
+                    masked = identifier[:4] + 'XXXXXX' + identifier[-2:]
+            else:
+                profile = Profile.objects.filter(email__iexact=identifier).select_related('user').first()
+                if profile:
+                    user = profile.user
+                    parts = identifier.split('@')
+                    masked = parts[0][:2] + '****@' + parts[1]
+        except Exception:
+            pass
+
+        if user and user.is_active:
+            otp_service = OTPService()
+            otp_code = otp_service.generate_otp()
+            cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
+            cache.set(cache_key, otp_code, timeout=self._OTP_TTL)
+
             try:
-                profile = Profile.objects.get(email=email)
-                user = profile.user
-                
-                if not user.is_active:
-                    messages.error(request, 'This account is inactive. Please contact support.')
-                    return render(request, self.template_name, {'form': form})
-                
-                # Generate password reset token
-                token = default_token_generator.make_token(user)
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                
-                # Create reset URL
-                reset_url = request.build_absolute_uri(f'/password/reset/{uid}/{token}/')
-                
-                # Send password reset email via unified notification service
-                try:
+                from portal.utils.phone_utils import normalize_phone_number
+                is_phone_id = bool(__import__('re').match(r'^[+0-9]{10,15}$', identifier.replace(' ', '')))
+                if is_phone_id:
+                    normalized = normalize_phone_number(identifier)
+                    otp_service.send_otp(normalized, user_id=user.id, async_send=True)
+                else:
                     from portal.services.notification_service_v2 import NotificationServiceV2
-                    notification_service = NotificationServiceV2()
-                    result = notification_service.send_email(
-                        to_email=email,
-                        subject='Password Reset Request - Payswap',
-                        template_name='portal/emails/password_reset.html',
-                        context={
-                            'user': user,
-                            'reset_url': reset_url,
-                            'expiry_hours': 1
-                        },
+                    NotificationServiceV2().send_email(
+                        to_email=identifier,
+                        subject='Your Payswap Password Reset OTP',
+                        template_name='portal/emails/otp_email.html',
+                        context={'user': user, 'otp_code': otp_code, 'expiry_minutes': 5},
                         user_id=user.id,
-                        async_send=True
+                        async_send=True,
                     )
-                except Exception as e:
-                    logger.error(f'Failed to send password reset email: {str(e)}')
-                    # Continue anyway - don't reveal if email exists
-                
-                log_security_event_task.delay(
-                    event_type='password_reset_requested',
-                    message='Password reset requested',
-                    user_id=user.id,
-                    severity='low',
-                    extra_data={'email': email}
-                )
-                
-                # Always show success message (security: don't reveal if email exists)
-                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
-                return redirect('/signin/')
-            except Profile.DoesNotExist:
-                # Don't reveal if email exists
-                messages.success(request, 'If an account exists with this email, a password reset link has been sent.')
-                return redirect('/signin/')
-        
-        return render(request, self.template_name, {'form': form})
+            except Exception as e:
+                logger.error(f'pwd_reset otp send failed: {e}')
+
+            request.session['pwd_reset_uid'] = str(user.pk)
+
+        request.session['pwd_reset_identifier'] = identifier
+        request.session['pwd_reset_masked'] = masked
+        request.session['pwd_reset_step'] = 2
+        return render(request, self.template_name, {
+            'step': 2, 'identifier': identifier, 'masked': masked,
+        })
+
+    def _handle_step2(self, request, client_ip):
+        """Verify OTP → advance to step 3."""
+        identifier = request.session.get('pwd_reset_identifier', '')
+        masked = request.session.get('pwd_reset_masked', identifier)
+        otp_entered = (request.POST.get('otp') or '').strip()
+
+        if not otp_entered:
+            return render(request, self.template_name, {
+                'step': 2, 'identifier': identifier, 'masked': masked,
+                'error': 'Please enter the OTP.',
+            })
+
+        cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
+        stored_otp = cache.get(cache_key)
+
+        if not stored_otp:
+            return render(request, self.template_name, {
+                'step': 2, 'identifier': identifier, 'masked': masked,
+                'error': 'OTP has expired. Please request a new one.',
+                'show_resend': True,
+            })
+
+        if stored_otp != otp_entered:
+            return render(request, self.template_name, {
+                'step': 2, 'identifier': identifier, 'masked': masked,
+                'error': 'Incorrect OTP. Please check and try again.',
+            })
+
+        cache.delete(cache_key)
+        request.session['pwd_reset_verified'] = True
+        request.session['pwd_reset_step'] = 3
+        return render(request, self.template_name, {'step': 3})
+
+    def _handle_step3(self, request, client_ip):
+        """Set new password."""
+        if not request.session.get('pwd_reset_verified'):
+            return redirect('/forgot-password/?restart=1')
+
+        uid = request.session.get('pwd_reset_uid')
+        if not uid:
+            messages.error(request, 'Session expired. Please start again.')
+            return redirect('/forgot-password/?restart=1')
+
+        password1 = request.POST.get('password1', '')
+        password2 = request.POST.get('password2', '')
+        identifier = request.session.get('pwd_reset_identifier', '')
+
+        errors = []
+        if not password1:
+            errors.append('New password is required.')
+        elif len(password1) < 8:
+            errors.append('Password must be at least 8 characters.')
+        elif password1 != password2:
+            errors.append('Passwords do not match.')
+
+        if errors:
+            return render(request, self.template_name, {'step': 3, 'errors': errors})
+
+        try:
+            user = User.objects.get(pk=uid)
+            user.set_password(password1)
+            user.reset_failed_attempts()
+            user.save()
+            if hasattr(user, 'profile') and user.profile:
+                user.profile.last_password_change = timezone.now()
+                user.profile.save(update_fields=['last_password_change'])
+        except User.DoesNotExist:
+            messages.error(request, 'Account not found. Please try again.')
+            return redirect('/forgot-password/?restart=1')
+
+        for k in ('pwd_reset_step', 'pwd_reset_identifier', 'pwd_reset_uid',
+                  'pwd_reset_verified', 'pwd_reset_masked'):
+            request.session.pop(k, None)
+
+        log_security_event_task.delay(
+            event_type='password_reset_completed',
+            message='OTP password reset completed',
+            user_id=user.id,
+            severity='medium',
+            extra_data={'identifier': (identifier[:4] + '****') if identifier else ''},
+        )
+        messages.success(request, 'Password reset successful! Please sign in with your new password.')
+        return redirect('/signin/')
 
 
 class PasswordResetView(View):

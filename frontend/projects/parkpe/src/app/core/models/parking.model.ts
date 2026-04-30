@@ -73,7 +73,7 @@ export interface Booking {
   duration: number; // in minutes
   amount: number;
   currency: string;
-  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled' | 'expired';
   customer: {
     name: string;
     phone: string;
@@ -93,6 +93,51 @@ export interface Booking {
 }
 
 // Parking State (for NgRx)
+/** GET /api/parking/bookings/:ref/exit-preview/ */
+export interface ParkingExitPreview {
+  bookingReference: string;
+  durationMinutes: number;
+  finalAmount: number;
+  alreadyPaid: number;
+  due: number;
+  overstayAmount: number;
+  voucherBalance: number;
+  voucherSufficient: boolean;
+  hasParkingTxPin: boolean;
+  paymentOptions: { method: string; label: string; primary?: boolean }[];
+  currency: string;
+}
+
+export interface ParkingExitUpiOrder {
+  success: boolean;
+  exit_payment_id: number;
+  cf_order_id?: string;
+  amount: number;
+  upi_link?: string;
+  upi_qr_data?: string;
+  expires_at?: string;
+  currency?: string;
+}
+
+export interface ParkingExitPaymentStatus {
+  status: string;
+  paid: boolean;
+  amount: number;
+  booking_reference: string;
+}
+
+export interface VehicleFastagMapping {
+  id: string;
+  vehicleNumber: string;
+  fastagId: string;
+  issuer: string;
+  isVerified: boolean;
+  isActive: boolean;
+  linkedVehicleId: number | null;
+  lastBalanceInr: number;
+  balanceFetchedAt: string | null;
+}
+
 export interface ParkingState {
   locations: ParkingLocation[];
   selectedLocation: ParkingLocation | null;

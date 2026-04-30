@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "payswap-git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ]
+    },
+    "payswap-fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    },
+    "payswap-filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}",
+        "${workspaceFolder}/docs"
+      ]
+    },
+    "payswap-time": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-time"
+      ],
+      "env": {
+        "TZ": "${env:MCP_TIME_DEFAULT_TZ}"
+      }
+    }
+  }
+}

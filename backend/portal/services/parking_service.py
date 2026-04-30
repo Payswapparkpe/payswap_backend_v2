@@ -23,6 +23,7 @@ from decimal import Decimal, ROUND_UP
 from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 
 from portal.models import (
     ParkingLocation,
@@ -246,6 +247,13 @@ def create_booking(
             customer_email=customer_email,
         )
 
+        ParkingSession.objects.create(
+            booking=booking,
+            vehicle_number=booking.vehicle_number,
+            state=ParkingSession.STATE_INITIATED,
+            entry_method=ParkingSession.ENTRY_METHOD_QR,
+        )
+
         # Reserve the slot
         slot.status = ParkingSlot.STATUS_RESERVED
         slot.save(update_fields=["status", "updated_at"])
@@ -264,11 +272,17 @@ def create_booking(
 
 # ─── Entry processing ─────────────────────────────────────────────────────────
 
-def process_entry(booking_reference: str, qr_payload: str = None, otp: str = None, attendant=None) -> ParkingBooking:
+def process_entry(
+    booking_reference: str,
+    qr_payload: str = None,
+    otp: str = None,
+    attendant=None,
+    acting_user=None,
+    entry_method_override: str | None = None,
+) -> ParkingBooking:
     """
-    Mark vehicle as entered. Validates QR or OTP.
-    Sets booking status to ACTIVE, slot to OCCUPIED.
-    Creates ParkingSession and ParkingTicket if not already present.
+    Mark vehicle as entered. Validates QR when provided; otherwise only parking operators/staff
+    may record manual entry at the location (acting_user).
     """
     try:
         booking = ParkingBooking.objects.select_related("slot", "slot__zone__location").get(
@@ -281,7 +295,9 @@ def process_entry(booking_reference: str, qr_payload: str = None, otp: str = Non
         raise ValueError(f"Cannot enter with booking status: {booking.status}")
 
     # Validate QR
-    if qr_payload:
+    if entry_method_override:
+        entry_method = entry_method_override
+    elif qr_payload:
         try:
             payload = json.loads(qr_payload)
             ref = payload.get("ref", "")
@@ -291,8 +307,26 @@ def process_entry(booking_reference: str, qr_payload: str = None, otp: str = Non
             sig = qr_payload
         if ref != booking_reference or not verify_qr(booking_reference, sig):
             raise ValueError("Invalid or tampered QR code.")
+        entry_method = ParkingSession.ENTRY_METHOD_QR
+    else:
+        # No QR: only operators at this location or Django staff may enter manually.
+        if acting_user is None:
+            raise ValueError("Authentication required.")
+        loc_id = booking.slot.zone.location_id
+        from portal.models.parking import ParkingOperator
 
-    entry_method = ParkingSession.ENTRY_METHOD_QR if qr_payload else ParkingSession.ENTRY_METHOD_MANUAL
+        is_staff = getattr(acting_user, "is_staff", False)
+        is_operator = ParkingOperator.objects.filter(
+            user=acting_user, location_id=loc_id, is_active=True
+        ).exists()
+        if not (is_operator or is_staff):
+            raise ValueError("Scan your booking QR to enter, or ask parking staff for assistance.")
+        entry_method = ParkingSession.ENTRY_METHOD_MANUAL
+        if otp:
+            logger.info(
+                "parking_entry_otp_ignored",
+                extra_data={"booking_ref": booking_reference, "note": "OTP not yet wired for manual customer entry"},
+            )
 
     with transaction.atomic():
         now = timezone.now()
@@ -305,15 +339,33 @@ def process_entry(booking_reference: str, qr_payload: str = None, otp: str = Non
             status=ParkingSlot.STATUS_OCCUPIED, updated_at=now
         )
 
-        ParkingSession.objects.get_or_create(
+        session, created = ParkingSession.objects.select_for_update().get_or_create(
             booking=booking,
             defaults={
                 "vehicle_number": booking.vehicle_number,
                 "entry_time": now,
                 "entry_method": entry_method,
                 "attendant": attendant,
+                "state": ParkingSession.STATE_ENTERED,
             },
         )
+        if not created:
+            session.vehicle_number = booking.vehicle_number
+            session.entry_time = now
+            session.entry_method = entry_method
+            if attendant:
+                session.attendant = attendant
+            session.state = ParkingSession.STATE_ENTERED
+            session.save(
+                update_fields=[
+                    "vehicle_number",
+                    "entry_time",
+                    "entry_method",
+                    "attendant",
+                    "state",
+                    "updated_at",
+                ]
+            )
 
         # Ensure ticket exists
         _ensure_ticket(booking)
@@ -327,12 +379,17 @@ def process_entry(booking_reference: str, qr_payload: str = None, otp: str = Non
 
 # ─── Exit processing ──────────────────────────────────────────────────────────
 
-def process_exit(booking_reference: str, attendant=None) -> dict:
+def process_exit(booking_reference: str, attendant=None, exit_method: str | None = None) -> dict:
     """
-    Record vehicle exit.
-    Calculates final charge (including overstay).
-    Debits Parkpe Voucher.
-    Returns charge summary.
+    Record vehicle exit.  Non-blocking: if voucher balance is insufficient the
+    booking is NOT completed yet — caller receives { payment_required: True }.
+    The exit is finalised by parking_payment_service once payment succeeds.
+
+    Returns:
+      { status: "completed", ... }              — exit done, no payment needed
+      { status: "payment_required", due: X, voucher_balance: Y,
+        voucher_sufficient: bool, ... }          — payment pending; use
+                                                   parking_payment_service
     """
     try:
         booking = ParkingBooking.objects.select_related(
@@ -344,76 +401,78 @@ def process_exit(booking_reference: str, attendant=None) -> dict:
     if booking.status != ParkingBooking.STATUS_ACTIVE:
         raise ValueError(f"Cannot exit booking with status: {booking.status}")
 
-    now = timezone.now()
+    from portal.services.parking_payment_service import compute_exit_due, get_voucher_total_balance
+
+    due_info = compute_exit_due(booking)
+    due = due_info["due"]
+    final_amount = due_info["final_amount"]
+    overstay_amount = due_info["overstay_amount"]
+    duration_minutes = due_info["duration_minutes"]
     entry_time = booking.actual_entry_time or booking.from_dt
-    duration_minutes = int((now - entry_time).total_seconds() / 60)
 
-    location = booking.slot.zone.location
-    try:
-        rate = ParkingRate.objects.get(
-            location=location,
-            vehicle_type=booking.vehicle_type,
-            is_active=True,
-        )
-        final_amount = rate.estimate(duration_minutes)
-    except ParkingRate.DoesNotExist:
-        final_amount = booking.estimated_amount
-
-    overstay_amount = Decimal("0")
-    if final_amount > booking.estimated_amount:
-        overstay_amount = final_amount - booking.estimated_amount
-
-    with transaction.atomic():
-        booking.actual_exit_time = now
-        booking.final_amount = final_amount
-        booking.status = ParkingBooking.STATUS_COMPLETED
-        booking.save(update_fields=["actual_exit_time", "final_amount", "status", "updated_at"])
-
-        # Release the slot
-        ParkingSlot.objects.filter(pk=booking.slot_id).update(
-            status=ParkingSlot.STATUS_AVAILABLE, updated_at=now
-        )
-
-        # Update session
-        ParkingSession.objects.filter(booking=booking).update(
-            exit_time=now,
-            exit_method=ParkingSession.ENTRY_METHOD_MANUAL if not attendant else ParkingSession.ENTRY_METHOD_QR,
-        )
-
-        # Debit voucher for final amount (already charged estimated on booking; charge delta)
-        already_charged = _get_already_charged(booking)
-        remaining = final_amount - already_charged
-        txn = None
-        if remaining > Decimal("0"):
-            txn = _charge_voucher(
-                customer=booking.customer,
-                booking=booking,
-                amount=remaining,
-                transaction_type="overstay" if overstay_amount > 0 else "charge",
-            )
-
-        # Revenue rollup
-        _update_revenue(location=location, date=now.date(), amount=final_amount)
-
-    logger.info(
-        "parking_exit_processed",
-        extra_data={
-            "booking_ref": booking_reference,
-            "duration_minutes": duration_minutes,
-            "final_amount": str(final_amount),
-            "overstay": str(overstay_amount),
-        },
-    )
-    return {
+    base_response = {
         "booking_reference": booking_reference,
         "entry_time": entry_time.isoformat(),
-        "exit_time": now.isoformat(),
         "duration_minutes": duration_minutes,
         "final_amount": float(final_amount),
         "overstay_amount": float(overstay_amount),
         "currency": "INR",
-        "status": "completed",
     }
+
+    if due <= Decimal("0"):
+        # Already fully paid (e.g. pre-paid on booking, no overstay) — complete immediately
+        from portal.services.parking_payment_service import _complete_exit
+
+        em = exit_method or ParkingSession.ENTRY_METHOD_QR
+        with transaction.atomic():
+            result = _complete_exit(
+                booking, attendant, due_info, payment_method="none", exit_method_code=em
+            )
+        logger.info("parking_exit_no_charge", extra_data={"booking_ref": booking_reference})
+        return {**base_response, **result}
+
+    # Check voucher balance
+    voucher_balance = get_voucher_total_balance(booking.customer)
+    voucher_sufficient = voucher_balance >= due
+
+    logger.info(
+        "parking_exit_payment_required",
+        extra_data={
+            "booking_ref": booking_reference,
+            "due": str(due),
+            "voucher_balance": str(voucher_balance),
+            "voucher_sufficient": voucher_sufficient,
+        },
+    )
+
+    with transaction.atomic():
+        sess = ParkingSession.objects.select_for_update().filter(booking=booking).first()
+        if sess:
+            sess.state = ParkingSession.STATE_PAYMENT_PENDING
+            sess.save(update_fields=["state", "updated_at"])
+
+    return {
+        **base_response,
+        "status": "payment_required",
+        "due": float(due),
+        "voucher_balance": float(voucher_balance),
+        "voucher_sufficient": voucher_sufficient,
+        "has_parking_tx_pin": _has_parking_tx_pin(booking.customer),
+        "payment_options": _build_payment_options(voucher_sufficient),
+    }
+
+
+def _has_parking_tx_pin(user) -> bool:
+    from portal.models import ParkingTransactionPin
+    return ParkingTransactionPin.objects.filter(user=user, is_active=True).exists()
+
+
+def _build_payment_options(voucher_sufficient: bool) -> list:
+    options = []
+    if voucher_sufficient:
+        options.append({"method": "voucher", "label": "Pay from Voucher (auto-debit)", "primary": True})
+    options.append({"method": "upi", "label": "Pay via UPI", "primary": not voucher_sufficient})
+    return options
 
 
 def _get_already_charged(booking: ParkingBooking) -> Decimal:
@@ -494,11 +553,25 @@ def get_or_create_ticket(booking_reference: str) -> ParkingTicket:
 
 def cancel_booking(booking_reference: str, reason: str = "", cancelled_by=None) -> ParkingBooking:
     try:
-        booking = ParkingBooking.objects.select_related("slot").get(
+        booking = ParkingBooking.objects.select_related("slot__zone__location").get(
             booking_reference=booking_reference
         )
     except ParkingBooking.DoesNotExist:
         raise ValueError("Booking not found.")
+
+    if cancelled_by is not None:
+        if booking.customer_id != cancelled_by.id:
+            if getattr(cancelled_by, "is_staff", False):
+                pass
+            else:
+                from portal.models.parking import ParkingOperator
+
+                if not ParkingOperator.objects.filter(
+                    user=cancelled_by,
+                    location=booking.slot.zone.location,
+                    is_active=True,
+                ).exists():
+                    raise PermissionDenied(detail="Not authorized to cancel this booking.")
 
     if booking.status not in (ParkingBooking.STATUS_PENDING, ParkingBooking.STATUS_CONFIRMED):
         raise ValueError(f"Cannot cancel booking with status: {booking.status}")
@@ -510,6 +583,11 @@ def cancel_booking(booking_reference: str, reason: str = "", cancelled_by=None) 
 
         ParkingSlot.objects.filter(pk=booking.slot_id).update(
             status=ParkingSlot.STATUS_AVAILABLE, updated_at=timezone.now()
+        )
+
+        ParkingSession.objects.filter(booking=booking).update(
+            state=ParkingSession.STATE_ABORTED,
+            updated_at=timezone.now(),
         )
 
     logger.info(

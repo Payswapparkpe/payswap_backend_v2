@@ -40,6 +40,13 @@ def user_to_angular(user: "User") -> dict:
     billing_complete = profile_billing_address_complete(profile) if profile else False
     profile_type = (getattr(profile, "type", None) or "individual").strip() if profile else "individual"
     is_business_profile = profile_type in {"business", "corporate"}
+    from portal.models import ParkingOperator
+
+    operator_qs = ParkingOperator.objects.filter(user=user, is_active=True).select_related("location")
+    parking_operator = operator_qs.first()
+    parking_role = parking_operator.role if parking_operator else None
+    parking_location_ids = [op.location_id for op in operator_qs]
+
     return {
         "id": str(user.pk),
         "name": name or user.username,
@@ -70,4 +77,6 @@ def user_to_angular(user: "User") -> dict:
         "gstNumber": (getattr(profile, "gst_number", None) or "").strip() if is_business_profile else "",
         "taxId": (getattr(profile, "tax_id", None) or "").strip() if is_business_profile else "",
         "billingAddressComplete": billing_complete,
+        "parkingRole": parking_role,
+        "parkingLocationIds": parking_location_ids,
     }

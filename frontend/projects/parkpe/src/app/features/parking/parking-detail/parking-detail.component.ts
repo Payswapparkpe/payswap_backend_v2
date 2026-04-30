@@ -1,14 +1,16 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import QRCode from 'qrcode';
-import { Booking } from '../../../core/models/parking.model';
+import { Subscription, interval, timer, switchMap } from 'rxjs';
+import { Booking, ParkingExitPreview, ParkingExitUpiOrder } from '../../../core/models/parking.model';
 import { ParkingService } from '../services/parking.service';
 
 @Component({
   selector: 'app-parking-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, FormsModule],
   providers: [DatePipe],
   template: `
     <div class="feature-container">
@@ -146,6 +148,90 @@ import { ParkingService } from '../services/parking.service';
             {{ resendMsg }}
           </div>
         }
+
+        @if (paymentStuck) {
+          <div class="toast error payment-stuck-toast">
+            <span class="material-icons">warning</span>
+            Payment pending — if money left your bank, show this reference to the attendant at the gate.
+          </div>
+        }
+
+        <!-- ── PENDING EXIT PAYMENT BANNER ── -->
+        @if (exitPreview && booking.status === 'active') {
+          <div class="pay-panel card">
+            <div class="pay-panel-header">
+              <span class="material-icons pay-icon">timer</span>
+              <div>
+                <div class="pay-title">Exit Payment Pending</div>
+                <div class="pay-sub">Amount due: <strong>₹{{ exitPreview.due | number:'1.0-2' }}</strong>
+                  @if (exitPreview.overstayAmount > 0) {
+                    <span class="overstay-tag">+₹{{ exitPreview.overstayAmount | number:'1.0-2' }} overstay</span>
+                  }
+                </div>
+              </div>
+              <div class="pay-balance">
+                Voucher: ₹{{ exitPreview.voucherBalance | number:'1.0-2' }}
+              </div>
+            </div>
+
+            @if (exitPreview.voucherSufficient) {
+              <!-- Voucher auto-debit flow -->
+              <div class="pay-section voucher-section">
+                <p class="pay-desc">Your voucher balance covers this. Enter your parking PIN to pay.</p>
+                @if (!exitPreview.hasParkingTxPin) {
+                  <div class="pin-warning">
+                    <span class="material-icons">info</span>
+                    You haven't set a Parking Transaction PIN yet. Set it from your Profile → Security.
+                  </div>
+                } @else {
+                  <div class="pin-row">
+                    <input type="password" [(ngModel)]="txPin" maxlength="6"
+                      placeholder="4–6 digit PIN"
+                      class="pin-input"
+                      (keyup.enter)="payVoucher()" />
+                    <button class="pay-btn voucher-btn" (click)="payVoucher()" [disabled]="paying">
+                      <span class="material-icons">{{ paying ? 'hourglass_empty' : 'account_balance_wallet' }}</span>
+                      {{ paying ? 'Processing...' : 'Pay from Voucher' }}
+                    </button>
+                  </div>
+                  @if (payError) {
+                    <p class="pay-error">{{ payError }}</p>
+                  }
+                }
+              </div>
+            }
+
+            <!-- UPI fallback (always available) -->
+            <div class="pay-section upi-section" [class.primary-upi]="!exitPreview.voucherSufficient">
+              <p class="pay-desc">{{ exitPreview.voucherSufficient ? 'Or pay via UPI:' : 'Voucher balance insufficient. Pay via UPI:' }}</p>
+              @if (!upiOrder) {
+                <button class="pay-btn upi-btn" (click)="createUpiOrder()" [disabled]="paying">
+                  <span class="material-icons">qr_code</span>
+                  Generate UPI QR
+                </button>
+              } @else {
+                <div class="upi-qr-wrap">
+                  @if (upiQrDataUrl) {
+                    <img [src]="upiQrDataUrl" class="upi-qr-img" alt="UPI QR" />
+                  }
+                  <p class="upi-amount">₹{{ upiOrder.amount | number:'1.0-2' }}</p>
+                  <p class="upi-hint">Scan with any UPI app (PhonePe, GPay, Paytm, etc.)</p>
+                  @if (upiPaid) {
+                    <div class="upi-success">
+                      <span class="material-icons">check_circle</span>
+                      Payment received! Exit complete.
+                    </div>
+                  } @else {
+                    <div class="upi-waiting">
+                      <span class="material-icons spin">hourglass_top</span>
+                      Waiting for payment...
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
       }
     </div>
   `,
@@ -209,9 +295,37 @@ import { ParkingService } from '../services/parking.service';
 
     .customer-card { padding: 1.25rem; }
     .section-title { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.875rem; }
+
+    /* Pay panel */
+    .pay-panel { padding: 1.25rem; border: 1.5px solid #fbbf24 !important; background: #fffbeb; margin-bottom: 1rem; }
+    .pay-panel-header { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem; }
+    .pay-icon { font-size: 28px; color: #d97706; margin-top: 0.1rem; }
+    .pay-title { font-weight: 700; font-size: 1rem; color: #92400e; }
+    .pay-sub { font-size: 0.82rem; color: #78350f; margin-top: 0.1rem; }
+    .pay-balance { margin-left: auto; background: white; border: 1px solid #fde68a; border-radius: 999px; padding: 0.3rem 0.7rem; font-size: 0.75rem; font-weight: 600; color: #92400e; white-space: nowrap; }
+    .overstay-tag { background: #fef2f2; color: #b91c1c; border-radius: 999px; padding: 0.1rem 0.4rem; font-size: 0.7rem; font-weight: 600; margin-left: 0.3rem; }
+    .pay-section { padding: 0.875rem; border-radius: var(--radius-lg); background: white; border: 1px solid var(--border); margin-bottom: 0.75rem; }
+    .primary-upi { border-color: #3b82f6 !important; }
+    .pay-desc { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.6rem; }
+    .pin-row { display: flex; gap: 0.5rem; }
+    .pin-input { flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 0.6rem 0.8rem; font-family: monospace; font-size: 1.25rem; letter-spacing: 0.25em; text-align: center; outline: none; &:focus { border-color: var(--primary-600); } }
+    .pin-warning { display: flex; align-items: center; gap: 0.4rem; background: #fef9c3; border: 1px solid #fde047; border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.78rem; color: #713f12; .material-icons { font-size: 16px; } }
+    .pay-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1rem; border-radius: var(--radius-lg); font-weight: 600; font-size: 0.85rem; cursor: pointer; border: none; &:disabled { opacity: 0.6; cursor: not-allowed; } }
+    .voucher-btn { background: #059669; color: white; }
+    .upi-btn { background: #2563eb; color: white; }
+    .pay-error { font-size: 0.78rem; color: #dc2626; margin-top: 0.4rem; }
+    .upi-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+    .upi-qr-img { width: 180px; height: 180px; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px; background: white; }
+    .upi-amount { font-size: 1.2rem; font-weight: 700; color: var(--primary-600); }
+    .upi-hint { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+    .upi-waiting { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #2563eb; }
+    .upi-success { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 0.6rem 1rem; border-radius: var(--radius-md); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1.2s linear infinite; display: inline-block; }
+    .payment-stuck-toast { margin-bottom: 1rem; }
   `],
 })
-export class ParkingDetailComponent implements OnInit {
+export class ParkingDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private parkingService = inject(ParkingService);
@@ -223,6 +337,18 @@ export class ParkingDetailComponent implements OnInit {
   resendSuccess = false;
   generatedQrDataUrl: string | null = null;
 
+  // Exit payment state
+  exitPreview: ParkingExitPreview | null = null;
+  txPin = '';
+  paying = false;
+  payError = '';
+  paymentStuck = false;
+  upiOrder: ParkingExitUpiOrder | null = null;
+  upiQrDataUrl: string | null = null;
+  upiPaid = false;
+  private upiPollSub?: Subscription;
+  private upiTimeoutSub?: Subscription;
+
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('bookingId') || '';
     this.parkingService.getBooking(id).subscribe({
@@ -230,8 +356,23 @@ export class ParkingDetailComponent implements OnInit {
         this.booking = b;
         this.loading = false;
         this.ensureScannableQr();
+        if (b.status === 'active') this.loadExitPreview(b.bookingReference || String(b.id));
       },
       error: () => { this.loading = false; },
+    });
+  }
+
+  ngOnDestroy() {
+    this.upiPollSub?.unsubscribe();
+    this.upiTimeoutSub?.unsubscribe();
+  }
+
+  private loadExitPreview(ref: string) {
+    this.parkingService.getExitPreview(ref).subscribe({
+      next: (d) => {
+        this.exitPreview = d;
+      },
+      error: () => {},
     });
   }
 
@@ -309,5 +450,86 @@ export class ParkingDetailComponent implements OnInit {
       next: () => this.router.navigate(['/parking/list']),
       error: () => alert('Cancellation failed. Please try again.'),
     });
+  }
+
+  payVoucher() {
+    if (!this.booking || !this.txPin) return;
+    this.paying = true;
+    this.payError = '';
+    const ref = this.booking.bookingReference || String(this.booking.id);
+    this.parkingService.payExitVoucher(ref, this.txPin).subscribe({
+      next: (r: Record<string, unknown>) => {
+        this.paying = false;
+        if (r['success']) {
+          this.booking!.status = 'completed';
+          this.exitPreview = null;
+          this.resendSuccess = true;
+          this.resendMsg = 'Exit complete! Voucher debited.';
+          setTimeout(() => (this.resendMsg = ''), 6000);
+        }
+      },
+      error: (e: { error?: { detail?: string } }) => {
+        this.paying = false;
+        this.payError = e?.error?.detail || 'Payment failed. Check your PIN.';
+      },
+    });
+  }
+
+  createUpiOrder() {
+    if (!this.booking) return;
+    this.paying = true;
+    this.paymentStuck = false;
+    const ref = this.booking.bookingReference || String(this.booking.id);
+    this.parkingService.payExitUpi(ref).subscribe({
+      next: (r: ParkingExitUpiOrder) => {
+        this.paying = false;
+        this.upiOrder = r;
+        const qrData = r.upi_qr_data || r.upi_link;
+        if (qrData) {
+          void QRCode.toDataURL(qrData, { width: 300, margin: 1, errorCorrectionLevel: 'H' }).then(
+            (url) => {
+              this.upiQrDataUrl = url;
+            }
+          );
+        }
+        this.startUpiPoll(r.exit_payment_id);
+      },
+      error: () => {
+        this.paying = false;
+        this.payError = 'Could not generate UPI order.';
+      },
+    });
+  }
+
+  private startUpiPoll(exitPaymentId: number) {
+    this.upiPollSub?.unsubscribe();
+    this.upiTimeoutSub?.unsubscribe();
+    this.paymentStuck = false;
+
+    this.upiTimeoutSub = timer(5 * 60 * 1000).subscribe(() => {
+      this.paymentStuck = true;
+    });
+
+    this.upiPollSub = interval(3000)
+      .pipe(switchMap(() => this.parkingService.pollExitPaymentStatus(exitPaymentId)))
+      .subscribe({
+        next: (r) => {
+          if (r.paid) {
+            this.upiPaid = true;
+            this.upiPollSub?.unsubscribe();
+            this.upiTimeoutSub?.unsubscribe();
+            setTimeout(() => {
+              this.booking!.status = 'completed';
+              this.exitPreview = null;
+              this.upiOrder = null;
+            }, 3000);
+          }
+          if (r.status === 'expired' || r.status === 'failed') {
+            this.paymentStuck = true;
+            this.upiPollSub?.unsubscribe();
+            this.upiTimeoutSub?.unsubscribe();
+          }
+        },
+      });
   }
 }

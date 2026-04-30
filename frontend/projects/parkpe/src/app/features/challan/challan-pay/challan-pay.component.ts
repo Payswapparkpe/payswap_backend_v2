@@ -119,24 +119,6 @@ export class ChallanPayComponent implements OnInit {
 
   initiatePayment() {
     if (!this.challan) return;
-    this.paying = true;
-    this.api.payChallan(this.challanId, {
-      challanId: this.challan.id,
-      challanNumber: this.challan.challanNumber,
-      vehicleNumber: this.challan.vehicleNumber,
-      amount: this.challan.totalAmount,
-      customerName: this.customer.name,
-      customerEmail: this.customer.email || 'user@example.com',
-      customerPhone: this.customer.phone,
-    }).subscribe({
-      next: () => {
-        this.notification.showSuccess('Challan paid successfully!');
-        this.router.navigate(['/payment/status'], { queryParams: { status: 'success' } });
-      },
-      error: (error) => {
-        this.paying = false;
-        this.notification.showError(this.apiErrorMessage(error));
-      },
-    });
+    this.router.navigate(['/challan/pay', this.challanId, 'methods']);
   }
 }
