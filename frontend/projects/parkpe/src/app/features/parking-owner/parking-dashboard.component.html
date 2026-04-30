@@ -3,7 +3,7 @@
   <!-- ═══════════════════════════════════════════════════════════════
        PAGE HEADER  (compact — replaces the old gradient hero banner)
   ════════════════════════════════════════════════════════════════ -->
-  <header class="dash-header" [@fadeSlide]>
+  <header class="dash-header">
     <div class="dash-header__left">
       <h1 class="dash-header__title">Parking Dashboard</h1>
       <p class="dash-header__meta">
@@ -41,13 +41,24 @@
       <kendo-loader type="converging-spinner" themeColor="primary" size="large"></kendo-loader>
       <p class="dash-loader__text">Loading live data…</p>
     </div>
+  }
 
-  } @else {
+  @if (loadError()) {
+    <div class="dash-error">
+      <svg class="dash-error__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p class="dash-error__msg">Could not load dashboard data. Check your connection.</p>
+      <button type="button" class="dash-btn dash-btn--primary" (click)="refresh()">Retry</button>
+    </div>
+  }
+
+  @if (!loading()) {
 
     <!-- ═══════════════════════════════════════════════════════════════
          KEY METRICS — 4-column CSS Grid  ([@statsGrid] queries .stat-card)
     ════════════════════════════════════════════════════════════════ -->
-    <div [@statsGrid] class="kpi-grid">
+    <div class="kpi-grid">
 
       <!-- ── 1. Live Occupancy ─────────────────────────────────── -->
       <div class="kpi-card stat-card">
@@ -256,14 +267,14 @@
     <!-- ═══════════════════════════════════════════════════════════════
          PARKING LOCATIONS
     ════════════════════════════════════════════════════════════════ -->
-    <div class="section-head" [@fadeSlide]>
+    <div class="section-head">
       <div class="section-head__left">
         <h2 class="section-head__title">Your parking locations</h2>
         <span class="section-head__count" aria-label="{{ locations().length }} locations">{{ locations().length }}</span>
       </div>
     </div>
 
-    <div [@locGrid] class="loc-grid">
+    <div class="loc-grid">
       @for (loc of locations(); track loc.id) {
         <div class="loc-card">
           <!-- top accent line -->
@@ -378,7 +389,7 @@
     <!-- ═══════════════════════════════════════════════════════════════
          LIVE ACTIVITY FEED
     ════════════════════════════════════════════════════════════════ -->
-    <div class="section-head" [@fadeSlide]>
+    <div class="section-head">
       <div class="section-head__left">
         <h2 class="section-head__title">Live activity</h2>
         <span class="hub-live" aria-hidden="true">
@@ -391,7 +402,6 @@
     <kendo-listview [data]="liveActivity()" [loading]="loading()" containerClass="feed-list">
       <ng-template kendoListViewItemTemplate let-item="dataItem">
         <div
-          [@feedItem]
           class="feed-row"
           [class.feed-row--entry]="item.type === 'entry'"
           [class.feed-row--exit]="item.type === 'exit'"
@@ -432,7 +442,7 @@
       </ng-template>
     </kendo-listview>
 
-  }<!-- /else loading -->
+  }<!-- /if !loading -->
 
   <!-- ═══════════════════════════════════════════════════════════════
        FLOATING QUICK-ACTIONS FAB

@@ -16,14 +16,23 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const notification = inject(NotificationService);
   const logger = inject(LoggerService);
 
-  /** Where to send user after session cleared — per portal */
+  /** Where to send user after session cleared — per portal.
+   *  Checks router URL first (most reliable at call time), then stored portal key as fallback. */
   const loginRouteAfter401 = (reqUrl: string, routerUrl: string) => {
-    if (routerUrl.includes('/hub/') || routerUrl.includes('/auth/parking') || reqUrl.includes('auth/parking')) {
-      return '/auth/parking';
-    }
-    if (routerUrl.includes('/fleet/') || reqUrl.includes('/auth/fleet') || reqUrl.includes('dashboard/fleet')) {
-      return '/fleet/login';
-    }
+    if (
+      routerUrl.startsWith('/hub') ||
+      routerUrl.includes('/auth/parking') ||
+      reqUrl.includes('auth/parking')
+    ) return '/auth/parking';
+    if (
+      routerUrl.startsWith('/fleet') ||
+      reqUrl.includes('/auth/fleet') ||
+      reqUrl.includes('dashboard/fleet')
+    ) return '/fleet/login';
+    // Fallback: use stored portal key (survives clearSession so it's valid even after token removal)
+    const storedPortal = authService.getAuthPortal();
+    if (storedPortal === 'parking') return '/auth/parking';
+    if (storedPortal === 'fleet') return '/fleet/login';
     return '/auth/login';
   };
   return next(req).pipe(

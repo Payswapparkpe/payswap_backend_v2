@@ -116,6 +116,35 @@ kendo-listview     { border: 0; box-shadow: none; }
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  ERROR BANNER
+// ═══════════════════════════════════════════════════════════════
+.dash-error {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: hub.$hub-red-light;
+  border: 1px solid rgba(hub.$hub-red, .25);
+  border-radius: var(--hub-r-lg, #{hub.$hub-r-lg});
+
+  &__icon {
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    color: hub.$hub-red;
+  }
+
+  &__msg {
+    flex: 1;
+    font-size: .875rem;
+    font-weight: 600;
+    color: hub.$hub-red;
+    margin: 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  LOADING SHELL
 // ═══════════════════════════════════════════════════════════════
 .dash-loader {
@@ -138,6 +167,17 @@ kendo-listview     { border: 0; box-shadow: none; }
   }
 }
 
+// ── CSS keyframe stagger for cards (replaces buggy Angular query animation) ──
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes section-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  KPI GRID — 4-column responsive grid
 // ═══════════════════════════════════════════════════════════════
@@ -146,6 +186,7 @@ kendo-listview     { border: 0; box-shadow: none; }
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
+  animation: section-enter 0.35s ease both;
 
   @media (max-width: #{hub.$bp-xl - 1}) { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: #{hub.$bp-sm - 1}) { grid-template-columns: 1fr; }
@@ -163,6 +204,12 @@ kendo-listview     { border: 0; box-shadow: none; }
   display: flex;
   flex-direction: column;
   transition: box-shadow hub.$hub-t, border-color hub.$hub-t, transform hub.$hub-t;
+  animation: card-enter 0.4s ease both;
+
+  &:nth-child(1) { animation-delay: 0ms; }
+  &:nth-child(2) { animation-delay: 70ms; }
+  &:nth-child(3) { animation-delay: 140ms; }
+  &:nth-child(4) { animation-delay: 210ms; }
 
   &:hover {
     box-shadow: hub.$hub-shadow;
@@ -541,6 +588,7 @@ kendo-listview     { border: 0; box-shadow: none; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
+  animation: section-enter 0.4s 0.15s ease both;
 
   @media (max-width: #{hub.$bp-lg - 1}) { grid-template-columns: 1fr; }
 }
@@ -553,6 +601,10 @@ kendo-listview     { border: 0; box-shadow: none; }
   box-shadow: hub.$hub-shadow-sm;
   overflow: hidden;
   transition: box-shadow hub.$hub-t, border-color hub.$hub-t, transform hub.$hub-t;
+  animation: card-enter 0.4s ease both;
+
+  &:nth-child(odd)  { animation-delay: 250ms; }
+  &:nth-child(even) { animation-delay: 320ms; }
 
   &:hover {
     box-shadow: hub.$hub-shadow;
@@ -776,6 +828,7 @@ kendo-listview     { border: 0; box-shadow: none; }
   display: flex;
   flex-direction: column;
   gap: .5rem;
+  animation: section-enter 0.4s 0.25s ease both;
 }
 
 .feed-row {
@@ -966,6 +1019,9 @@ kendo-listview     { border: 0; box-shadow: none; }
 //  REDUCED MOTION
 // ═══════════════════════════════════════════════════════════════
 @media (prefers-reduced-motion: reduce) {
+  .kpi-grid,
+  .loc-grid,
+  .feed-list,
   .kpi-card,
   .loc-card,
   .feed-row,

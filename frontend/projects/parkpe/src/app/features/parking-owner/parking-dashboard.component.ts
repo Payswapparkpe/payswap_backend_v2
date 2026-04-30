@@ -10,8 +10,6 @@ import {
 } from '@angular/core';
 import {
   animate,
-  query,
-  stagger,
   state,
   style,
   transition,
@@ -70,57 +68,6 @@ const EASE = 'cubic-bezier(0.4, 0.0, 0.2, 1)';
   templateUrl: './parking-dashboard.component.html',
   styleUrl: './parking-dashboard.component.scss',
   animations: [
-    /**
-     * Staggered entrance for the 4 stat cards.
-     * Fires when the stats grid div enters the DOM (loading → loaded).
-     */
-    trigger('statsGrid', [
-      transition(':enter', [
-        query('.stat-card', [
-          style({ opacity: 0, transform: 'translateY(28px)' }),
-          stagger(90, [
-            animate(
-              `450ms ${EASE}`,
-              style({ opacity: 1, transform: 'translateY(0)' }),
-            ),
-          ]),
-        ], { optional: true }),
-      ]),
-    ]),
-
-    /**
-     * Slide-in / slide-out for Live Activity Feed items.
-     * Height from 0→* gives the "push down" effect for new arrivals.
-     */
-    trigger('feedItem', [
-      transition(':enter', [
-        style({ opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px', overflow: 'hidden' }),
-        animate(
-          `350ms ${EASE}`,
-          style({ opacity: 1, height: '*', paddingTop: '*', paddingBottom: '*' }),
-        ),
-      ]),
-      transition(':leave', [
-        style({ overflow: 'hidden' }),
-        animate(
-          `220ms ${EASE}`,
-          style({ opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px' }),
-        ),
-      ]),
-    ]),
-
-    /** Locations grid staggered entrance — mirrors statsGrid. */
-    trigger('locGrid', [
-      transition(':enter', [
-        query('.loc-card', [
-          style({ opacity: 0, transform: 'translateY(20px)' }),
-          stagger(70, [
-            animate(`400ms ${EASE}`, style({ opacity: 1, transform: 'translateY(0)' })),
-          ]),
-        ], { optional: true }),
-      ]),
-    ]),
-
     /** Float panel expand / collapse. */
     trigger('floatMenu', [
       state('closed', style({ height: '0px', opacity: 0, pointerEvents: 'none' })),
@@ -135,14 +82,6 @@ const EASE = 'cubic-bezier(0.4, 0.0, 0.2, 1)';
       state('open', style({ transform: 'rotate(45deg)' })),
       transition('* <=> *', [animate(`300ms ${EASE}`)]),
     ]),
-
-    /** Simple fade+slide for page sections (header, feed header). */
-    trigger('fadeSlide', [
-      transition(':enter', [
-        style({ opacity: 0, transform: 'translateY(14px)' }),
-        animate(`500ms 60ms ${EASE}`, style({ opacity: 1, transform: 'translateY(0)' })),
-      ]),
-    ]),
   ],
 })
 export class ParkingDashboardComponent implements OnInit, OnDestroy {
@@ -154,6 +93,7 @@ export class ParkingDashboardComponent implements OnInit, OnDestroy {
 
   locations = signal<LocationSummary[]>([]);
   loading = signal(true);
+  loadError = signal(false);
   liveActivity = signal<ActivityItem[]>([]);
   floatOpen = signal(false);
 
@@ -230,6 +170,7 @@ export class ParkingDashboardComponent implements OnInit, OnDestroy {
 
   loadDashboard(): void {
     this.loading.set(true);
+    this.loadError.set(false);
     this.parkingService.getOwnerLocations().subscribe({
       next: (data: unknown) => {
         const raw = data as { locations?: unknown[] } | unknown[];
@@ -250,11 +191,11 @@ export class ParkingDashboardComponent implements OnInit, OnDestroy {
         } else {
           this.liveActivity.set([]);
         }
-        // Wait one frame so Angular renders the stats DOM before we animate
         setTimeout(() => this.afterDataPaint(), 80);
       },
       error: () => {
         this.loading.set(false);
+        this.loadError.set(true);
         this.locations.set([]);
       },
     });

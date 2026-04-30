@@ -84,6 +84,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "projects/parkpe/src/main.ts",
+            "polyfills": ["@angular/localize/init"],
             "tsConfig": "projects/parkpe/tsconfig.app.json",
             "assets": [
               {

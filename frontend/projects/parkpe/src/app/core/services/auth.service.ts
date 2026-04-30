@@ -346,8 +346,9 @@ export class AuthService {
       localStorage.removeItem(k.token);
       localStorage.removeItem(k.refresh);
       localStorage.removeItem(k.user);
-      localStorage.removeItem(ACTIVE_PORTAL_KEY);
-      localStorage.removeItem(PARKPE_AUTH_PORTAL_KEY);
+      // Intentionally keep ACTIVE_PORTAL_KEY and PARKPE_AUTH_PORTAL_KEY so guards
+      // can still route back to the correct login page after session expiry/logout.
+      // These are only overwritten on the NEXT successful login.
     } catch {
       // ignore
     }
