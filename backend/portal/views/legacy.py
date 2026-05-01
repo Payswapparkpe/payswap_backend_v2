@@ -25,6 +25,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.templatetags.static import static
+from django.conf import settings
 from core.config import payswap_config
 from decimal import Decimal
 from portal.models import (
@@ -69,6 +70,7 @@ from portal.services.otp_service import OTPService
 from portal.tasks.otp_dual_delivery_task import send_otp_dual_delivery_task
 from django.core.cache import cache
 import uuid
+import re
 from portal.utils.role_utils import (
     assign_permission_to_user, revoke_permission_from_user,
     change_user_role, assign_permission_to_role, revoke_permission_from_role,
@@ -96,6 +98,23 @@ PIN_MAX_ATTEMPTS = 5
 PIN_LOCK_DURATION_MINUTES = 30
 PIN_UNLOCK_PAGE_TIMEOUT_SECONDS = 30 * 60  # 30 min on unlock screen; then redirect to signin
 LOCK_STARTED_AT_COOKIE_NAME = 'lock_started_at'
+
+# Django hub session login — same allowlist as portal/views.py (split module).
+FLEET_ROLE_CODES = {'fleet_admin', 'fleet_manager', 'fleet_operator', 'fleet_dispatcher'}
+PARTNER_ROLE_CODES = {'super_distributor', 'distributor', 'retailer'}
+PARKING_ROLE_CODES = {'parking_owner', 'parking_manager', 'parking_attendant'}
+PORTAL_ALLOWED_ROLE_CODES = {'super_admin', 'admin', 'employee'}
+
+_LOCAL_SIGNIN_IPS = frozenset({'127.0.0.1', '::1', '0:0:0:0:0:0:0:1'})
+
+
+def _signin_ip_rate_limit_enabled(client_ip):
+    """Off in DEBUG or for loopback — avoids locking yourself out on local hub."""
+    if getattr(settings, 'DEBUG', False):
+        return False
+    if (client_ip or '') in _LOCAL_SIGNIN_IPS:
+        return False
+    return True
 
 
 class LandingPageView(TemplateView):
@@ -178,7 +197,14 @@ class SignInView(View):
         
         form = SignInForm(request.POST)
         login_step = request.session.get('login_step', 1)
-        
+        # Stale login_step=2 (abandoned MFA) skips the block below so credentials are never checked.
+        if 'password' in request.POST and login_step != 1:
+            request.session.pop('mfa_verify_user_id', None)
+            request.session.pop('mfa_setup_user_id', None)
+            request.session.pop('login_user_id', None)
+            request.session['login_step'] = 1
+            login_step = 1
+
         # Step 1: Credentials Entry
         if login_step == 1:
             if not form.is_valid():
@@ -190,11 +216,12 @@ class SignInView(View):
             username = form.cleaned_data['username']
             password = form.cleaned_data['password']
             
-            # Rate limiting: 5 attempts per 15 minutes per IP
+            # Rate limiting: 5 attempts per 15 minutes per IP (skipped in DEBUG / loopback)
             rate_limit_key = f"login_attempts:{client_ip}"
-            attempts = cache.get(rate_limit_key, 0)
-            
-            if attempts >= 5:
+            rate_limited = _signin_ip_rate_limit_enabled(client_ip)
+            attempts = cache.get(rate_limit_key, 0) if rate_limited else 0
+
+            if rate_limited and attempts >= 5:
                 write_logs_task.delay(
                     log_level='WARNING',
                     message=f'Login rate limit exceeded for IP {client_ip}',
@@ -214,19 +241,45 @@ class SignInView(View):
             # Authenticate user
             # Try username first, then email if username fails
             user = authenticate(request, username=username, password=password)
-            
+            # Auto-generated usernames are mixed case; retry with DB canonical username if iexact match
+            if not user and '@' not in username:
+                u_match = User.objects.filter(username__iexact=username.strip()).only('username').first()
+                if u_match:
+                    user = authenticate(request, username=u_match.username, password=password)
+
             # If authentication failed and input looks like email, try email authentication
             if not user and '@' in username:
                 try:
-                    # Try to find user by email in User model or Profile model (User, Profile from top-level import)
-                    email_user = User.objects.filter(email=username).first()
+                    email_norm = username.strip()
+                    email_user = (
+                        User.objects.filter(email__iexact=email_norm).exclude(
+                            models.Q(email__isnull=True) | models.Q(email='')
+                        ).first()
+                    )
                     if not email_user:
-                        # Try finding by profile email
-                        profile = Profile.objects.filter(email=username).first()
+                        profile = Profile.objects.filter(email__iexact=email_norm).select_related('user').first()
                         if profile:
                             email_user = profile.user
                     if email_user:
                         user = authenticate(request, username=email_user.username, password=password)
+                except Exception:
+                    pass
+
+            # Registered mobile (same lookup as forgot-password)
+            if not user:
+                try:
+                    cleaned = username.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+                    looks_phone = bool(
+                        re.match(r'^(\+91|91|0)?[6-9]\d{9}$', cleaned)
+                        or (re.match(r'^\d{10}$', cleaned) and len(cleaned) == 10 and cleaned[0] in '6789')
+                    )
+                    if looks_phone:
+                        from portal.utils.phone_utils import normalize_phone_number, phone_lookup_candidates
+                        normalized = normalize_phone_number(cleaned)
+                        candidates = phone_lookup_candidates(normalized)
+                        profile = Profile.objects.filter(phone__in=candidates).select_related('user').first()
+                        if profile and profile.user:
+                            user = authenticate(request, username=profile.user.username, password=password)
                 except Exception:
                     pass
             
@@ -268,6 +321,23 @@ class SignInView(View):
                             session_id=session_id
                         )
                         messages.error(request, 'Your account is inactive.')
+                        return render(request, self.template_name, {'form': form, 'step': 1})
+
+                    if getattr(user, 'role_code', '') not in PORTAL_ALLOWED_ROLE_CODES:
+                        role_code = getattr(user, 'role_code', '')
+                        app_hint = 'the dedicated app'
+                        if role_code in FLEET_ROLE_CODES:
+                            app_hint = 'the ParkPe Fleet app'
+                        elif role_code in PARTNER_ROLE_CODES:
+                            app_hint = 'the Payswap Partner app'
+                        elif role_code in PARKING_ROLE_CODES:
+                            app_hint = 'the ParkPe Parking app'
+                        elif role_code == 'customer':
+                            app_hint = 'the ParkPe customer app'
+                        messages.error(
+                            request,
+                            f'This account must log in through {app_hint}, not the admin portal.',
+                        )
                         return render(request, self.template_name, {'form': form, 'step': 1})
                     
                     if not user.email_verified:
@@ -433,8 +503,8 @@ class SignInView(View):
                 except User.DoesNotExist:
                     pass
                 
-                # Increment rate limit
-                cache.set(rate_limit_key, attempts + 1, timeout=900)  # 15 minutes
+                if rate_limited:
+                    cache.set(rate_limit_key, attempts + 1, timeout=900)  # 15 minutes
                 
                 write_logs_task.delay(
                     log_level='WARNING',
@@ -2330,15 +2400,25 @@ class ForgotPasswordView(View):
         request.session['pwd_reset_step'] = step
         client_ip = get_client_ip(request)
 
+        # Resend from step 2 posts hidden step=1 + identifier (no otp); session would otherwise route to step 2.
+        posted_step = (request.POST.get('step') or '').strip()
+        if (
+            posted_step == '1'
+            and step == 2
+            and (request.POST.get('otp') or '').strip() == ''
+            and (request.POST.get('identifier') or '').strip()
+        ):
+            return self._handle_step1(request, client_ip, resend=True)
+
         if step == 1:
-            return self._handle_step1(request, client_ip)
+            return self._handle_step1(request, client_ip, resend=False)
         if step == 2:
             return self._handle_step2(request, client_ip)
         if step == 3:
             return self._handle_step3(request, client_ip)
         return redirect('/forgot-password/')
 
-    def _handle_step1(self, request, client_ip):
+    def _handle_step1(self, request, client_ip, resend=False):
         """Validate identifier → send OTP → advance to step 2."""
         identifier = (request.POST.get('identifier') or '').strip()
         if not identifier:
@@ -2347,16 +2427,16 @@ class ForgotPasswordView(View):
             })
 
         rate_key = f'{self._RATE_KEY}{client_ip}'
-        if cache.get(rate_key, 0) >= self._MAX_ATTEMPTS:
-            return render(request, self.template_name, {
-                'step': 1, 'error': 'Too many attempts. Please try again in 15 minutes.', 'identifier': identifier,
-            })
-        cache.set(rate_key, cache.get(rate_key, 0) + 1, timeout=900)
+        if not resend:
+            if cache.get(rate_key, 0) >= self._MAX_ATTEMPTS:
+                return render(request, self.template_name, {
+                    'step': 1, 'error': 'Too many attempts. Please try again in 15 minutes.', 'identifier': identifier,
+                })
+            cache.set(rate_key, cache.get(rate_key, 0) + 1, timeout=900)
 
         user = None
         masked = identifier
         try:
-            import re
             is_phone = bool(re.match(r'^[+0-9]{10,15}$', identifier.replace(' ', '')))
             if is_phone:
                 from portal.utils.phone_utils import phone_lookup_candidates
@@ -2376,17 +2456,24 @@ class ForgotPasswordView(View):
 
         if user and user.is_active:
             otp_service = OTPService()
-            otp_code = otp_service.generate_otp()
-            cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
-            cache.set(cache_key, otp_code, timeout=self._OTP_TTL)
-
             try:
                 from portal.utils.phone_utils import normalize_phone_number
-                is_phone_id = bool(__import__('re').match(r'^[+0-9]{10,15}$', identifier.replace(' ', '')))
+                is_phone_id = bool(re.match(r'^[+0-9]{10,15}$', identifier.replace(' ', '')))
                 if is_phone_id:
+                    # send_otp() generates OTP and stores it under otp:{normalized_phone} — must not
+                    # pre-cache a different OTP under pwd_reset_otp: (SMS would not match).
                     normalized = normalize_phone_number(identifier)
-                    otp_service.send_otp(normalized, user_id=user.id, async_send=True)
+                    ok_send, _otp_or_err = otp_service.send_otp(normalized, user_id=user.id, async_send=True)
+                    if not ok_send:
+                        logger.error(
+                            'pwd_reset sms send failed',
+                            user=None,
+                            extra_data={'user_id': user.pk},
+                        )
                 else:
+                    otp_code = otp_service.generate_otp()
+                    cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
+                    cache.set(cache_key, otp_code, timeout=self._OTP_TTL)
                     from portal.services.notification_service_v2 import NotificationServiceV2
                     NotificationServiceV2().send_email(
                         to_email=identifier,
@@ -2420,23 +2507,53 @@ class ForgotPasswordView(View):
                 'error': 'Please enter the OTP.',
             })
 
-        cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
-        stored_otp = cache.get(cache_key)
+        from portal.utils.phone_utils import normalize_phone_number
 
-        if not stored_otp:
-            return render(request, self.template_name, {
-                'step': 2, 'identifier': identifier, 'masked': masked,
-                'error': 'OTP has expired. Please request a new one.',
-                'show_resend': True,
-            })
+        is_phone_id = bool(re.match(r'^[+0-9]{10,15}$', (identifier or '').replace(' ', '')))
+        otp_ok = False
+        pwd_cache_key = f'{self._CACHE_PREFIX}{identifier.lower()}'
 
-        if stored_otp != otp_entered:
+        if is_phone_id:
+            try:
+                normalized = normalize_phone_number(identifier)
+            except ValueError:
+                return render(request, self.template_name, {
+                    'step': 2, 'identifier': identifier, 'masked': masked,
+                    'error': 'Invalid session. Please start again.',
+                })
+            otp_ok = verify_otp_from_cache(normalized, otp_entered)
+            if otp_ok:
+                cache.delete(pwd_cache_key)
+        else:
+            stored_otp = cache.get(pwd_cache_key)
+            if not stored_otp:
+                return render(request, self.template_name, {
+                    'step': 2, 'identifier': identifier, 'masked': masked,
+                    'error': 'OTP has expired. Please request a new one.',
+                    'show_resend': True,
+                })
+            if stored_otp == otp_entered:
+                otp_ok = True
+                cache.delete(pwd_cache_key)
+
+        if not otp_ok:
+            if is_phone_id:
+                sms_still = False
+                try:
+                    sms_still = bool(cache.get(f'otp:{normalize_phone_number(identifier)}'))
+                except ValueError:
+                    pass
+                if not sms_still:
+                    return render(request, self.template_name, {
+                        'step': 2, 'identifier': identifier, 'masked': masked,
+                        'error': 'OTP has expired. Please request a new one.',
+                        'show_resend': True,
+                    })
             return render(request, self.template_name, {
                 'step': 2, 'identifier': identifier, 'masked': masked,
                 'error': 'Incorrect OTP. Please check and try again.',
             })
 
-        cache.delete(cache_key)
         request.session['pwd_reset_verified'] = True
         request.session['pwd_reset_step'] = 3
         return render(request, self.template_name, {'step': 3})
@@ -2489,7 +2606,18 @@ class ForgotPasswordView(View):
             severity='medium',
             extra_data={'identifier': (identifier[:4] + '****') if identifier else ''},
         )
-        messages.success(request, 'Password reset successful! Please sign in with your new password.')
+        # User-facing login uses Profile email or auto-generated User.username (not name/phone).
+        hint = user.username
+        try:
+            if hasattr(user, 'profile') and user.profile and user.profile.email:
+                hint = f"{user.profile.email} or {user.username}"
+        except Exception:
+            pass
+        messages.success(
+            request,
+            f'Password reset successful! Sign in with your new password using your registered email '
+            f'or your Payswap ID: {hint}.',
+        )
         return redirect('/signin/')
 
 

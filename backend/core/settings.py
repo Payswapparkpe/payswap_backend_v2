@@ -529,8 +529,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Allauth Account Settings
-# Login only accepts username or email - mobile numbers are NOT accepted for login
-ACCOUNT_LOGIN_METHODS = {'username', 'email'}  # Allow both username and email, NOT mobile number
+# Allauth social/local methods (hub template sign-in also allows registered mobile via Profile).
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*']  # Required fields for signup
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle email verification ourselves
 ACCOUNT_UNIQUE_EMAIL = True

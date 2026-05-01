@@ -129,16 +129,16 @@ class SignUpForm(forms.Form):
 
 
 class SignInForm(forms.Form):
-    """Sign in form - accepts username or email only, NOT mobile number"""
+    """Sign in form — email, Payswap username (auto-generated ID), or registered Indian mobile."""
     
     username = forms.CharField(
-        label='Username or Email',
+        label='Email, Payswap ID, or mobile',
         error_messages={
-            'required': 'Please enter your username or email address.'
+            'required': 'Please enter your email, Payswap ID, or mobile number.'
         },
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-[#0066CC] focus:ring-2 focus:ring-[#0066CC] focus:ring-opacity-20',
-            'placeholder': 'Enter your username or email',
+            'placeholder': 'Email, Payswap ID, or mobile',
             'autofocus': True
         })
     )
@@ -154,40 +154,28 @@ class SignInForm(forms.Form):
     remember = forms.BooleanField(required=False)
     
     def clean_username(self):
-        """Validate that username is not a phone number"""
+        """Allow email, Payswap ID, or Indian mobile (mobile resolved in SignInView)."""
         username = self.cleaned_data.get('username', '').strip()
         
         if not username:
             return username
         
-        # Check if input looks like a phone number (Indian format)
         import re
-        # Remove common phone number formatting characters
         cleaned = username.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
-        # Check for Indian phone number patterns: +91XXXXXXXXXX, 91XXXXXXXXXX, 0XXXXXXXXXX, or 10 digits starting with 6-9
-        phone_patterns = [
-            r'^(\+91|91|0)?[6-9]\d{9}$',  # Indian mobile number pattern
-            r'^\d{10}$',  # 10 digits (could be phone)
-        ]
+        looks_like_indian_mobile = bool(
+            re.match(r'^(\+91|91|0)?[6-9]\d{9}$', cleaned)
+            or (re.match(r'^\d{10}$', cleaned) and cleaned[0] in '6789')
+        )
         
-        for pattern in phone_patterns:
-            if re.match(pattern, cleaned):
-                raise forms.ValidationError(
-                    'Mobile number is not accepted for login. Please use your username or email address.'
-                )
-        
-        # Check if it's a valid email or username format
-        # Username should be alphanumeric with possible underscores/hyphens
-        # Email should contain @
         if '@' in username:
-            # Looks like email - validate basic email format
             if not re.match(r'^[^@]+@[^@]+\.[^@]+$', username):
                 raise forms.ValidationError('Please enter a valid email address.')
+        elif looks_like_indian_mobile:
+            pass  # SignInView resolves profile by phone
         else:
-            # Should be username - validate it's not just digits (which could be phone)
             if cleaned.isdigit() and len(cleaned) >= 10:
                 raise forms.ValidationError(
-                    'Mobile number is not accepted for login. Please use your username or email address.'
+                    'Use a valid email, your Payswap ID, or a 10-digit Indian mobile starting with 6–9.'
                 )
         
         return username
