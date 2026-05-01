@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Deactivate {{ entity_label }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto mt-8">
+  <div class="card-enterprise border border-red-200 rounded-xl p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+        <i class="ti ti-alert-triangle text-lg text-red-600"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-gray-900">Deactivate {{ entity_label }}</h2>
+        <p class="text-xs text-gray-500">This action will mark the record as inactive. It can be re-activated by editing.</p>
+      </div>
+    </div>
+
+    <div class="bg-gray-50 rounded-lg p-3 mb-5 text-sm text-gray-700">
+      <strong>{{ entity_label }}:</strong>
+      {% if object.name %}<span class="font-mono">{{ object.name }}</span>{% endif %}
+      {% if object.code %}<span class="text-gray-400 ml-1">({{ object.code }})</span>{% endif %}
+      {% if object.user %}<span class="font-mono">{{ object.user }}</span>{% endif %}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 text-xs text-amber-700">
+      <i class="ti ti-info-circle mr-1"></i>
+      Deactivating a <strong>{{ entity_label }}</strong> will prevent it from being used in new assignments or permission checks.
+      Existing active Sub Admins may lose access if their roles/departments/projects are deactivated.
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="entity_type" value="{{ entity_type }}">
+      <input type="hidden" name="confirm" value="1">
+      <div class="flex gap-3 justify-end">
+        <a href="javascript:history.back()" class="btn-enterprise-secondary">Cancel</a>
+        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+          Confirm Deactivate
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

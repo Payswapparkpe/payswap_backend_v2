@@ -140,8 +140,8 @@ export class LoginComponent {
   }
 
   /**
-   * After login: deep-link if auth guard stored returnUrl, else customer dashboard
-   * (or fleet control center for fleet accounts — see AuthService.getPostLoginRoute).
+   * After **consumer** login (`/auth/login`): returnUrl, else fleet home, else **customer** `/dashboard`.
+   * Never use parking hub here — operator shell is only for `/auth/parking` + `parkingLogin()`.
    */
   private navigateAfterLogin(): void {
     const raw = this.route.snapshot.queryParamMap.get('returnUrl')?.trim() ?? '';
@@ -154,7 +154,11 @@ export class LoginComponent {
       void this.router.navigateByUrl(raw);
       return;
     }
-    void this.router.navigateByUrl(this.authService.getPostLoginRoute());
+    if (this.authService.isFleetUser()) {
+      void this.router.navigateByUrl('/fleet/control-center');
+      return;
+    }
+    void this.router.navigateByUrl('/dashboard');
   }
 
   /** Back from OTP step to change mobile number */

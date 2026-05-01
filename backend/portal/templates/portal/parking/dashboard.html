@@ -1,0 +1,148 @@
+{% extends "portal/parking/base_parking.html" %}
+{% block title %}Parking Dashboard — Parkpe Hub{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Page Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
+    <div>
+      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Parking Dashboard</h1>
+      <p class="text-sm text-slate-500 mt-1">{{ today|date:"l, d F Y" }} · Real-time overview of your locations</p>
+    </div>
+    {% if location_data %}
+    <a href="{% url 'parking_verify_entry' location_data.0.location.pk %}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Entry / Exit Gate
+    </a>
+    {% endif %}
+  </div>
+
+  {% if not location_data %}
+  <!-- Empty State -->
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center max-w-md mx-auto mt-12">
+    <div class="text-4xl mb-3">🏢</div>
+    <h3 class="text-base font-bold text-amber-900 mb-1">No Locations Assigned</h3>
+    <p class="text-sm text-amber-700">Ask your Hub administrator to assign you as a parking operator for a location.</p>
+  </div>
+  {% endif %}
+
+  <!-- Location Cards -->
+  {% for item in location_data %}
+  <div class="bg-white rounded-2xl border border-slate-200 mb-6 overflow-hidden shadow-sm hover:shadow-md transition">
+
+    <!-- Card Header -->
+    <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-start justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-lg flex-shrink-0">🏢</div>
+        <div>
+          <h2 class="text-base font-bold text-slate-900">{{ item.location.name }}</h2>
+          <p class="text-xs text-slate-500 mt-0.5">{{ item.location.address }}, {{ item.location.city }}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+          {% if item.role == 'owner' %}bg-purple-100 text-purple-800 border border-purple-200
+          {% elif item.role == 'manager' %}bg-blue-100 text-blue-800 border border-blue-200
+          {% else %}bg-emerald-100 text-emerald-800 border border-emerald-200{% endif %}">
+          {{ item.role|title }}
+        </span>
+        <a href="{% url 'parking_location_detail' item.location.pk %}"
+           class="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+          Live Map
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats + Occupancy -->
+    <div class="px-6 py-5 flex flex-wrap gap-4 items-center">
+
+      <!-- Occupancy Ring -->
+      <div class="relative w-20 h-20 flex-shrink-0">
+        <svg viewBox="0 0 80 80" class="w-20 h-20 -rotate-90">
+          <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+          <circle cx="40" cy="40" r="32" fill="none"
+            stroke="{% if item.occupancy_pct > 80 %}#ef4444{% elif item.occupancy_pct > 50 %}#f97316{% else %}#22c55e{% endif %}"
+            stroke-width="8" stroke-linecap="round"
+            stroke-dasharray="201"
+            stroke-dashoffset="{{ 201|add:0|floatformat:0 }}"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span class="text-lg font-extrabold text-slate-900 leading-none">{{ item.occupancy_pct }}%</span>
+          <span class="text-[10px] text-slate-400">full</span>
+        </div>
+      </div>
+
+      <!-- Stat Pills Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1">
+
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+          <div class="text-2xl font-extrabold text-emerald-700">{{ item.available_slots }}</div>
+          <div class="text-xs text-emerald-600 mt-0.5 font-medium">Available</div>
+          <div class="text-[10px] text-emerald-400 mt-0.5">of {{ item.total_slots }} total</div>
+        </div>
+
+        <div class="bg-red-50 border border-red-100 rounded-xl p-3">
+          <div class="text-2xl font-extrabold text-red-600">{{ item.occupied_slots }}</div>
+          <div class="text-xs text-red-500 mt-0.5 font-medium">Occupied</div>
+          <div class="text-[10px] text-red-300 mt-0.5">{{ item.occupancy_pct }}% full</div>
+        </div>
+
+        <div class="bg-orange-50 border border-orange-100 rounded-xl p-3">
+          <div class="text-2xl font-extrabold text-orange-600">{{ item.active_sessions }}</div>
+          <div class="text-xs text-orange-500 mt-0.5 font-medium">Live Sessions</div>
+          <div class="text-[10px] text-orange-300 mt-0.5">inside now</div>
+        </div>
+
+        <div class="bg-violet-50 border border-violet-100 rounded-xl p-3">
+          <div class="text-xl font-extrabold text-violet-700">₹{{ item.today_revenue|floatformat:0 }}</div>
+          <div class="text-xs text-violet-500 mt-0.5 font-medium">Today Revenue</div>
+          <div class="text-[10px] text-violet-300 mt-0.5">{{ item.today_bookings }} bookings</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Occupancy Bar -->
+    <div class="mx-6 mb-4">
+      <div class="w-full bg-slate-100 rounded-full h-1.5">
+        <div class="h-1.5 rounded-full transition-all
+          {% if item.occupancy_pct > 80 %}bg-red-500{% elif item.occupancy_pct > 50 %}bg-orange-400{% else %}bg-emerald-500{% endif %}"
+          style="width: {{ item.occupancy_pct }}%"></div>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-2">
+      <a href="{% url 'parking_verify_entry' item.location.pk %}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Verify Entry/Exit
+      </a>
+      <a href="{% url 'parking_bookings_list' item.location.pk %}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 transition">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Bookings
+      </a>
+      <a href="{% url 'parking_revenue' item.location.pk %}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 transition">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Revenue
+      </a>
+      <a href="{% url 'parking_location_detail' item.location.pk %}"
+         class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 transition">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Slot Map
+      </a>
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

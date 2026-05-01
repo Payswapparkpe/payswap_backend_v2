@@ -1,0 +1,89 @@
+{
+  "mcpServers": {
+    "payswap-git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ]
+    },
+    "payswap-fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ],
+      "env": {
+        "FETCH_ALLOWED_HOSTS": "${env:MCP_FETCH_ALLOWED_HOSTS}"
+      }
+    },
+    "payswap-filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}",
+        "${workspaceFolder}/docs"
+      ]
+    },
+    "payswap-postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "<REPLACE_WITH_POSTGRES_MCP_PACKAGE>",
+        "${env:MCP_POSTGRES_URL}"
+      ]
+    },
+    "payswap-redis": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "<REPLACE_WITH_REDIS_MCP_PACKAGE>",
+        "${env:MCP_REDIS_URL}"
+      ]
+    },
+    "payswap-sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "<REPLACE_WITH_SENTRY_MCP_PACKAGE>"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "${env:MCP_SENTRY_TOKEN}",
+        "SENTRY_ORG": "${env:MCP_SENTRY_ORG}",
+        "SENTRY_PROJECT": "${env:MCP_SENTRY_PROJECT}"
+      }
+    },
+    "payswap-github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "<REPLACE_WITH_GITHUB_MCP_PACKAGE>"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:MCP_GITHUB_TOKEN}"
+      }
+    },
+    "payswap-slack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "<REPLACE_WITH_SLACK_MCP_PACKAGE>"
+      ],
+      "env": {
+        "SLACK_BOT_TOKEN": "${env:MCP_SLACK_BOT_TOKEN}"
+      }
+    },
+    "payswap-time": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-time"
+      ],
+      "env": {
+        "TZ": "${env:MCP_TIME_DEFAULT_TZ}"
+      }
+    }
+  }
+}

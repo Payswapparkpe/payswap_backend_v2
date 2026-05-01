@@ -8,8 +8,9 @@ from rest_framework.parsers import JSONParser
 
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
+from api.v2.idempotency_mixin import IdempotencyMixin
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
 from api.v2.vendor_router import VendorRouter
 from portal.services.notification_service_v2 import NotificationServiceV2
 from portal.services.otp_service import OTPService
@@ -22,7 +23,7 @@ from .serializers import (
 logger = get_logger('api.v2.sms_views')
 
 
-class SMSSendView(StandardResponseMixin, views.APIView):
+class SMSSendView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Send SMS
     POST /api/v2/sms/send/
@@ -32,7 +33,9 @@ class SMSSendView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
+    idempotency_scope_suffix = "v2:sms_send"
+    require_idempotency_key = True
     
     service_name = 'sms'
     required_action = 'send'
@@ -104,7 +107,7 @@ class SMSSendView(StandardResponseMixin, views.APIView):
             )
 
 
-class SMSOTPSendView(StandardResponseMixin, views.APIView):
+class SMSOTPSendView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Send OTP
     POST /api/v2/sms/otp/send/
@@ -114,7 +117,9 @@ class SMSOTPSendView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
+    idempotency_scope_suffix = "v2:sms_otp_send"
+    require_idempotency_key = True
     
     service_name = 'sms'
     required_action = 'otp_send'
@@ -175,7 +180,7 @@ class SMSOTPSendView(StandardResponseMixin, views.APIView):
             )
 
 
-class SMSOTPVerifyView(StandardResponseMixin, views.APIView):
+class SMSOTPVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Verify OTP
     POST /api/v2/sms/otp/verify/
@@ -185,7 +190,9 @@ class SMSOTPVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
+    idempotency_scope_suffix = "v2:sms_otp_verify"
+    require_idempotency_key = True
     
     service_name = 'sms'
     required_action = 'otp_verify'
@@ -247,7 +254,7 @@ class SMSDeliveryStatusView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'sms'
     required_action = 'delivery_status'

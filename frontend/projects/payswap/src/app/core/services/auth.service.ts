@@ -76,6 +76,20 @@ export class AuthService {
     );
   }
 
+  partnerLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    this.logger.info('partner_login_start', { service: 'auth', action: 'partner_login_start' });
+    return this.api.partnerLogin(credentials).pipe(
+      tap((response) => {
+        this.setSession(response);
+        this.logger.info('partner_login_success', { service: 'auth', action: 'partner_login_success', userId: response.user?.id });
+      }),
+      catchError((err) => {
+        this.logger.warn('partner_login_error', { service: 'auth', action: 'partner_login_error', status: err?.status });
+        return throwError(() => err);
+      })
+    );
+  }
+
   requestLoginOtp(phone: string): Observable<{ message: string; expires_in: number }> {
     this.logger.info('login_otp_request', { service: 'auth', action: 'login_otp_request' });
     return this.api.requestLoginOtp(phone).pipe(
@@ -197,6 +211,17 @@ export class AuthService {
 
   isAuthenticated(): boolean {
     return !!this.tokenSubject.value;
+  }
+
+  isPartnerUser(user: User | null | undefined = this.userSubject.value): boolean {
+    const roleCode = String((user as unknown as { roleCode?: string })?.roleCode || '').toLowerCase();
+    const role = String((user as unknown as { role?: string })?.role || '').toLowerCase();
+    return role === 'partner' || ['super_distributor', 'distributor', 'retailer'].includes(roleCode);
+  }
+
+  getPostLoginRoute(user: User | null | undefined = this.userSubject.value): string {
+    if (this.isPartnerUser(user)) return '/dashboard';
+    return '/dashboard';
   }
 
   private setSession(response: LoginResponse): void {

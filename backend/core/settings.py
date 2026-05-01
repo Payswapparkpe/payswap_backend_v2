@@ -37,7 +37,8 @@ AUTH_USER_MODEL = 'portal.User'
 
 SECRET_KEY = payswap_config.get_secret_key()
 DEBUG = payswap_config.DEBUG
-V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', True)
+V2_PLACEHOLDER_MODE = getattr(payswap_config, 'V2_PLACEHOLDER_MODE', False)
+OTP_SEND_RATE_LIMIT = int(getattr(payswap_config, "OTP_SEND_RATE_LIMIT", 3))
 PARKPE_REQUIRE_BILLING_ADDRESS = getattr(payswap_config, "PARKPE_REQUIRE_BILLING_ADDRESS", False)
 NOTIFICATIONS_ENABLED = getattr(payswap_config, "NOTIFICATIONS_ENABLED", True)
 NOTIFICATIONS_PUSH_ENABLED = getattr(payswap_config, "NOTIFICATIONS_PUSH_ENABLED", False)
@@ -94,6 +95,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "core.csrf_middleware.CSRFExemptAPIMiddleware",  # CSRF for portal; exempt /api/ for Angular/API clients
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "portal.middleware.FleetPortalBlockMiddleware",  # Block fleet roles from portal session UI
     "rbac.middleware.HubContextMiddleware",  # X-Project-Code / X-Department-Code for Hub RBAC scoping
     "simple_history.middleware.HistoryRequestMiddleware",  # User attribution for django-simple-history (after auth)
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
@@ -328,7 +330,11 @@ else:
     CORS_ALLOWED_ORIGINS = payswap_config.cors_allowed_origins_list
 CORS_ALLOW_CREDENTIALS = payswap_config.CORS_ALLOW_CREDENTIALS
 # Allow X-App header for Parkpe BBPS (product toggle: parkpe/payswap)
-CORS_ALLOW_HEADERS = list(cors_default_headers) + ["x-app"]
+CORS_ALLOW_HEADERS = list(cors_default_headers) + [
+    "x-app",
+    "x-project-code",
+    "x-department-code",
+]
 
 # Cache configuration (Redis)
 CACHES = payswap_config.get_redis_config()
@@ -363,9 +369,21 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'portal.tasks.reconcile_pending_parkpe_orders',
         'schedule': 600,  # every 10 minutes
     },
+    'scan-saved-vehicles-for-challans': {
+        'task': 'portal.tasks.scan_saved_vehicles_for_challans',
+        'schedule': 1800,  # every 30 minutes
+    },
     'clean-old-logs-daily': {
         'task': 'portal.tasks.clean_old_logs',
         'schedule': crontab(hour=2, minute=0),  # daily at 2am
+    },
+    'expire-hub-assignments-hourly': {
+        'task': 'hub_rbac.expire_hub_assignments',
+        'schedule': crontab(minute=0),  # every hour at :00
+    },
+    'reconcile-pending-parking-transactions': {
+        'task': 'portal.tasks.parking_reconcile.reconcile_pending_parking_transactions',
+        'schedule': 60,
     },
 }
 
@@ -423,7 +441,7 @@ REST_FRAMEWORK = {
 }
 
 # Simple JWT (access + refresh for API consumers)
-# Payload: only user_id (and standard exp, iat, jti, token_type) – no sensitive PII in token
+# Access payload: user_id + role_code (+ parking_location_ids / fleet_role when applicable); refresh unchanged.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_ACCESS_TOKEN_LIFETIME),
     "REFRESH_TOKEN_LIFETIME": timedelta(seconds=payswap_config.JWT_REFRESH_TOKEN_LIFETIME),
@@ -431,6 +449,7 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
+    "TOKEN_REFRESH_SERIALIZER": "api.auth_parkpe.tokens.ParkPeTokenRefreshSerializer",
 }
 
 # Trusted proxy IPs for client IP resolution (VAPT-002/003). When REMOTE_ADDR is in this list,
@@ -510,8 +529,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Allauth Account Settings
-# Login only accepts username or email - mobile numbers are NOT accepted for login
-ACCOUNT_LOGIN_METHODS = {'username', 'email'}  # Allow both username and email, NOT mobile number
+# Allauth social/local methods (hub template sign-in also allows registered mobile via Profile).
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*']  # Required fields for signup
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle email verification ourselves
 ACCOUNT_UNIQUE_EMAIL = True
@@ -614,10 +633,17 @@ if payswap_config.SENTRY_ENABLED and _sentry_ok:
     if sentry_dsn and sentry_dsn.strip():
         import sentry_sdk
         from sentry_sdk.integrations.django import DjangoIntegration
+        integrations = [DjangoIntegration()]
+        try:
+            from sentry_sdk.integrations.celery import CeleryIntegration
+            integrations.append(CeleryIntegration())
+        except Exception:
+            pass
 
         sentry_sdk.init(
             dsn=sentry_dsn.strip(),
-            integrations=[DjangoIntegration()],
+            integrations=integrations,
             environment=payswap_config.SENTRY_ENVIRONMENT,
             traces_sample_rate=0.1,
+            send_default_pii=False,
         )

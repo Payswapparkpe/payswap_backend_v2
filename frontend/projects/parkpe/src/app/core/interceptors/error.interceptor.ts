@@ -16,12 +16,32 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const notification = inject(NotificationService);
   const logger = inject(LoggerService);
 
+  /** Where to send user after session cleared — per portal.
+   *  Checks router URL first (most reliable at call time), then stored portal key as fallback. */
+  const loginRouteAfter401 = (reqUrl: string, routerUrl: string) => {
+    if (
+      routerUrl.startsWith('/hub') ||
+      routerUrl.includes('/auth/parking') ||
+      reqUrl.includes('auth/parking')
+    ) return '/auth/parking';
+    if (
+      routerUrl.startsWith('/fleet') ||
+      reqUrl.includes('/auth/fleet') ||
+      reqUrl.includes('dashboard/fleet')
+    ) return '/fleet/login';
+    // Fallback: use stored portal key (survives clearSession so it's valid even after token removal)
+    const storedPortal = authService.getAuthPortal();
+    if (storedPortal === 'parking') return '/auth/parking';
+    if (storedPortal === 'fleet') return '/fleet/login';
+    return '/auth/login';
+  };
   return next(req).pipe(
     catchError((error) => {
       const isAuthRequest =
         req.url.includes('/auth/login') ||
         req.url.includes('/auth/register') ||
-        req.url.includes('/auth/otp/');
+        req.url.includes('/auth/otp/') ||
+        req.url.includes('/auth/parking/login');
       const isRefreshRequest = req.url.includes('token/refresh');
       const alreadyRetried = req.headers.has('X-ParkPe-Retried');
       const willRetryWithRefresh =
@@ -62,24 +82,31 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
                 return next(cloned);
               }
               authService.clearSession();
-              router.navigate(['/auth/login']);
+              router.navigate([loginRouteAfter401(req.url, router.url)]);
               notification.showError('Session expired. Please login again.');
               return throwError(() => error);
             }),
             catchError(() => {
               authService.clearSession();
-              router.navigate(['/auth/login']);
+              router.navigate([loginRouteAfter401(req.url, router.url)]);
               notification.showError('Session expired. Please login again.');
               return throwError(() => error);
             })
           );
         } else {
           authService.clearSession();
-          router.navigate(['/auth/login']);
+          router.navigate([loginRouteAfter401(req.url, router.url)]);
           errorMessage = 'Session expired. Please login again.';
         }
-      } else if (error.status === 403) {
-        errorMessage = 'Access denied. You do not have permission.';
+      } else if (
+        error.status === 403 &&
+        typeof req.url === 'string' &&
+        (req.url.includes('/api/') || req.url.startsWith('api/'))
+      ) {
+        errorMessage = 'Access denied. You do not have permission for this action.';
+        const portal = authService.inferPortalFromUrls(req.url, router.url);
+        authService.clearSessionForPortal(portal);
+        router.navigate([authService.getLoginPathForPortal(portal)]);
       } else if (error.status === 404) {
         errorMessage = 'Resource not found.';
       } else if (error.status >= 500) {
@@ -115,11 +142,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         typeof req.url === 'string' &&
         req.url.includes('/connect/chat/threads/') &&
         req.url.includes('/messages/');
+      const skipToastFor403Redirect = error.status === 403;
       if (
         !isAuthRequest &&
         !skipToastForHandledRcPaywall &&
         !skipToastForConnectChatPollThrottle &&
-        !skipToastForConnectChatMessageSend
+        !skipToastForConnectChatMessageSend &&
+        !skipToastFor403Redirect
       ) {
         notification.showError(errorMessage);
       }

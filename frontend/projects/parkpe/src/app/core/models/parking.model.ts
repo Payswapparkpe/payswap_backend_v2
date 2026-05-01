@@ -17,7 +17,9 @@ export interface ParkingLocation {
   openingHours?: {
     open: string;
     close: string;
+    '247'?: boolean;
   };
+  distanceKm?: number;
   description?: string;
   images?: string[];
 }
@@ -35,7 +37,9 @@ export interface ParkingSlot {
   id: string;
   locationId: string;
   code: string; // e.g., "A-101"
+  slot_code?: string;
   available: boolean;
+  status?: 'available' | 'occupied' | 'reserved' | 'blocked' | 'maintenance';
   vehicleType?: 'two_wheeler' | 'four_wheeler' | 'heavy_vehicle';
   rate: number;
   currency: string;
@@ -69,19 +73,71 @@ export interface Booking {
   duration: number; // in minutes
   amount: number;
   currency: string;
-  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled' | 'expired';
   customer: {
     name: string;
     phone: string;
     email: string;
   };
   qrCode?: string;
+  qrImageUrl?: string;
+  ticketNumber?: string;
+  actualEntryTime?: Date | string;
+  actualExitTime?: Date | string;
+  finalAmount?: number;
+  estimatedAmount?: number;
+  ticketPdfUrl?: string;
   bookingReference: string;
   createdAt: Date | string;
   paymentId?: string;
 }
 
 // Parking State (for NgRx)
+/** GET /api/parking/bookings/:ref/exit-preview/ */
+export interface ParkingExitPreview {
+  bookingReference: string;
+  durationMinutes: number;
+  finalAmount: number;
+  alreadyPaid: number;
+  due: number;
+  overstayAmount: number;
+  voucherBalance: number;
+  voucherSufficient: boolean;
+  hasParkingTxPin: boolean;
+  paymentOptions: { method: string; label: string; primary?: boolean }[];
+  currency: string;
+}
+
+export interface ParkingExitUpiOrder {
+  success: boolean;
+  exit_payment_id: number;
+  cf_order_id?: string;
+  amount: number;
+  upi_link?: string;
+  upi_qr_data?: string;
+  expires_at?: string;
+  currency?: string;
+}
+
+export interface ParkingExitPaymentStatus {
+  status: string;
+  paid: boolean;
+  amount: number;
+  booking_reference: string;
+}
+
+export interface VehicleFastagMapping {
+  id: string;
+  vehicleNumber: string;
+  fastagId: string;
+  issuer: string;
+  isVerified: boolean;
+  isActive: boolean;
+  linkedVehicleId: number | null;
+  lastBalanceInr: number;
+  balanceFetchedAt: string | null;
+}
+
 export interface ParkingState {
   locations: ParkingLocation[];
   selectedLocation: ParkingLocation | null;

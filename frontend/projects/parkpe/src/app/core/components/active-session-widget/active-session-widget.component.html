@@ -1,0 +1,26 @@
+@if (actor.isActive() && actor.booking(); as b) {
+  <div
+    class="active-session-strip fixed bottom-0 left-0 right-0 z-[60] border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md"
+    role="status"
+  >
+    <div class="mx-auto flex max-w-lg flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-[13px] font-semibold text-slate-900">{{ b.locationName }}</div>
+        <div class="text-[11px] text-slate-500">{{ b.vehicleNumber }}</div>
+      </div>
+      <div class="font-mono text-lg font-bold tabular-nums text-[#004aad]">
+        {{ formatElapsed(actor.elapsedSeconds()) }}
+      </div>
+      <div class="text-right">
+        <div class="text-[11px] uppercase tracking-wide text-slate-500">Est.</div>
+        <div class="text-base font-bold text-slate-900">₹{{ actor.estCost() | number: '1.2-2' }}</div>
+      </div>
+      <a
+        [routerLink]="['/parking/detail', b.bookingReference]"
+        class="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#004aad] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#003a8c]"
+      >
+        Exit now
+      </a>
+    </div>
+  </div>
+}

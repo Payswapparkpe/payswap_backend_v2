@@ -54,26 +54,33 @@ urlpatterns = [
     path('dashboard/hub/departments/', views.DepartmentListView.as_view(), name='hub_rbac_department_list'),
     path('dashboard/hub/departments/add/', views.DepartmentCreateView.as_view(), name='hub_rbac_department_create'),
     path('dashboard/hub/departments/<int:pk>/edit/', views.DepartmentUpdateView.as_view(), name='hub_rbac_department_edit'),
+    path('dashboard/hub/departments/<int:pk>/deactivate/', views.HubEntityDeactivateView.as_view(), name='hub_rbac_department_deactivate'),
     path('dashboard/hub/projects/', views.ProjectListView.as_view(), name='hub_rbac_project_list'),
     path('dashboard/hub/projects/add/', views.ProjectCreateView.as_view(), name='hub_rbac_project_create'),
     path('dashboard/hub/projects/<int:pk>/edit/', views.ProjectUpdateView.as_view(), name='hub_rbac_project_edit'),
+    path('dashboard/hub/projects/<int:pk>/deactivate/', views.HubEntityDeactivateView.as_view(), name='hub_rbac_project_deactivate'),
     path('dashboard/hub/roles/', views.HubRoleListView.as_view(), name='hub_rbac_hubrole_list'),
     path('dashboard/hub/roles/add/', views.HubRoleCreateView.as_view(), name='hub_rbac_hubrole_create'),
     path('dashboard/hub/roles/<int:pk>/edit/', views.HubRoleUpdateView.as_view(), name='hub_rbac_hubrole_edit'),
+    path('dashboard/hub/roles/<int:pk>/deactivate/', views.HubEntityDeactivateView.as_view(), name='hub_rbac_hubrole_deactivate'),
     path('dashboard/hub/assignments/', views.UserHubAssignmentListView.as_view(), name='hub_rbac_assignment_list'),
     path('dashboard/hub/assignments/add/', views.UserHubAssignmentCreateView.as_view(), name='hub_rbac_assignment_create'),
     path('dashboard/hub/assignments/<int:pk>/edit/', views.UserHubAssignmentUpdateView.as_view(), name='hub_rbac_assignment_edit'),
+    path('dashboard/hub/assignments/<int:pk>/deactivate/', views.HubEntityDeactivateView.as_view(), name='hub_rbac_assignment_deactivate'),
     path('dashboard/hub/roles/options/', views.HubRoleOptionsView.as_view(), name='hub_rbac_role_options'),
+    path('dashboard/hub/audit/', views.HubRbacAuditLogView.as_view(), name='hub_rbac_audit_log'),
+    path('dashboard/hub/my-access/', views.HubSubAdminDashboardView.as_view(), name='hub_my_access'),
     # Project Management (Admin / Super Admin) – Parkpe & Payswap
     path('dashboard/projects/', views.ProjectManagementView.as_view(), name='project_management'),
     path('dashboard/projects/create-api-key/', views.CreateProjectAPIKeyView.as_view(), name='project_management_create_api_key'),
     # Profile
     path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('profile/save/', views.ProfileSaveView.as_view(), name='profile_save'),
     path('profile/create/', views.ProfileCreateView.as_view(), name='profile_create'),
-    path('profile/update/', views.ProfileUpdateView.as_view(), name='profile_update'),
+    path('profile/update/', RedirectView.as_view(url='/profile/?tab=personal', permanent=False), name='profile_update'),
     
     # Settings
-    path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('settings/', RedirectView.as_view(url='/profile/?tab=security', permanent=False), name='settings'),
     
     # Users
     path('users/', views.UserListView.as_view(), name='user_list'),
@@ -84,7 +91,8 @@ urlpatterns = [
     
     # KYC
     path('kyc/', views.KYCListView.as_view(), name='kyc_list'),
-    path('kyc/submit/', views.KYCSubmitView.as_view(), name='kyc_submit'),
+    path('kyc/submit/', RedirectView.as_view(url='/profile/?tab=kyc', permanent=False), name='kyc_submit'),
+    path('kyc/<int:kyc_id>/documents/<int:file_index>/', views.KYCDocumentAccessView.as_view(), name='kyc_document_access'),
     
     # Wallet
     path('wallet/', views.WalletView.as_view(), name='wallet'),
@@ -252,4 +260,7 @@ urlpatterns = [
     path('super-admin/', RedirectView.as_view(url='/dashboard/', permanent=False)),
     path('super-admin/<path:subpath>', RedirectView.as_view(url='/dashboard/', permanent=False)),
     path('analytics/', RedirectView.as_view(url='/dashboard/', permanent=False), name='analytics_dashboard'),
+
+    # Parking Owner Hub Portal
+    path('parking/', include('portal.urls_parking')),
 ]

@@ -11,8 +11,9 @@ from io import BytesIO
 
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
+from api.v2.idempotency_mixin import IdempotencyMixin
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
 from api.v2.vendor_router import VendorRouter
 from portal.services.verification_api import VerificationAPIService
 from portal.utils.logging_helper import get_logger
@@ -27,7 +28,7 @@ from .serializers import (
 logger = get_logger('api.v2.kyc_views')
 
 
-class PANVerifyView(StandardResponseMixin, views.APIView):
+class PANVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     PAN verification
     POST /api/v2/kyc/pan/verify/
@@ -37,10 +38,12 @@ class PANVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'pan'
+    idempotency_scope_suffix = "v2:kyc_pan_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify PAN"""
@@ -134,7 +137,7 @@ class PANVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class AadhaarVerifyView(StandardResponseMixin, views.APIView):
+class AadhaarVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Aadhaar verification
     POST /api/v2/kyc/aadhaar/verify/
@@ -144,10 +147,12 @@ class AadhaarVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'aadhaar'
+    idempotency_scope_suffix = "v2:kyc_aadhaar_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify Aadhaar"""
@@ -190,7 +195,7 @@ class AadhaarVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class BankVerifyView(StandardResponseMixin, views.APIView):
+class BankVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Bank account verification
     POST /api/v2/kyc/bank/verify/
@@ -200,10 +205,12 @@ class BankVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'bank'
+    idempotency_scope_suffix = "v2:kyc_bank_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify bank account"""
@@ -248,7 +255,7 @@ class BankVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class DrivingLicenseVerifyView(StandardResponseMixin, views.APIView):
+class DrivingLicenseVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Driving license verification
     POST /api/v2/kyc/driving-license/verify/
@@ -258,10 +265,12 @@ class DrivingLicenseVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser, MultiPartParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'driving_license'
+    idempotency_scope_suffix = "v2:kyc_dl_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify driving license"""
@@ -312,7 +321,7 @@ class DrivingLicenseVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class VoterIDVerifyView(StandardResponseMixin, views.APIView):
+class VoterIDVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Voter ID verification
     POST /api/v2/kyc/voter-id/verify/
@@ -322,10 +331,12 @@ class VoterIDVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser, MultiPartParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'voter_id'
+    idempotency_scope_suffix = "v2:kyc_voter_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify voter ID"""
@@ -374,7 +385,7 @@ class VoterIDVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class PassportVerifyView(StandardResponseMixin, views.APIView):
+class PassportVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Passport verification
     POST /api/v2/kyc/passport/verify/
@@ -384,10 +395,12 @@ class PassportVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser, MultiPartParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'passport'
+    idempotency_scope_suffix = "v2:kyc_passport_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify passport"""
@@ -436,7 +449,7 @@ class PassportVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class GSTVerifyView(StandardResponseMixin, views.APIView):
+class GSTVerifyView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     GST verification
     POST /api/v2/kyc/gst/verify/
@@ -446,10 +459,12 @@ class GSTVerifyView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'gst'
+    idempotency_scope_suffix = "v2:kyc_gst_verify"
+    require_idempotency_key = True
     
     def post(self, request):
         """Verify GST"""
@@ -492,7 +507,7 @@ class GSTVerifyView(StandardResponseMixin, views.APIView):
             )
 
 
-class FaceMatchView(StandardResponseMixin, views.APIView):
+class FaceMatchView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Face matching
     POST /api/v2/kyc/face-match/
@@ -502,10 +517,12 @@ class FaceMatchView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser, MultiPartParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'face_match'
+    idempotency_scope_suffix = "v2:kyc_face_match"
+    require_idempotency_key = True
     
     def post(self, request):
         """Match faces"""
@@ -557,7 +574,7 @@ class FaceMatchView(StandardResponseMixin, views.APIView):
             )
 
 
-class FaceLivenessView(StandardResponseMixin, views.APIView):
+class FaceLivenessView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Face liveness check
     POST /api/v2/kyc/face-liveness/
@@ -567,10 +584,12 @@ class FaceLivenessView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser, MultiPartParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     
     service_name = 'kyc'
     required_action = 'face_liveness'
+    idempotency_scope_suffix = "v2:kyc_face_liveness"
+    require_idempotency_key = True
     
     def post(self, request):
         """Check face liveness"""
@@ -627,7 +646,7 @@ class VerificationStatusView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = 'kyc'
 
     def get(self, request, verification_id):

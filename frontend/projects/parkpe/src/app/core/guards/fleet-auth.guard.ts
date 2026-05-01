@@ -5,6 +5,7 @@ import { AuthService } from '../services/auth.service';
 export const fleetAuthGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
+  authService.activatePortal('fleet');
   if (!authService.isAuthenticated()) {
     router.navigate(['/fleet/login']);
     return false;

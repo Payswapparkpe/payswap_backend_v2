@@ -44,7 +44,7 @@ class PayswapConfig(BaseSettings):
     APP_ENV: Literal["development", "staging", "production"] = Field(default="development")
     DEBUG: bool = Field(default=False)
     # When True, v2 payment/SMS status/delivery endpoints return explicit placeholder responses (BUG-005).
-    V2_PLACEHOLDER_MODE: bool = Field(default=True, description="v2 payment/SMS return placeholder data; set False when real integrations are live")
+    V2_PLACEHOLDER_MODE: bool = Field(default=False, description="v2 payment/SMS return placeholder data; set True only for local stubs")
     SECRET_KEY: SecretStr = Field(..., min_length=50)
     ALLOWED_HOSTS: str = Field(default="localhost,127.0.0.1")
     TIMEZONE: str = Field(default="Asia/Kolkata")
@@ -72,6 +72,8 @@ class PayswapConfig(BaseSettings):
     ENCRYPTION_KEY: SecretStr = Field(..., min_length=32)
     SIGNING_SECRET: SecretStr = Field(..., min_length=32)
     JWT_SIGNING_KEY: SecretStr = Field(..., min_length=32)
+    INTERNAL_HEALTH_TOKEN: Optional[SecretStr] = Field(default=None, description="Shared secret for /internal/health token auth")
+    OTP_SEND_RATE_LIMIT: int = Field(default=3, description="Max OTP sends per identifier per 10-minute window")
     JWT_ACCESS_TOKEN_LIFETIME: int = Field(
         default=900,
         description="Access token lifetime in seconds. 900 = 15 min; active users extend via refresh (ParkPe API).",
@@ -445,6 +447,12 @@ class PayswapConfig(BaseSettings):
             self.SENTRY_ENVIRONMENT = self.APP_ENV
         return self
 
+    @model_validator(mode="after")
+    def validate_placeholder_mode(self):
+        if self.APP_ENV == "production" and self.V2_PLACEHOLDER_MODE:
+            raise ValueError("V2_PLACEHOLDER_MODE must be False in production")
+        return self
+
     # ============================================================================
     # PROPERTIES
     # ============================================================================
@@ -544,6 +552,9 @@ class PayswapConfig(BaseSettings):
 
     def get_sentry_dsn(self) -> str:
         return self.SENTRY_DSN.get_secret_value() if self.SENTRY_DSN else ""
+
+    def get_internal_health_token(self) -> str:
+        return self.INTERNAL_HEALTH_TOKEN.get_secret_value() if self.INTERNAL_HEALTH_TOKEN else ""
 
     def get_instantpay_client_id(self) -> str:
         return self.INSTANTPAY_CLIENT_ID.get_secret_value() if self.INSTANTPAY_CLIENT_ID else ""

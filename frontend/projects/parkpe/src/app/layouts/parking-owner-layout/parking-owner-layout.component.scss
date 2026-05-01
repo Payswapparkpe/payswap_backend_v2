@@ -1,0 +1,521 @@
+// ============================================================
+//  parking-owner-layout.component.scss
+//  Hub Operator Portal — global shell (Step 1 revamp)
+//  Pure SCSS, BEM conventions, no Tailwind utilities.
+//  CSS custom-properties are declared on :host so every
+//  child routed component (dashboard, verify, bookings …)
+//  can consume var(--hub-*) without any extra imports.
+// ============================================================
+
+@use '../../features/parking-owner/hub-variables' as hub;
+
+// ── CSS Design Tokens ────────────────────────────────────────
+// Declared on :host → cascade to all descendants
+:host {
+  display: block;
+
+  // Brand
+  --hub-brand:        #{hub.$hub-brand};
+  --hub-brand-dark:   #{hub.$hub-brand-dark};
+  --hub-brand-light:  #{hub.$hub-brand-light};
+  --hub-brand-mid:    #{hub.$hub-brand-mid};
+
+  // Surface & background
+  --hub-bg:           #{hub.$hub-bg};
+  --hub-surface:      #{hub.$hub-surface};
+  --hub-border:       #{hub.$hub-border};
+  --hub-border-faint: #{hub.$hub-border-faint};
+
+  // Text hierarchy
+  --hub-text:         #{hub.$hub-text};
+  --hub-text-2:       #{hub.$hub-text-2};
+  --hub-text-muted:   #{hub.$hub-text-muted};
+  --hub-text-faint:   #{hub.$hub-text-faint};
+
+  // Semantic colours (backgrounds)
+  --hub-green:        #{hub.$hub-green};
+  --hub-green-light:  #{hub.$hub-green-light};
+  --hub-amber:        #{hub.$hub-amber};
+  --hub-amber-light:  #{hub.$hub-amber-light};
+  --hub-red:          #{hub.$hub-red};
+  --hub-red-light:    #{hub.$hub-red-light};
+  --hub-violet:       #{hub.$hub-violet};
+  --hub-violet-light: #{hub.$hub-violet-light};
+  --hub-sky:          #{hub.$hub-sky};
+  --hub-sky-light:    #{hub.$hub-sky-light};
+
+  // Radius
+  --hub-r-xs:         #{hub.$hub-r-xs};
+  --hub-r-sm:         #{hub.$hub-r-sm};
+  --hub-r:            #{hub.$hub-r};
+  --hub-r-lg:         #{hub.$hub-r-lg};
+  --hub-r-xl:         #{hub.$hub-r-xl};
+
+  // Shadows
+  --hub-shadow-xs:    #{hub.$hub-shadow-xs};
+  --hub-shadow-sm:    #{hub.$hub-shadow-sm};
+  --hub-shadow:       #{hub.$hub-shadow};
+  --hub-shadow-lg:    #{hub.$hub-shadow-lg};
+
+  // Layout
+  --sidebar-w:        #{hub.$hub-sidebar-w};
+  --topbar-h:         #{hub.$hub-topbar-h};
+}
+
+// ── Shell grid ───────────────────────────────────────────────
+.hub-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--hub-bg);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════════
+.hub-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--hub-surface);
+  border-right: 1px solid var(--hub-border);
+  // Thin scrollbar
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+
+  &::-webkit-scrollbar       { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
+}
+
+// ── Brand header ──────────────────────────────────────────────
+.hub-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 16px;
+  border-bottom: 1px solid var(--hub-border-faint);
+  flex-shrink: 0;
+}
+
+.hub-sidebar__mark {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hub-brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: var(--hub-r);
+  letter-spacing: -.01em;
+  box-shadow: 0 2px 8px rgba(0, 74, 173, .28);
+}
+
+.hub-sidebar__brand-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hub-sidebar__brand-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hub-text);
+  letter-spacing: -.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-sidebar__brand-sub {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--hub-text-muted);
+  white-space: nowrap;
+}
+
+// ── Role badge ────────────────────────────────────────────────
+.hub-sidebar__role-row {
+  padding: 12px 16px 6px;
+  flex-shrink: 0;
+}
+
+.hub-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  // Default: brand colour
+  background: var(--hub-brand-light);
+  color: var(--hub-brand);
+  border: 1px solid rgba(0, 74, 173, .12);
+
+  &--owner {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: rgba(5, 150, 105, .18);
+  }
+
+  &--manager {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: rgba(3, 105, 161, .18);
+  }
+}
+
+// ── Navigation ───────────────────────────────────────────────
+.hub-sidebar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 8px 12px; // extra left gap for active indicator
+}
+
+.hub-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 0 var(--hub-r) var(--hub-r) 0;
+  border: 1px solid transparent;
+  border-left: 2.5px solid transparent;       // active accent slot
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hub-text-2);
+  text-decoration: none;
+  transition: background hub.$hub-t-fast, color hub.$hub-t-fast,
+              border-color hub.$hub-t-fast;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background: var(--hub-border-faint);
+    color: var(--hub-text);
+    border-color: transparent;
+    border-left-color: var(--hub-border);
+  }
+
+  &--active {
+    background: var(--hub-brand-light);
+    color: var(--hub-brand);
+    border-color: rgba(0, 74, 173, .1);
+    border-left-color: var(--hub-brand);
+
+    &:hover {
+      background: var(--hub-brand-light);
+      border-left-color: var(--hub-brand);
+    }
+  }
+}
+
+.hub-nav-item__icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hub-text-muted);
+  transition: color hub.$hub-t-fast;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .hub-nav-item--active & {
+    color: var(--hub-brand);
+  }
+  .hub-nav-item:hover:not(.hub-nav-item--active) & {
+    color: var(--hub-text);
+  }
+}
+
+.hub-nav-item__label {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── User footer ───────────────────────────────────────────────
+.hub-sidebar__foot {
+  margin-top: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px;
+  border-top: 1px solid var(--hub-border-faint);
+}
+
+.hub-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hub-user__avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--hub-brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -.01em;
+}
+
+.hub-user__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hub-user__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hub-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-user__sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--hub-text-faint);
+}
+
+.hub-sidebar__signout {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--hub-r-sm);
+  border: 1px solid var(--hub-border);
+  background: transparent;
+  color: var(--hub-text-muted);
+  cursor: pointer;
+  transition: background hub.$hub-t-fast, color hub.$hub-t-fast,
+              border-color hub.$hub-t-fast;
+
+  svg { width: 14px; height: 14px; }
+
+  &:hover {
+    background: var(--hub-red-light);
+    color: var(--hub-red);
+    border-color: rgba(220, 38, 38, .2);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN COLUMN
+// ═══════════════════════════════════════════════════════════════
+.hub-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+// ── Top bar ───────────────────────────────────────────────────
+.hub-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--hub-border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, .04);
+}
+
+.hub-topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hub-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hub-live__dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hub.$hub-green;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: hub.$hub-green;
+    opacity: .25;
+    animation: hub-ping 1.6s cubic-bezier(0, 0, .2, 1) infinite;
+  }
+
+  @keyframes hub-ping {
+    75%, 100% { transform: scale(2.2); opacity: 0; }
+  }
+}
+
+.hub-live__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: hub.$hub-green;
+}
+
+.hub-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hub-topbar__user-pill {
+  display: none;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--hub-brand-light);
+  color: var(--hub-brand);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(0, 74, 173, .12);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (min-width: hub.$bp-sm) { display: inline-block; }
+}
+
+.hub-topbar__logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--hub-r);
+  border: 1px solid var(--hub-border);
+  background: var(--hub-surface);
+  color: var(--hub-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--hub-shadow-xs);
+  transition: background hub.$hub-t-fast, transform hub.$hub-t-fast,
+              border-color hub.$hub-t-fast, box-shadow hub.$hub-t-fast;
+
+  svg { width: 13px; height: 13px; }
+
+  &:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+    box-shadow: var(--hub-shadow-sm);
+  }
+  &:active { transform: translateY(0); }
+}
+
+// ── Content area ─────────────────────────────────────────────
+.hub-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--hub-bg);
+  padding: 24px;
+
+  @media (max-width: hub.$bp-md) { padding: 16px; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RESPONSIVE  (mobile: sidebar collapses to top bar)
+// ═══════════════════════════════════════════════════════════════
+@media (max-width: #{hub.$bp-md - 1}) {
+  .hub-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .hub-sidebar {
+    position: relative;
+    height: auto;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--hub-border);
+    overflow: visible;
+
+    &__brand    { border-bottom: none; }
+    &__role-row { display: none; }
+    &__foot     { padding: 10px 12px; }
+  }
+
+  .hub-sidebar__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex: none;
+    width: 100%;
+    padding: 4px 10px 6px;
+    border-top: 1px solid var(--hub-border-faint);
+    gap: 2px;
+  }
+
+  .hub-nav-item {
+    border-radius: var(--hub-r);
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    padding: 7px 10px;
+    font-size: 12px;
+
+    &--active {
+      border-left-color: transparent;
+      border-bottom-color: var(--hub-brand);
+    }
+  }
+}
+
+// ── Reduced motion ───────────────────────────────────────────
+@media (prefers-reduced-motion: reduce) {
+  .hub-live__dot::before { animation: none; }
+  .hub-nav-item,
+  .hub-topbar__logout,
+  .hub-sidebar__signout { transition: none; }
+}

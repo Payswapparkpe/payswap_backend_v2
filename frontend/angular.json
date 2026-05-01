@@ -34,8 +34,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -84,6 +84,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "projects/parkpe/src/main.ts",
+            "polyfills": ["@angular/localize/init"],
             "tsConfig": "projects/parkpe/tsconfig.app.json",
             "assets": [
               {
@@ -102,6 +103,7 @@
               }
             ],
             "styles": [
+              "node_modules/@progress/kendo-theme-default/dist/all.css",
               "projects/parkpe/src/tailwind.css",
               "projects/parkpe/src/styles.scss"
             ]
@@ -111,8 +113,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",

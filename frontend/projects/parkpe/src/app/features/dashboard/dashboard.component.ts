@@ -153,6 +153,7 @@ export class DashboardComponent implements OnInit {
     { title: 'Pay Bills', description: 'Electricity, water & more.', icon: 'receipt_long', route: '/bbps' },
     { title: 'FASTag', description: 'Recharge your FASTag.', icon: 'toll', route: '/fastag', comingSoon: true },
     { title: 'Challans', description: 'Lookup traffic challans.', icon: 'gavel', route: '/challan' },
+    { title: 'My Vehicles', description: 'Saved vehicles and pending challans.', icon: 'directions_car', route: '/challan/vehicles' },
     { title: 'Book Parking', description: 'Find and reserve parking.', icon: 'local_parking', route: '/parking', comingSoon: true },
     { title: 'Connect', description: 'Manage vehicles & QR.', icon: 'qr_code_2', route: '/connect' },
     { title: 'Transaction History', description: 'View payments & receipts.', icon: 'history', route: '/payment/history' },

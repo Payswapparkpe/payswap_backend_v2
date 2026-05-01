@@ -54,13 +54,6 @@
         </a>
     </li>
 
-    <li class="nav-item">
-        <a href="{% url 'settings' %}" class="nav-link {% if '/settings/' in request.path %}active{% endif %}">
-            <i class="ti ti-settings"></i>
-            <span>Settings</span>
-        </a>
-    </li>
-
     {% if user|has_permission:'portal.view_kyc' %}
     <li class="nav-item">
         <a href="{% url 'kyc_list' %}" class="nav-link {% if '/kyc/' in request.path %}active{% endif %}">

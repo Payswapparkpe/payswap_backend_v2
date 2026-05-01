@@ -1,0 +1,61 @@
+<form method="post" action="{% url 'profile_save' %}" class="space-y-6">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="security">
+    <div class="card-enterprise">
+        <h3 class="card-enterprise-title mb-4">Account Security</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="{% url 'password_change' %}" class="btn-enterprise-secondary">Change Password</a>
+            <a href="{% url 'mfa_setup' %}" class="btn-enterprise-secondary">{% if user.mfa_configured %}Manage{% else %}Setup{% endif %} MFA</a>
+            <a href="{% url 'set_pin' %}" class="btn-enterprise-secondary">{% if user.pin_hash %}Change{% else %}Set{% endif %} Unlock PIN</a>
+        </div>
+    </div>
+
+    <div class="card-enterprise">
+        <h3 class="card-enterprise-title mb-4">Preferences</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+                <label class="form-label">Language</label>
+                {{ security_form.language_preference }}
+            </div>
+            <div>
+                <label class="form-label">Timezone</label>
+                {{ security_form.timezone }}
+            </div>
+            <div>
+                <label class="form-label">Currency</label>
+                {{ security_form.currency_preference }}
+            </div>
+            <div class="md:col-span-3">
+                <label class="form-label">Recovery Email</label>
+                {{ security_form.recovery_email }}
+            </div>
+        </div>
+        <h4 class="font-semibold text-gray-800 mb-2">Notification Matrix</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="text-sm"><input type="checkbox" name="notif_push" {% if settings_payload.notificationPreferences.push %}checked{% endif %}> Push alerts</label>
+            <label class="text-sm"><input type="checkbox" name="notif_email" {% if settings_payload.notificationPreferences.email %}checked{% endif %}> Email alerts</label>
+            <label class="text-sm"><input type="checkbox" name="notif_sms" {% if settings_payload.notificationPreferences.sms %}checked{% endif %}> SMS alerts</label>
+            <label class="text-sm"><input type="checkbox" name="notif_in_app" {% if settings_payload.notificationPreferences.in_app %}checked{% endif %}> In-app alerts</label>
+            <label class="text-sm"><input type="checkbox" name="quiet_hours_enabled" {% if settings_payload.notificationPreferences.quiet_hours_enabled %}checked{% endif %}> Quiet hours enabled</label>
+            <label class="text-sm"><input type="checkbox" name="critical_alert_override" {% if settings_payload.notificationPreferences.critical_alert_override %}checked{% endif %}> Critical alert override</label>
+            <div>
+                <label class="form-label">Quiet hours start</label>
+                <input type="time" name="quiet_hours_start" class="input-enterprise" value="{{ settings_payload.notificationPreferences.quiet_hours_start|default:'22:00' }}">
+            </div>
+            <div>
+                <label class="form-label">Quiet hours end</label>
+                <input type="time" name="quiet_hours_end" class="input-enterprise" value="{{ settings_payload.notificationPreferences.quiet_hours_end|default:'07:00' }}">
+            </div>
+        </div>
+        <h4 class="font-semibold text-gray-800 mt-4 mb-2">Privacy Preferences</h4>
+        <div class="grid grid-cols-1 gap-2">
+            <label class="text-sm"><input type="checkbox" name="privacy_marketing" {% if settings_payload.privacy.marketingConsent %}checked{% endif %}> Marketing communications</label>
+            <label class="text-sm"><input type="checkbox" name="privacy_product_tips" {% if settings_payload.privacy.productTips %}checked{% endif %}> Product tips and recommendations</label>
+            <label class="text-sm"><input type="checkbox" name="privacy_security_alerts" {% if settings_payload.privacy.securityAlerts %}checked{% endif %}> Security alerts</label>
+        </div>
+        <div class="flex justify-end mt-4">
+            <button type="submit" class="btn-enterprise-primary">Save Security & Settings</button>
+        </div>
+    </div>
+</form>
+

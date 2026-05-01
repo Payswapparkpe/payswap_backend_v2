@@ -29,6 +29,7 @@ from portal.views.dashboard_views import (
 from portal.views.profile_views import (
     ProfileCreateView,
     ProfileView,
+    ProfileSaveView,
     ProfileUpdateView,
     SettingsView,
 )
@@ -39,7 +40,7 @@ from portal.views.user_views import (
     UserDeleteView,
     UserDetailView,
 )
-from portal.views.kyc_views import KYCListView, KYCSubmitView
+from portal.views.kyc_views import KYCListView, KYCSubmitView, KYCDocumentAccessView
 from portal.views.wallet_views import WalletView, WalletTransactionView
 from portal.views.permission_views import (
     PermissionManageView,
@@ -53,6 +54,9 @@ from portal.views.ticket_views import TicketListView, TicketDetailView, TicketCr
 from portal.views.hub_rbac_views import (
     HubRbacDashboardView,
     HubRoleOptionsView,
+    HubEntityDeactivateView,
+    HubRbacAuditLogView,
+    HubSubAdminDashboardView,
     DepartmentListView,
     DepartmentCreateView,
     DepartmentUpdateView,

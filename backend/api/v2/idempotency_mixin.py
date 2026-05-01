@@ -9,6 +9,7 @@ from rest_framework import status as http_status
 from portal.services.idempotency_service import (
     get_idempotency_key,
     build_scope,
+    build_request_fingerprint,
     reserve_idempotency,
     complete_idempotency,
     fail_idempotency,
@@ -23,6 +24,7 @@ class IdempotencyMixin:
     """
 
     idempotency_scope_suffix = ""
+    require_idempotency_key = False
 
     def dispatch(self, request, *args, **kwargs):
         if request.method != "POST":
@@ -33,13 +35,20 @@ class IdempotencyMixin:
             return super().dispatch(request, *args, **kwargs)
 
         key = get_idempotency_key(request)
+        if self.require_idempotency_key and not key:
+            return HttpResponse(
+                '{"detail":"Idempotency key is required for this endpoint."}',
+                status=http_status.HTTP_400_BAD_REQUEST,
+                content_type="application/json",
+            )
         if not key:
             return super().dispatch(request, *args, **kwargs)
 
         scope = build_scope(partner.id, self.idempotency_scope_suffix)
+        request_fingerprint = build_request_fingerprint(request)
 
         # Strong idempotency: reserve at start; only reserved request may execute
-        outcome, cached = reserve_idempotency(scope, key)
+        outcome, cached = reserve_idempotency(scope, key, request_fingerprint=request_fingerprint)
         if outcome == "replay" and cached:
             status_code, body = cached
             return HttpResponse(
@@ -50,6 +59,12 @@ class IdempotencyMixin:
         if outcome == "conflict":
             return HttpResponse(
                 '{"detail":"Idempotency key already in use or previous request failed. Use a new key or retry later."}',
+                status=http_status.HTTP_409_CONFLICT,
+                content_type="application/json",
+            )
+        if outcome == "fingerprint_mismatch":
+            return HttpResponse(
+                '{"detail":"Idempotency key reuse with different request payload is not allowed."}',
                 status=http_status.HTTP_409_CONFLICT,
                 content_type="application/json",
             )

@@ -9,6 +9,11 @@ export const environment = {
   useMockApi: false, // false = real backend at /api (proxy to localhost:8000)
   logLevel: 'debug' as 'debug' | 'info' | 'warn' | 'error',
   sendLogsToBackend: false,
+  sentry: {
+    dsn: '',
+    environment: 'development',
+    tracesSampleRate: 0.1
+  },
 
   paymentGateways: {
     cashfree: {
@@ -64,7 +69,7 @@ export const environment = {
   connectAppUrl: 'https://connect.parkpe.in',
 
   features: {
-    parking: false,
+    parking: true,
     bbps: true,
     fastag: true,
     challan: false,

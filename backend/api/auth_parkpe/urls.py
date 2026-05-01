@@ -2,6 +2,8 @@ from django.urls import path
 from .views import (
     AuthLoginView,
     AuthFleetLoginView,
+    AuthPartnerLoginView,
+    AuthParkingLoginView,
     AuthOTPRequestView,
     AuthOTPVerifyView,
     AuthRegisterView,
@@ -31,6 +33,8 @@ from .views import (
 urlpatterns = [
     path("login", AuthLoginView.as_view(), name="auth-parkpe-login"),
     path("fleet/login", AuthFleetLoginView.as_view(), name="auth-parkpe-fleet-login"),
+    path("partner/login", AuthPartnerLoginView.as_view(), name="auth-parkpe-partner-login"),
+    path("parking/login", AuthParkingLoginView.as_view(), name="auth-parkpe-parking-login"),
     path("otp/request", AuthOTPRequestView.as_view(), name="auth-parkpe-otp-request"),
     path("otp/verify", AuthOTPVerifyView.as_view(), name="auth-parkpe-otp-verify"),
     path("register/send-otp", AuthRegisterSendOTPView.as_view(), name="auth-parkpe-register-send-otp"),

@@ -26,6 +26,10 @@ import {
   ParkingSlot,
   BookingRequest,
   Booking,
+  ParkingExitPreview,
+  ParkingExitUpiOrder,
+  ParkingExitPaymentStatus,
+  VehicleFastagMapping,
 } from '../models/parking.model';
 import {
   BBPSCategory,
@@ -44,6 +48,9 @@ import {
   Challan,
   ChallanPaymentRequest,
   ChallanPaymentResponse,
+  ChallanHistoryItem,
+  ChallanReceipt,
+  SavedVehicle,
 } from '../models/challan.model';
 
 /** BBPS saved bill as returned from API (GET/POST/PATCH) */
@@ -314,6 +321,7 @@ export interface ApiBackend {
   // Auth API
   login(credentials: LoginRequest): Observable<LoginResponse>;
   fleetLogin(credentials: LoginRequest): Observable<LoginResponse>;
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse>;
   requestLoginOtp(phone: string): Observable<OtpRequestResponse>;
   verifyLoginOtp(phone: string, otp: string): Observable<LoginResponse>;
   register(payload: RegisterRequest): Observable<RegisterResponse>;
@@ -383,6 +391,17 @@ export interface ApiBackend {
   getSlots(locationId: string): Observable<ParkingSlot[]>;
   createBooking(payload: BookingRequest): Observable<Booking>;
   getBooking(id: string): Observable<Booking>;
+  getParkingExitPreview(bookingRef: string): Observable<ParkingExitPreview>;
+  payParkingExitVoucher(bookingRef: string, pin: string): Observable<Record<string, unknown>>;
+  payParkingExitUpi(bookingRef: string): Observable<ParkingExitUpiOrder>;
+  getParkingExitPaymentStatus(exitPaymentId: number): Observable<ParkingExitPaymentStatus>;
+  getParkingFastagMappings(): Observable<{ mappings: VehicleFastagMapping[] }>;
+  linkParkingFastag(body: {
+    vehicleNumber: string;
+    fastagId: string;
+    issuer?: string;
+    fastagWalletId?: string;
+  }): Observable<{ success: boolean; mapping: VehicleFastagMapping }>;
 
   // BBPS API
   getCategories(): Observable<string[]>;
@@ -411,6 +430,12 @@ export interface ApiBackend {
     id: string,
     payload: ChallanPaymentRequest
   ): Observable<ChallanPaymentResponse>;
+  getChallanHistory(params?: { limit?: number; status?: string }): Observable<{ items: ChallanHistoryItem[]; total: number }>;
+  getChallanReceipt(id: string): Observable<ChallanReceipt>;
+  downloadChallanReceipt(id: string): Observable<Blob>;
+  getSavedVehicles(): Observable<SavedVehicle[]>;
+  addSavedVehicle(payload: { registrationNumber: string; nickname?: string; isPrimary?: boolean }): Observable<SavedVehicle>;
+  removeSavedVehicle(id: number): Observable<void>;
 
   // Dashboard API (optional)
   getDashboardSummary(): Observable<{

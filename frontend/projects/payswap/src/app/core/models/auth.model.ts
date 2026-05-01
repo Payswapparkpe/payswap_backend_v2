@@ -4,7 +4,8 @@ export interface User {
   name: string;
   email: string;
   phone: string;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'admin' | 'partner' | 'fleet' | 'parking';
+  roleCode?: string;
   avatar?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
@@ -13,6 +14,19 @@ export interface User {
   languagePreference?: string;
   timezone?: string;
   currencyPreference?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  countryOfResidence?: string;
+  profileType?: 'individual' | 'business' | 'corporate';
+  businessName?: string;
+  businessRegistrationNumber?: string;
+  businessType?: string;
+  gstNumber?: string;
+  taxId?: string;
+  billingAddressComplete?: boolean;
   notificationPreferences?: {
     push?: boolean;
     email?: boolean;

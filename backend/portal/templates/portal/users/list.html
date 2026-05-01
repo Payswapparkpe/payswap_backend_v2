@@ -39,6 +39,14 @@
                class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'payswap' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
                 Payswap ({{ tab_counts.payswap }})
             </a>
+            <a href="?tab=fleet&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'fleet' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                Fleet ({{ tab_counts.fleet }})
+            </a>
+            <a href="?tab=parking&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
+               class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'parking' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                Parking ({{ tab_counts.parking }})
+            </a>
             <a href="?tab=parkpe&q={{ search_query|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}"
                class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_tab == 'parkpe' %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
                 ParkPe ({{ tab_counts.parkpe }})
@@ -114,6 +122,10 @@
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">{{ user_item.get_role_code_display }}</span>
                         {% elif role == 'retailer' %}
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'fleet_admin' or role == 'fleet_manager' or role == 'fleet_operator' or role == 'fleet_dispatcher' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-700">{{ user_item.get_role_code_display }}</span>
+                        {% elif role == 'parking_owner' or role == 'parking_manager' or role == 'parking_attendant' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-100 text-teal-700">{{ user_item.get_role_code_display }}</span>
                         {% elif role == 'customer' %}
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">{{ user_item.get_role_code_display }}</span>
                         {% elif role == 'employee' %}

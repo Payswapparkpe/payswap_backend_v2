@@ -14,6 +14,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { SessionLockService } from '../../core/services/session-lock.service';
 import { API_BACKEND_TOKEN } from '../../core/constants';
 import { MobilityStateStore } from '../../core/stores/mobility-state.store';
+import { ActiveSessionWidgetComponent } from '../../core/components/active-session-widget/active-session-widget.component';
 
 type NavItem = {
   label: string;
@@ -26,7 +27,7 @@ type NavItem = {
 @Component({
   selector: 'app-app-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, ActiveSessionWidgetComponent],
   templateUrl: './app-layout.component.html',
   styleUrl: './app-layout.component.scss',
 })

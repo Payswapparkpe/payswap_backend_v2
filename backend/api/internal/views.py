@@ -5,6 +5,7 @@ Restrict by IP or auth in production.
 """
 import json
 import time
+import hmac
 from django.http import JsonResponse
 from django.views import View
 from django.utils.decorators import method_decorator
@@ -51,13 +52,12 @@ def get_health_payload():
 
 def _check_internal_token(request) -> bool:
     """Validate X-Internal-Token header against INTERNAL_HEALTH_TOKEN env var."""
-    from django.conf import settings as django_settings
     from core.config import payswap_config
-    expected = getattr(payswap_config, "INTERNAL_HEALTH_TOKEN", None) or ""
+    expected = payswap_config.get_internal_health_token()
     if not expected:
         return False
     provided = request.headers.get("X-Internal-Token", "").strip()
-    return provided == expected
+    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
 
 
 @method_decorator([require_GET, never_cache], name="dispatch")

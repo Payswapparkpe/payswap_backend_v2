@@ -1,0 +1,97 @@
+// ============================================================
+//  _hub-variables.scss
+//  Single source of truth for the Parkpe Hub (Operator Portal)
+//  design system.  SCSS compile-time variables + mixins only;
+//  CSS custom-properties are declared on :host inside
+//  parking-owner-layout.component.scss so they cascade into
+//  every child component (dashboard, verify, bookings, etc.)
+// ============================================================
+
+// ── Brand ─────────────────────────────────────────────────
+$hub-brand:           #004aad;
+$hub-brand-dark:      #003282;
+$hub-brand-light:     #eef4ff;
+$hub-brand-mid:       #5f95ff;
+
+// ── Neutrals ──────────────────────────────────────────────
+$hub-bg:              #f4f7fb;    // page canvas  – very light blue-grey
+$hub-surface:         #ffffff;    // card surface
+$hub-border:          #e5e7eb;    // 1px card / divider border
+$hub-border-faint:    #f3f4f6;    // inner divider, hover background
+
+// ── Semantic text ─────────────────────────────────────────
+$hub-text:            #111827;    // primary text
+$hub-text-2:          #374151;    // secondary text
+$hub-text-muted:      #6b7280;    // labels, captions
+$hub-text-faint:      #9ca3af;    // placeholders, timestamps
+
+// ── Semantic colours ──────────────────────────────────────
+$hub-green:           #059669;
+$hub-green-light:     #d1fae5;
+$hub-amber:           #d97706;
+$hub-amber-light:     #fef3c7;
+$hub-red:             #dc2626;
+$hub-red-light:       #fee2e2;
+$hub-violet:          #7c3aed;
+$hub-violet-light:    #f5f3ff;
+$hub-sky:             #0ea5e9;
+$hub-sky-light:       #e0f2fe;
+
+// ── Radii ─────────────────────────────────────────────────
+$hub-r-xs:            4px;
+$hub-r-sm:            6px;
+$hub-r:               10px;
+$hub-r-lg:            14px;
+$hub-r-xl:            18px;
+
+// ── Shadows ───────────────────────────────────────────────
+$hub-shadow-xs:       0 1px 2px rgba(15, 23, 42, .04);
+$hub-shadow-sm:       0 1px 3px rgba(15, 23, 42, .06),
+                      0 1px 2px rgba(15, 23, 42, .04);
+$hub-shadow:          0 4px 12px rgba(15, 23, 42, .08);
+$hub-shadow-lg:       0 10px 28px rgba(15, 23, 42, .10);
+
+// ── Layout dims ───────────────────────────────────────────
+$hub-sidebar-w:       220px;
+$hub-topbar-h:        56px;
+
+// ── Responsive breakpoints ────────────────────────────────
+$bp-sm:               576px;
+$bp-md:               768px;
+$bp-lg:               1024px;
+$bp-xl:               1280px;
+
+// ── Transitions ───────────────────────────────────────────
+$hub-t-fast:          .12s ease;
+$hub-t:               .18s ease;
+$hub-t-slow:          .28s ease;
+
+// ── Mixins ────────────────────────────────────────────────
+
+@mixin hub-card {
+  background: $hub-surface;
+  border: 1px solid $hub-border;
+  border-radius: $hub-r-lg;
+  box-shadow: $hub-shadow-sm;
+  transition: box-shadow $hub-t, border-color $hub-t, transform $hub-t;
+}
+
+@mixin hub-card-hover {
+  box-shadow: $hub-shadow;
+  border-color: rgba($hub-brand, .18);
+  transform: translateY(-1px);
+}
+
+@mixin hub-label {
+  font-size: .675rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: $hub-text-muted;
+}
+
+@mixin hub-mono-num {
+  font-family: 'Space Grotesk', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}

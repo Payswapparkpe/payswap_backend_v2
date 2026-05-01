@@ -13,10 +13,12 @@ import secrets
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from rest_framework_simplejwt.tokens import RefreshToken
+from api.auth_parkpe.tokens import ParkPeRefreshToken
 
 from django.core.cache import cache
 
@@ -48,6 +50,16 @@ FLEET_ROLE_CODES = {
     "fleet_manager",
     "fleet_operator",
     "fleet_dispatcher",
+}
+PARTNER_ROLE_CODES = {
+    "super_distributor",
+    "distributor",
+    "retailer",
+}
+PARKING_ROLE_CODES = {
+    "parking_owner",
+    "parking_manager",
+    "parking_attendant",
 }
 
 
@@ -191,15 +203,23 @@ class AuthLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        rc = str(getattr(user, "role_code", "") or "").strip().lower()
+        if rc.startswith("fleet_") or rc.startswith("parking_"):
+            return Response(
+                {
+                    "detail": "This account must sign in through the Fleet or Parking login, not the consumer login.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         user.last_full_auth_at = timezone.now()
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_login success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "Login success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         # SimpleJWT access token default lifetime (e.g. 5 min) in seconds for expiresIn
-        from django.conf import settings
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
         access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
         expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
@@ -276,7 +296,7 @@ class AuthFleetLoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -284,6 +304,169 @@ class AuthFleetLoginView(APIView):
         access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
         expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
         log_parkpe("parkpe_auth", "Fleet login success", True, request, {"user_id": user.pk, "role_code": role_code})
+        return Response({
+            "token": access,
+            "refreshToken": refresh_str,
+            "user": user_to_angular(user),
+            "expiresIn": expires_seconds,
+        })
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AuthPartnerLoginView(APIView):
+    """POST /api/auth/partner/login – partner login by email/phone + password for distributor roles."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+    throttle_classes = [AuthLoginRateThrottle]
+
+    def post(self, request):
+        data = request.data or {}
+        email = (data.get("email") or "").strip()
+        phone_raw = (data.get("phone") or "").strip()
+        password = data.get("password") or ""
+
+        if email and phone_raw:
+            return Response(
+                {"detail": "Provide either email or mobile number, not both."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not email and not phone_raw:
+            return Response(
+                {"detail": "Email or mobile number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not password:
+            return Response(
+                {"detail": "Password is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile = None
+        if email:
+            profile = Profile.objects.filter(email__iexact=email).select_related("user").first()
+        else:
+            profile, err_resp = _resolve_profile_by_phone(phone_raw)
+            if err_resp:
+                return Response({"detail": err_resp["detail"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not profile:
+            return Response(
+                {"detail": "Invalid partner credentials."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user = profile.user
+        if not user.is_active:
+            return Response(
+                {"detail": "Account is disabled."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        role_code = str(getattr(user, "role_code", "") or "").strip().lower()
+        if role_code not in PARTNER_ROLE_CODES:
+            return Response(
+                {"detail": "Partner/distributor access is not enabled for this account."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not authenticate(request, username=user.username, password=password):
+            return Response(
+                {"detail": "Invalid partner credentials."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        refresh = ParkPeRefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+        from rest_framework_simplejwt.settings import api_settings as jwt_settings
+
+        access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
+        expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
+        log_parkpe("parkpe_auth", "Partner login success", True, request, {"user_id": user.pk, "role_code": role_code})
+        return Response({
+            "token": access,
+            "refreshToken": refresh_str,
+            "user": user_to_angular(user),
+            "expiresIn": expires_seconds,
+        })
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AuthParkingLoginView(APIView):
+    """POST /api/auth/parking/login – parking login by email/phone + password for parking roles."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+    throttle_classes = [AuthLoginRateThrottle]
+
+    def post(self, request):
+        data = request.data or {}
+        email = (data.get("email") or "").strip()
+        phone_raw = (data.get("phone") or "").strip()
+        password = data.get("password") or ""
+
+        if email and phone_raw:
+            return Response(
+                {"detail": "Provide either email or mobile number, not both."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not email and not phone_raw:
+            return Response(
+                {"detail": "Email or mobile number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not password:
+            return Response(
+                {"detail": "Password is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile = None
+        if email:
+            profile = Profile.objects.filter(email__iexact=email).select_related("user").first()
+        else:
+            profile, err_resp = _resolve_profile_by_phone(phone_raw)
+            if err_resp:
+                return Response({"detail": err_resp["detail"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not profile:
+            return Response(
+                {"detail": "Invalid parking credentials."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user = profile.user
+        if not user.is_active:
+            return Response(
+                {"detail": "Account is disabled."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        role_code = str(getattr(user, "role_code", "") or "").strip().lower()
+        has_parking_role = role_code in PARKING_ROLE_CODES
+        has_operator_assignment = user.parking_operator_roles.filter(is_active=True).exists()
+        # Allow explicit parking roles OR mapped operator assignments OR staff users.
+        if not (has_parking_role or has_operator_assignment or user.is_staff):
+            return Response(
+                {"detail": "Parking operator access is not enabled for this account."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not authenticate(request, username=user.username, password=password):
+            return Response(
+                {"detail": "Invalid parking credentials."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        refresh = ParkPeRefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+        from rest_framework_simplejwt.settings import api_settings as jwt_settings
+
+        access_lifetime = jwt_settings.ACCESS_TOKEN_LIFETIME
+        expires_seconds = int(access_lifetime.total_seconds()) if hasattr(access_lifetime, "total_seconds") else 300
+        log_parkpe("parkpe_auth", "Parking login success", True, request, {"user_id": user.pk, "role_code": role_code})
         return Response({
             "token": access,
             "refreshToken": refresh_str,
@@ -398,7 +581,7 @@ class AuthOTPVerifyView(APIView):
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_otp_verify success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "OTP verify success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -431,6 +614,11 @@ class AuthProfileView(APIView):
             return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
         data = request.data or {}
         changed = False
+        if "profileType" in data and data["profileType"] is not None:
+            profile_type = str(data["profileType"]).strip().lower()
+            if profile_type in {"individual", "business", "corporate"}:
+                profile.type = profile_type
+                changed = True
         if "name" in data:
             parts = (data.get("name") or "").strip().split(None, 1)
             profile.first_name = parts[0] if parts else profile.first_name
@@ -452,10 +640,28 @@ class AuthProfileView(APIView):
                 val = str(data[json_key]).strip()
                 setattr(profile, model_attr, val or None)
                 changed = True
-        if "gstNumber" in data and data["gstNumber"] is not None:
-            gst = str(data["gstNumber"]).strip().upper()[:15]
-            profile.gst_number = gst or None
-            changed = True
+        is_business_profile = profile.type in {"business", "corporate"}
+        kyb_keys = (
+            ("businessName", "business_name"),
+            ("businessRegistrationNumber", "business_registration_number"),
+            ("businessType", "business_type"),
+            ("taxId", "tax_id"),
+        )
+        if is_business_profile:
+            for json_key, model_attr in kyb_keys:
+                if json_key in data and data[json_key] is not None:
+                    val = str(data[json_key]).strip()
+                    setattr(profile, model_attr, val or None)
+                    changed = True
+            if "gstNumber" in data and data["gstNumber"] is not None:
+                gst = str(data["gstNumber"]).strip().upper()[:15]
+                profile.gst_number = gst or None
+                changed = True
+        else:
+            for model_attr in ("business_name", "business_registration_number", "business_type", "gst_number", "tax_id"):
+                if getattr(profile, model_attr, None):
+                    setattr(profile, model_attr, None)
+                    changed = True
         if changed:
             profile.save()
 
@@ -570,8 +776,10 @@ def _validate_register_payload(data, require_phone=True):
         return None, ({"message": "Mobile number is required.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
     if password != confirm:
         return None, ({"message": "Password and confirm password do not match.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
-    if len(password) < 6:
-        return None, ({"message": "Password must be at least 6 characters.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
+    try:
+        validate_password(password, user=None)
+    except DjangoValidationError as e:
+        return None, ({"message": " ".join(e.messages), "userId": ""}, status.HTTP_400_BAD_REQUEST)
     if not accept_terms:
         return None, ({"message": "You must accept the terms.", "userId": ""}, status.HTTP_400_BAD_REQUEST)
     if Profile.objects.filter(email__iexact=email).exists():
@@ -782,7 +990,7 @@ class AuthRegisterVerifyView(APIView):
         user.save(update_fields=["last_full_auth_at"])
         logger.info("parkpe_auth_register_verify success", extra_data={"user_id": user.pk})
         log_parkpe("parkpe_auth", "Register success", True, request, {"user_id": user.pk})
-        refresh = RefreshToken.for_user(user)
+        refresh = ParkPeRefreshToken.for_user(user)
         access = str(refresh.access_token)
         refresh_str = str(refresh)
         from rest_framework_simplejwt.settings import api_settings as jwt_settings
@@ -806,78 +1014,12 @@ class AuthRegisterView(APIView):
     parser_classes = [JSONParser]
 
     def post(self, request):
-        data = request.data or {}
-        payload, err = _validate_register_payload(data, require_phone=False)
-        if err:
-            body, code = err
-            return Response(body, status=code)
-
-        name = payload["name"]
-        email = payload["email"]
-        phone = payload["phone"]
-        password = payload["password"]
-
-        logger.info("parkpe_auth_register attempt", extra_data={"email_redacted": redact_email(email)})
-
-        from portal.models import Role
-        try:
-            Role.objects.get(code="customer")
-        except Role.DoesNotExist:
-            return Response(
-                {"message": "Registration is not configured. Contact support.", "userId": ""},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        first_name = name.split(None, 1)[0] if name else "User"
-        last_name = name.split(None, 1)[1] if name and len(name.split(None, 1)) > 1 else ""
-
-        user = User.objects.create_user(
-            email=email,
-            password=password,
-            role_code="customer",
-        )
-        user.email = email
-        user.save()
-
-        if not phone:
-            phone = f"91{user.pk:010d}"
-        Profile.objects.create(
-            user=user,
-            first_name=first_name,
-            last_name=last_name or "",
-            email=email,
-            phone=phone,
-            type="individual",
-            email_verified=False,
-            phone_verified=False,
-            pincode=payload.get("pincode"),
-            address_line_1=payload.get("address_line_1"),
-            address_line_2=payload.get("address_line_2"),
-            city=payload.get("city"),
-            state=payload.get("state"),
-        )
-
-        # Send welcome email (async, non-blocking)
-        try:
-            NotificationServiceV2.send_email(
-                to_email=email,
-                subject="Welcome to ParkPe",
-                template_name="portal/emails/parkpe_welcome.html",
-                context={"first_name": first_name, "signin_url": ""},
-                user_id=user.pk,
-                async_send=True,
-                use_parkpe=True,
-            )
-        except Exception as mail_err:
-            logger.warning(
-                "parkpe_auth_register welcome_email_failed",
-                extra_data={"user_id": user.pk, "error": str(mail_err)},
-            )
-
-        logger.info("parkpe_auth_register success", extra_data={"user_id": user.pk})
         return Response(
-            {"message": "Registration successful.", "userId": str(user.pk), "requiresVerification": False},
-            status=status.HTTP_201_CREATED,
+            {
+                "message": "Direct registration is deprecated. Use /api/auth/register/send-otp and /api/auth/register/verify.",
+                "otp_url": "/api/auth/register/send-otp",
+            },
+            status=status.HTTP_410_GONE,
         )
 
 

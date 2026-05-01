@@ -1,0 +1,156 @@
+<div class="park-owner-page mx-auto max-w-xl font-sans">
+
+  <!-- Page Header -->
+  <div class="mb-6">
+    <h1 class="page-title">Verify Gate</h1>
+    <p class="page-subtitle">Scan a QR code or enter the booking reference to record entry or exit.</p>
+  </div>
+
+  <!-- Segmented Entry / Exit Tab -->
+  <div class="park-seg-tabs mb-6">
+    <button
+      type="button"
+      class="park-seg-tab park-seg-tab--entry"
+      [class.park-seg-tab--active]="action() === 'entry'"
+      (click)="setAction('entry')"
+    >
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+        <polyline points="10 17 15 12 10 7" />
+        <line x1="15" y1="12" x2="3" y2="12" />
+      </svg>
+      Entry
+    </button>
+    <button
+      type="button"
+      class="park-seg-tab park-seg-tab--exit"
+      [class.park-seg-tab--active]="action() === 'exit'"
+      (click)="setAction('exit')"
+    >
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
+      </svg>
+      Exit
+    </button>
+  </div>
+
+  <!-- Main scan card -->
+  <div class="park-surface p-6 md:p-8">
+
+    <!-- QR Scan zone -->
+    <div class="mb-6 flex flex-col items-center justify-center rounded-xl border-2 border-dashed bg-slate-50/70 py-10"
+         [class.border-emerald-200]="action() === 'entry'"
+         [class.border-sky-200]="action() === 'exit'">
+      <div class="mb-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+        <svg class="h-11 w-11"
+             [class.text-emerald-500]="action() === 'entry'"
+             [class.text-sky-500]="action() === 'exit'"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2" />
+          <rect x="7" y="7" width="10" height="10" rx="1.5" />
+        </svg>
+      </div>
+      <p class="text-center text-sm font-medium text-slate-500">Connect a handheld scanner or enter the reference below</p>
+    </div>
+
+    <!-- Booking ref input -->
+    <label class="park-label">Booking Reference</label>
+    <input
+      class="park-input mb-4 font-mono text-base tracking-wide"
+      [class.focus-emerald]="action() === 'entry'"
+      [(ngModel)]="bookingRef"
+      placeholder="PKP-XXXXXXXX"
+      autocomplete="off"
+      (keydown.enter)="submit()"
+    />
+
+    <!-- Inline error -->
+    @if (error()) {
+      <div class="park-alert park-alert--error mb-4">
+        <svg class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        {{ error() }}
+      </div>
+    }
+
+    <!-- Submit button -->
+    <button
+      type="button"
+      class="park-btn park-btn-primary w-full py-3 text-sm disabled:opacity-60"
+      [class.park-btn-entry]="action() === 'entry'"
+      [class.park-btn-exit]="action() === 'exit'"
+      [disabled]="loading()"
+      (click)="submit()"
+    >
+      @if (loading()) {
+        <span class="park-spinner-sm"></span>
+      } @else {
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+          @if (action() === 'entry') {
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" />
+          } @else {
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+          }
+        </svg>
+      }
+      {{ action() === 'entry' ? 'Record Entry' : 'Record Exit' }}
+    </button>
+
+    <!-- Success result -->
+    @if (successPayload()) {
+      <div class="park-alert park-alert--success mt-6 flex-col items-start gap-3 rounded-xl p-4">
+        <div class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <div class="text-sm font-bold text-emerald-900">{{ action() === 'entry' ? 'Entry recorded' : 'Exit recorded' }}</div>
+            <p class="mt-0.5 font-mono text-sm font-semibold tracking-wide text-slate-800">{{ lastSuccessRef() }}</p>
+          </div>
+        </div>
+        @if (successSummaryText()) {
+          <p class="text-sm font-medium text-emerald-900/80">{{ successSummaryText() }}</p>
+        }
+        <details class="w-full text-xs text-emerald-900/70">
+          <summary class="cursor-pointer font-semibold">Response details</summary>
+          <pre class="mt-2 max-h-36 overflow-auto whitespace-pre-wrap rounded-lg bg-white/60 p-2">{{ successPayload() | json }}</pre>
+        </details>
+      </div>
+    }
+  </div>
+
+  <!-- Recent verifications -->
+  @if (recent().length) {
+    <div class="mt-8">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Recent verifications</h2>
+      <ul class="flex flex-col gap-2.5">
+        @for (r of recent(); track r.id) {
+          <li [attr.data-recent-id]="r.id" class="park-list-item flex items-center gap-3">
+            <span
+              class="h-2.5 w-2.5 shrink-0 rounded-full"
+              [class.bg-emerald-500]="r.type === 'entry'"
+              [class.bg-sky-500]="r.type === 'exit'"
+            ></span>
+            <div class="min-w-0 flex-1">
+              <div class="font-mono text-sm font-bold text-slate-900">{{ r.bookingRef }}</div>
+              @if (r.summary) {
+                <div class="text-xs font-medium text-slate-500">{{ r.summary }}</div>
+              }
+            </div>
+            <span
+              class="park-chip shrink-0"
+              [class.park-chip--success]="r.type === 'entry'"
+              [class.park-chip--info]="r.type === 'exit'"
+            >{{ r.type }}</span>
+            <span class="shrink-0 text-xs font-medium text-slate-400">{{ r.timeLabel }}</span>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</div>

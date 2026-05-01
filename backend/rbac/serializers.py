@@ -7,6 +7,10 @@ from rest_framework import serializers
 
 from rbac.models import Department, Project, HubRole, UserHubAssignment
 
+# Only these app_labels can be attached to a HubRole via API/Portal.
+# Keeps sensitive Django/admin/auth permissions away from sub-admin role builder.
+HUBROLE_ALLOWED_APP_LABELS = {"portal", "rbac"}
+
 
 def _validate_slug_code(value, field_name="code"):
     """Validate slug-style code: lowercase alphanumeric and underscores."""
@@ -40,11 +44,13 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class HubRoleSerializer(serializers.ModelSerializer):
-    """Permissions as list of permission IDs (Django auth.Permission pk)."""
+    """Permissions as list of permission IDs. Only portal/rbac app permissions are allowed."""
 
     permissions = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=Permission.objects.all(),
+        queryset=Permission.objects.filter(
+            content_type__app_label__in=HUBROLE_ALLOWED_APP_LABELS
+        ).select_related("content_type"),
         required=False,
         allow_empty=True,
     )
@@ -102,6 +108,7 @@ class UserHubAssignmentSerializer(serializers.ModelSerializer):
             "project",
             "designation",
             "is_active",
+            "expires_at",
             "roles",
             "created_by",
             "created_at",
@@ -170,6 +177,7 @@ class UserHubAssignmentListSerializer(serializers.ModelSerializer):
             "project",
             "designation",
             "is_active",
+            "expires_at",
             "roles",
             "created_by",
             "created_at",

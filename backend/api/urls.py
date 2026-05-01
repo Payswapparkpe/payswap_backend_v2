@@ -18,4 +18,5 @@ urlpatterns = [
     path("fastag/", include("api.parkpe_api.fastag_urls")),  # Parkpe FASTag recharge
     path("voucher/", include("api.parkpe_api.voucher_urls")),   # Parkpe voucher balance (no wallet)
     path("challan/", include("api.parkpe_api.challan_urls")),  # Parkpe Challan (Instantpay lookup)
+    path("parking/", include("api.parkpe_api.parking_urls")),  # Parkpe Smart Parking Platform
 ]

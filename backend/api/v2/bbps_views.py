@@ -9,8 +9,9 @@ from rest_framework.parsers import JSONParser
 
 from api.mixins.response_mixin import StandardResponseMixin
 from api.v2.authentication import APIKeyAuthentication
+from api.v2.idempotency_mixin import IdempotencyMixin
 from api.v2.permissions import HasAPIKey, HasServicePermission, HasVendorAccess
-from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle
+from api.v2.throttling import APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle
 from api.v2.vendor_router import VendorRouter
 from portal.models import LogEntry
 from portal.services.bbps_service import BBPSService
@@ -54,7 +55,7 @@ class BBPSOperatorsView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = "bbps"
     required_action = "operators"
 
@@ -85,7 +86,7 @@ class BBPSOperatorsView(StandardResponseMixin, views.APIView):
         )
 
 
-class BBPSFetchBillView(StandardResponseMixin, views.APIView):
+class BBPSFetchBillView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Fetch BBPS bill details.
     Vendor is taken from partner's assigned vendor.
@@ -94,9 +95,11 @@ class BBPSFetchBillView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = "bbps"
     required_action = "fetch_bill"
+    idempotency_scope_suffix = "v2:bbps_fetch_bill"
+    require_idempotency_key = True
 
     def post(self, request):
         serializer = BBPSFetchBillSerializer(data=request.data)
@@ -148,7 +151,7 @@ class BBPSFetchBillView(StandardResponseMixin, views.APIView):
         )
 
 
-class BBPSPayBillView(StandardResponseMixin, views.APIView):
+class BBPSPayBillView(IdempotencyMixin, StandardResponseMixin, views.APIView):
     """
     Pay BBPS bill.
     Vendor is taken from partner's assigned vendor.
@@ -157,9 +160,11 @@ class BBPSPayBillView(StandardResponseMixin, views.APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
     parser_classes = [JSONParser]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = "bbps"
     required_action = "pay_bill"
+    idempotency_scope_suffix = "v2:bbps_pay_bill"
+    require_idempotency_key = True
 
     def post(self, request):
         serializer = BBPSPayBillSerializer(data=request.data)
@@ -233,7 +238,7 @@ class BBPSPaymentStatusView(StandardResponseMixin, views.APIView):
     """
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [HasAPIKey, HasServicePermission, HasVendorAccess]
-    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle]
+    throttle_classes = [APIKeyRateThrottle, ServiceRateThrottle, PartnerRateThrottle]
     service_name = "bbps"
     required_action = "payment_status"
 

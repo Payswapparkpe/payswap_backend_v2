@@ -68,6 +68,10 @@ export class RealApiService implements ApiBackend {
     return this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, credentials);
   }
 
+  partnerLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/auth/partner/login`, credentials);
+  }
+
   requestLoginOtp(phone: string): Observable<OtpRequestResponse> {
     return this.http.post<OtpRequestResponse>(`${this.apiUrl}/auth/otp/request`, { phone });
   }

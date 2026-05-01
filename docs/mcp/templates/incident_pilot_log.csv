@@ -1,0 +1,2 @@
+incident_id,opened_at,resolved_at,incident_type,environment,reference_id,time_to_detect_minutes,time_to_identify_root_cause_minutes,time_to_resolve_minutes,total_mttr_minutes,root_cause_category,mcp_tools_used,resolution_summary
+INC-001,2026-04-29T10:00:00Z,2026-04-29T10:45:00Z,bbps_pay_failure,staging,REF123,5,20,20,45,vendor,"sentry,postgres,fetch","Updated partner payload mapping and retried safely"

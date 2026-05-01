@@ -1,0 +1,50 @@
+<div class="wrap px-4 py-6">
+  <a routerLink="/profile/vehicles" class="mb-4 inline-flex text-sm font-medium text-[#004aad]">← Back</a>
+
+  @if (loading()) {
+    <p class="text-sm text-slate-500">Loading…</p>
+  } @else if (!vehicle()) {
+    <p class="text-sm text-red-600">Vehicle not found.</p>
+  } @else {
+    <h1 class="text-xl font-bold text-slate-900">Link FASTag</h1>
+    <p class="mt-1 text-sm text-slate-500">
+      Vehicle <strong>{{ vehicle()!.registrationNumber }}</strong>
+    </p>
+
+    <form class="mt-6 space-y-4" (ngSubmit)="submit()">
+      <label class="block">
+        <span class="text-xs font-semibold uppercase text-slate-500">FASTag ID</span>
+        <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" [(ngModel)]="fastagId" name="fid" required />
+      </label>
+      <label class="block">
+        <span class="text-xs font-semibold uppercase text-slate-500">Issuer</span>
+        <select class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" [(ngModel)]="issuer" name="issuer">
+          <option value="npci">NPCI</option>
+          <option value="hdfc">HDFC</option>
+          <option value="icici">ICICI</option>
+          <option value="sbi">SBI</option>
+          <option value="paytm">Paytm</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs font-semibold uppercase text-slate-500">Wallet ID (optional)</span>
+        <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" [(ngModel)]="walletId" name="wid" />
+      </label>
+
+      @if (error()) {
+        <p class="text-sm text-red-600">{{ error() }}</p>
+      }
+      @if (message()) {
+        <p class="text-sm text-emerald-700">{{ message() }}</p>
+      }
+
+      <button
+        type="submit"
+        class="w-full rounded-xl bg-[#004aad] py-3 text-sm font-semibold text-white disabled:opacity-50"
+        [disabled]="saving() || !fastagId.trim()"
+      >
+        {{ saving() ? 'Saving…' : 'Verify & link' }}
+      </button>
+    </form>
+  }
+</div>

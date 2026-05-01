@@ -137,7 +137,7 @@ class ParkPeFleetAccessRequestsView(TemplateView):
         if action == "approve":
             code = (obj.assigned_role_code or "fleet_operator").strip()
             try:
-                role_obj = Role.objects.get(code=code)
+                Role.objects.get(code=code)
             except Role.DoesNotExist:
                 messages.error(
                     request,
@@ -147,9 +147,6 @@ class ParkPeFleetAccessRequestsView(TemplateView):
             try:
                 with transaction.atomic():
                     u = User.objects.select_for_update().get(pk=obj.user_id)
-                    u.role_code = role_obj.code
-                    u.role = role_obj
-                    u.save()
                     obj.status = FleetWorkspaceInterest.STATUS_APPROVED
                     obj.reviewed_by = request.user
                     obj.reviewed_at = timezone.now()
@@ -159,7 +156,10 @@ class ParkPeFleetAccessRequestsView(TemplateView):
                 return redirect("parkpe_fleet_access_requests")
             messages.success(
                 request,
-                f"Approved request #{obj.id}. User {u.username} now has role {code}.",
+                (
+                    f"Approved request #{obj.id} for user {u.username}. "
+                    f"Fleet workspace access granted without changing portal role."
+                ),
             )
             return redirect("parkpe_fleet_access_requests")
 

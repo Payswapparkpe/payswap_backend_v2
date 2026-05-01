@@ -28,6 +28,10 @@ class StorageService:
         filename = file.name
         path = f"kyc/{user_id}/{document_type}/{filename}"
         return self.s3_client.upload_file(file, path)
+
+    def build_kyc_document_key(self, user_id: int, document_type: str, filename: str) -> str:
+        """Build canonical private object key for KYC uploads."""
+        return f"kyc/{user_id}/{document_type}/{filename}"
     
     def upload_profile_image(self, profile_id: int, file: UploadedFile) -> str:
         """
@@ -58,10 +62,21 @@ class StorageService:
         # Extract path from URL
         # Format: https://bucket.s3.region.amazonaws.com/path
         try:
-            path = s3_url.split('.amazonaws.com/')[-1]
+            path = self.extract_s3_key(s3_url)
             return self.s3_client.get_signed_url(path, expiry_hours)
         except Exception:
             return None
+
+    def get_signed_url_for_key(self, key: str, expiry_hours: int = 1) -> Optional[str]:
+        """Get signed URL directly from object key."""
+        try:
+            return self.s3_client.get_signed_url(key, expiry_hours)
+        except Exception:
+            return None
+
+    def extract_s3_key(self, s3_url: str) -> str:
+        """Extract object key from a full S3 URL."""
+        return s3_url.split('.amazonaws.com/')[-1]
     
     def delete_file(self, s3_url: str) -> bool:
         """

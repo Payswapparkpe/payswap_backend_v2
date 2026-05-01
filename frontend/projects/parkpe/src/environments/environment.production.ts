@@ -10,6 +10,11 @@ export const environment = {
   useMockApi: false, // Use real backend in production
   logLevel: 'info' as 'debug' | 'info' | 'warn' | 'error',
   sendLogsToBackend: false,
+  sentry: {
+    dsn: '',
+    environment: 'production',
+    tracesSampleRate: 0.1
+  },
 
   paymentGateways: {
     cashfree: {

@@ -20,4 +20,14 @@ export const PROFILE_ROUTES: Routes = [
         (m) => m.ProfileEditComponent
       ),
   },
+  {
+    path: 'vehicles',
+    loadComponent: () =>
+      import('./vehicles/vehicles.component').then((m) => m.VehiclesComponent),
+  },
+  {
+    path: 'vehicles/:vehicleId/fastag',
+    loadComponent: () =>
+      import('./vehicles/fastag-link/fastag-link.component').then((m) => m.FastagLinkComponent),
+  },
 ];

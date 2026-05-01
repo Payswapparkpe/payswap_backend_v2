@@ -1,0 +1,530 @@
+<div class="dash-page">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE HEADER  (compact — replaces the old gradient hero banner)
+  ════════════════════════════════════════════════════════════════ -->
+  <header class="dash-header">
+    <div class="dash-header__left">
+      <h1 class="dash-header__title">Parking Dashboard</h1>
+      <p class="dash-header__meta">
+        {{ today | date: 'EEEE, d MMMM y' }}
+        <span class="dash-header__sep" aria-hidden="true">·</span>
+        {{ locations().length }} location{{ locations().length !== 1 ? 's' : '' }}
+        <span class="dash-header__sep" aria-hidden="true">·</span>
+        {{ totalSlots() }} slots
+      </p>
+    </div>
+
+    <div class="dash-header__actions">
+      <button type="button" class="dash-btn dash-btn--ghost" (click)="refresh()">
+        <svg class="dash-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+        </svg>
+        Refresh
+      </button>
+      <a routerLink="/hub/parking/verify" class="dash-btn dash-btn--primary">
+        <svg class="dash-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 11 12 14 22 4" />
+          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+        </svg>
+        Entry / Exit
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       LOADING
+  ════════════════════════════════════════════════════════════════ -->
+  @if (loading()) {
+    <div class="dash-loader">
+      <kendo-loader type="converging-spinner" themeColor="primary" size="large"></kendo-loader>
+      <p class="dash-loader__text">Loading live data…</p>
+    </div>
+  }
+
+  @if (loadError()) {
+    <div class="dash-error">
+      <svg class="dash-error__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p class="dash-error__msg">Could not load dashboard data. Check your connection.</p>
+      <button type="button" class="dash-btn dash-btn--primary" (click)="refresh()">Retry</button>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         KEY METRICS — 4-column CSS Grid  ([@statsGrid] queries .stat-card)
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="kpi-grid">
+
+      <!-- ── 1. Live Occupancy ─────────────────────────────────── -->
+      <div class="kpi-card stat-card">
+        <div class="kpi-card__stripe kpi-card__stripe--blue"></div>
+        <div class="kpi-card__body">
+
+          <header class="kpi-card__head">
+            <span class="kpi-card__label">Live Occupancy</span>
+            <span class="kpi-card__icon kpi-card__icon--blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </span>
+          </header>
+
+          <div class="kpi-card__primary">
+            <span class="kpi-num">{{ totalOccupied() }}</span>
+            <span class="kpi-denom">&nbsp;/ {{ totalSlots() }}</span>
+          </div>
+
+          <div class="kpi-card__secondary-row">
+            <span class="kpi-tag kpi-tag--green">{{ totalAvailable() }} free</span>
+            <span class="kpi-pct kpi-pct--blue">{{ aggregateOccupancyPct() }}%</span>
+          </div>
+
+          <div class="kpi-gauge-wrap" aria-hidden="true">
+            <kendo-arcgauge
+              [value]="aggregateOccupancyPct()"
+              [scale]="{ min: 0, max: 100, startAngle: 0, endAngle: 180 }"
+              [color]="gaugeColor()"
+              [transitions]="true"
+            ></kendo-arcgauge>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 2. Today's Revenue ────────────────────────────────── -->
+      <div class="kpi-card stat-card">
+        <div class="kpi-card__stripe kpi-card__stripe--green"></div>
+        <div class="kpi-card__body">
+
+          <header class="kpi-card__head">
+            <span class="kpi-card__label">Today's Revenue</span>
+            <span class="kpi-card__icon kpi-card__icon--green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+              </svg>
+            </span>
+          </header>
+
+          <div class="kpi-card__primary">
+            <span data-rev-counter class="kpi-num">₹0</span>
+          </div>
+
+          <div class="kpi-card__trend-row">
+            @if (showRevenueTrend()) {
+              <kendo-badge-container>
+                <span class="kpi-trend-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                    <polyline points="16 7 22 7 22 13" />
+                  </svg>
+                  Trend
+                </span>
+                <kendo-badge themeColor="success" position="inside" [align]="{ vertical: 'top', horizontal: 'end' }">
+                  +{{ revenueTrendPct() }}%
+                </kendo-badge>
+              </kendo-badge-container>
+            } @else {
+              <span class="kpi-hint">No activity yet today</span>
+            }
+            <svg class="kpi-sparkline"
+                 viewBox="0 0 96 40"
+                 preserveAspectRatio="none"
+                 [class.kpi-sparkline--live]="showRevenueTrend()"
+                 aria-hidden="true">
+              <polyline
+                [attr.points]="sparklinePoints()"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+
+          <div class="kpi-split">
+            <div class="kpi-split__cell">
+              <span class="kpi-split__val">{{ totalSessions() }}</span>
+              <span class="kpi-split__lbl">Sessions</span>
+            </div>
+            <div class="kpi-split__cell">
+              <span class="kpi-split__val">{{ locations().length }}</span>
+              <span class="kpi-split__lbl">Locations</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 3. FASTag Activity ─────────────────────────────────── -->
+      <div class="kpi-card stat-card">
+        <div class="kpi-card__stripe kpi-card__stripe--violet"></div>
+        <div class="kpi-card__body">
+
+          <header class="kpi-card__head">
+            <span class="kpi-card__label">FASTag Activity</span>
+            <span class="kpi-card__icon kpi-card__icon--violet" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </span>
+          </header>
+
+          <div class="kpi-card__primary">
+            <span class="kpi-num">{{ fastTagPct() }}</span>
+            <span class="kpi-unit">%</span>
+          </div>
+          <p class="kpi-hint">Share of entries via FASTag</p>
+
+          <div class="kpi-donut-wrap" aria-hidden="true">
+            <kendo-chart [transitions]="true">
+              <kendo-chart-series>
+                <kendo-chart-series-item
+                  type="donut"
+                  [data]="fastagSeries()"
+                  field="value"
+                  categoryField="category"
+                  colorField="color"
+                  [holeSize]="36"
+                ></kendo-chart-series-item>
+              </kendo-chart-series>
+              <kendo-chart-legend [visible]="false"></kendo-chart-legend>
+              <kendo-chart-tooltip [visible]="false"></kendo-chart-tooltip>
+            </kendo-chart>
+          </div>
+
+          <div class="kpi-device-row">
+            <span class="kpi-device-row__lbl">Devices</span>
+            <span class="kpi-device-row__status">
+              <span class="kpi-online-dot" aria-hidden="true"></span>
+              All online
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 4. Action Required ─────────────────────────────────── -->
+      <div class="kpi-card stat-card" [class.kpi-card--alert]="overstayCount() > 0">
+        <div class="kpi-card__stripe"
+             [class.kpi-card__stripe--rose]="overstayCount() > 0"
+             [class.kpi-card__stripe--muted]="overstayCount() === 0">
+        </div>
+        <div class="kpi-card__body">
+
+          <header class="kpi-card__head">
+            <span class="kpi-card__label"
+                  [class.kpi-card__label--rose]="overstayCount() > 0">
+              Action Required
+            </span>
+            <span class="kpi-card__icon"
+                  [class.kpi-card__icon--rose]="overstayCount() > 0"
+                  [class.kpi-card__icon--muted]="overstayCount() === 0"
+                  aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </span>
+          </header>
+
+          @if (overstayCount() > 0) {
+            <div class="kpi-card__primary">
+              <span class="kpi-num kpi-num--rose">{{ overstayCount() }}</span>
+            </div>
+            <p class="kpi-hint kpi-hint--rose">
+              {{ overstayCount() === 1 ? 'vehicle overstaying' : 'vehicles overstaying' }}
+            </p>
+            <button kendoButton themeColor="error" fillMode="solid" rounded="large"
+                    class="kpi-cta-btn" routerLink="/hub/parking/verify">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              Resolve at gate
+            </button>
+          } @else {
+            <div class="kpi-card__primary">
+              <span class="kpi-num kpi-num--muted">All clear</span>
+            </div>
+            <p class="kpi-hint">No exceptions detected</p>
+            <div class="kpi-all-clear">
+              <span class="kpi-online-dot" aria-hidden="true"></span>
+              <span>All devices synced &amp; online</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div><!-- /kpi-grid -->
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PARKING LOCATIONS
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="section-head">
+      <div class="section-head__left">
+        <h2 class="section-head__title">Your parking locations</h2>
+        <span class="section-head__count" aria-label="{{ locations().length }} locations">{{ locations().length }}</span>
+      </div>
+    </div>
+
+    <div class="loc-grid">
+      @for (loc of locations(); track loc.id) {
+        <div class="loc-card">
+          <!-- top accent line -->
+          <div class="loc-card__accent"></div>
+
+          <div class="loc-card__body">
+            <!-- Card head -->
+            <div class="loc-card__head">
+              <span class="loc-card__icon" aria-hidden="true">🏢</span>
+              <div class="loc-card__info">
+                <div class="loc-card__name">{{ loc.name }}</div>
+                <div class="loc-card__addr">{{ loc.address }}, {{ loc.city }}</div>
+              </div>
+              <span class="loc-card__role-badge"
+                    [class.loc-card__role-badge--owner]="loc.role === 'owner'"
+                    [class.loc-card__role-badge--manager]="loc.role === 'manager'"
+                    [class.loc-card__role-badge--attendant]="loc.role === 'attendant'">
+                {{ loc.role | titlecase }}
+              </span>
+            </div>
+
+            <!-- Occupancy bar -->
+            <div class="loc-card__occ">
+              <div class="loc-card__occ-labels">
+                <span class="loc-card__occ-key">Occupancy</span>
+                <span class="loc-card__occ-pct"
+                      [class.loc-card__occ-pct--ok]="loc.occupancyPct <= 50"
+                      [class.loc-card__occ-pct--warn]="loc.occupancyPct > 50 && loc.occupancyPct <= 80"
+                      [class.loc-card__occ-pct--crit]="loc.occupancyPct > 80">
+                  {{ loc.occupancyPct }}%
+                </span>
+              </div>
+              <div class="loc-card__bar" role="progressbar"
+                   [attr.aria-valuenow]="loc.occupancyPct" aria-valuemin="0" aria-valuemax="100">
+                <div class="loc-card__bar-fill"
+                     [style.width.%]="loc.occupancyPct"
+                     [class.loc-card__bar-fill--ok]="loc.occupancyPct <= 50"
+                     [class.loc-card__bar-fill--warn]="loc.occupancyPct > 50 && loc.occupancyPct <= 80"
+                     [class.loc-card__bar-fill--crit]="loc.occupancyPct > 80">
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats mini grid -->
+            <div class="loc-card__stats">
+              <div class="loc-card__stat">
+                <span class="loc-card__stat-val">{{ loc.availableSlots }}</span>
+                <span class="loc-card__stat-lbl">Available</span>
+              </div>
+              <div class="loc-card__stat">
+                <span class="loc-card__stat-val">{{ loc.occupiedSlots }}</span>
+                <span class="loc-card__stat-lbl">Occupied</span>
+              </div>
+              <div class="loc-card__stat">
+                <span class="loc-card__stat-val">{{ loc.activeSessions }}</span>
+                <span class="loc-card__stat-lbl">Sessions</span>
+              </div>
+              <div class="loc-card__stat">
+                <span class="loc-card__stat-val loc-card__stat-val--money">₹{{ loc.todayRevenue | number: '1.0-0' }}</span>
+                <span class="loc-card__stat-lbl">Today</span>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="loc-card__btns">
+              <a [routerLink]="['/hub/parking/verify']" [queryParams]="{ locationId: loc.id }" class="loc-card__btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+                Verify
+              </a>
+              <a [routerLink]="['/hub/parking/bookings']" [queryParams]="{ locationId: loc.id }" class="loc-card__btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="8" y1="13" x2="16" y2="13" />
+                </svg>
+                Bookings
+              </a>
+              @if (canViewRevenue) {
+                <a [routerLink]="['/hub/parking/revenue']" [queryParams]="{ locationId: loc.id }" class="loc-card__btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+                  </svg>
+                  Revenue
+                </a>
+              }
+              @if (canManageTeam) {
+                <a [routerLink]="['/hub/parking/team']" [queryParams]="{ locationId: loc.id }" class="loc-card__btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                  </svg>
+                  Team
+                </a>
+              }
+            </div>
+          </div>
+        </div>
+      } @empty {
+        <div class="loc-empty">
+          <span class="loc-empty__icon" aria-hidden="true">🏢</span>
+          <p class="loc-empty__title">No locations assigned yet</p>
+          <p class="loc-empty__sub">Ask your Hub administrator to assign you as an operator.</p>
+        </div>
+      }
+    </div><!-- /loc-grid -->
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         LIVE ACTIVITY FEED
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="section-head">
+      <div class="section-head__left">
+        <h2 class="section-head__title">Live activity</h2>
+        <span class="hub-live" aria-hidden="true">
+          <span class="hub-live__dot"></span>
+        </span>
+      </div>
+      <button type="button" class="section-head__action" (click)="refresh()">Refresh</button>
+    </div>
+
+    <kendo-listview [data]="liveActivity()" [loading]="loading()" containerClass="feed-list">
+      <ng-template kendoListViewItemTemplate let-item="dataItem">
+        <div
+          class="feed-row"
+          [class.feed-row--entry]="item.type === 'entry'"
+          [class.feed-row--exit]="item.type === 'exit'"
+          [class.feed-row--booking]="item.type === 'booking'"
+          [class.feed-row--overstay]="item.type === 'overstay'"
+        >
+          <span class="feed-row__plate">{{ item.vehicle }}</span>
+
+          <div class="feed-row__body">
+            <p class="feed-row__title">{{ item.label }}</p>
+            <p class="feed-row__time">{{ item.time }}</p>
+          </div>
+
+          <span class="feed-row__badge"
+                [class.feed-row__badge--entry]="item.type === 'entry'"
+                [class.feed-row__badge--exit]="item.type === 'exit'"
+                [class.feed-row__badge--booking]="item.type === 'booking'"
+                [class.feed-row__badge--overstay]="item.type === 'overstay'"
+                [class.feed-row__badge--pulse]="item.type === 'overstay'">
+            @switch (item.type) {
+              @case ('entry')   { Entry }
+              @case ('exit')    { Exit }
+              @case ('booking') { Pre-booked }
+              @default          { Overstay }
+            }
+          </span>
+
+          <span class="feed-row__amount">
+            @if (item.amount != null) { ₹{{ item.amount }} }
+          </span>
+        </div>
+      </ng-template>
+
+      <ng-template kendoListViewNoRecordsTemplate>
+        <div class="feed-empty">
+          <p class="feed-empty__text">No activity recorded yet for today.</p>
+        </div>
+      </ng-template>
+    </kendo-listview>
+
+  }<!-- /if !loading -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       FLOATING QUICK-ACTIONS FAB
+  ════════════════════════════════════════════════════════════════ -->
+  <div class="fab-float" aria-live="polite">
+    <div [@floatMenu]="floatOpen() ? 'open' : 'closed'" class="fab-panel" aria-label="Quick actions menu">
+      <div class="fab-panel__inner">
+        <p class="fab-panel__header">Quick actions</p>
+
+        <button kendoButton themeColor="primary" fillMode="solid" rounded="large"
+                class="fab-panel__item" routerLink="/hub/parking/verify">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z" />
+          </svg>
+          Manual entry
+        </button>
+
+        <button kendoButton fillMode="flat" themeColor="base" rounded="large"
+                class="fab-panel__item" (click)="gateAction(1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Open Gate 1
+        </button>
+
+        <button kendoButton fillMode="flat" themeColor="base" rounded="large"
+                class="fab-panel__item" (click)="gateAction(2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Open Gate 2
+        </button>
+
+        <button kendoButton fillMode="outline" themeColor="base" rounded="large" class="fab-panel__item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+          </svg>
+          Scan RC / FASTag
+        </button>
+
+        <div class="fab-panel__divider"></div>
+
+        @if (canViewRevenue) {
+          <button kendoButton themeColor="primary" fillMode="solid" rounded="large"
+                  class="fab-panel__item fab-panel__item--center" routerLink="/hub/parking/revenue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            Generate report
+          </button>
+        } @else {
+          <button kendoButton themeColor="primary" fillMode="solid" rounded="large"
+                  class="fab-panel__item fab-panel__item--center" routerLink="/hub/parking/bookings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            View bookings
+          </button>
+        }
+      </div>
+    </div>
+
+    <button kendoButton themeColor="primary" fillMode="solid" rounded="full"
+            class="fab-trigger" type="button"
+            (click)="toggleFloat()"
+            [attr.aria-expanded]="floatOpen()"
+            aria-label="Toggle quick actions">
+      <svg [@fabRotate]="floatOpen() ? 'open' : 'closed'"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+  </div>
+
+</div><!-- /dash-page -->

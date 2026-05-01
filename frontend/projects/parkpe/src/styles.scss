@@ -139,6 +139,50 @@ body {
   --layout-max-width: 1480px;
   --layout-gutter: clamp(0.75rem, 2vw, 1.5rem);
   --layout-gutter-compact: clamp(0.6rem, 1.5vw, 1rem);
+
+  /* ── Kendo Design System tokens (no package install required) ── */
+  /* Elevation */
+  --kendo-elevation-1: 0 1px 2px rgba(15,23,42,.05);
+  --kendo-elevation-2: 0 2px 6px rgba(15,23,42,.06);
+  --kendo-elevation-3: 0 6px 16px rgba(15,23,42,.08);
+  --kendo-elevation-4: 0 10px 24px rgba(15,23,42,.10);
+  --kendo-elevation-5: 0 16px 32px rgba(15,23,42,.12);
+  --kendo-elevation-6: 0 24px 48px rgba(15,23,42,.14);
+  /* Border radius */
+  --kendo-border-radius-xs: 4px;
+  --kendo-border-radius-sm: 8px;
+  --kendo-border-radius-md: 12px;
+  --kendo-border-radius-lg: 16px;
+  --kendo-border-radius-xl: 20px;
+  --kendo-border-radius-full: 9999px;
+  /* Semantic colors (Kendo-aligned, ParkPe brand) */
+  --kendo-color-primary: #004aad;
+  --kendo-color-primary-hover: #003e92;
+  --kendo-color-primary-subtle: #e6effb;
+  --kendo-color-on-primary: #fff;
+  --kendo-color-success: #0ea070;
+  --kendo-color-success-subtle: #d1fae5;
+  --kendo-color-error: #e11d48;
+  --kendo-color-error-subtle: #ffe4e6;
+  --kendo-color-warning: #c37d09;
+  --kendo-color-warning-subtle: #fef3c7;
+  --kendo-color-info: #0d96d2;
+  --kendo-color-info-subtle: #e0f2fe;
+  --kendo-color-surface: #fff;
+  --kendo-color-surface-alt: #f1f5f9;
+  --kendo-color-app-surface: #f7f9fc;
+  --kendo-color-border: rgba(226,232,240,.95);
+  /* Input / form shared style */
+  --park-input-border: 1px solid rgba(226,232,240,.9);
+  --park-input-radius: var(--kendo-border-radius-md);
+  --park-input-bg: #fff;
+  --park-input-focus-ring: 0 0 0 3px rgba(0,74,173,.14);
+  --park-input-focus-border: #5f95ff;
+  /* Card */
+  --park-card-bg: #fff;
+  --park-card-border: 1px solid rgba(226,232,240,.9);
+  --park-card-radius: var(--kendo-border-radius-lg);
+  --park-card-shadow: var(--kendo-elevation-3);
 }
 
 /* Dark Theme */

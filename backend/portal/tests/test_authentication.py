@@ -158,6 +158,40 @@ class MultiStepLoginTests(AuthenticationTestCase):
         if response.status_code == 302:
             self.assertIn('/profile/complete/', response.url)
 
+    def test_fleet_operator_cannot_get_portal_session(self):
+        """Fleet users must be blocked from portal session login."""
+        Role.objects.create(
+            name='Fleet Operator',
+            code='fleet_operator',
+            category='b2b',
+            hierarchy_level=3,
+            mfa_required=False,
+        )
+        fleet_user = User.objects.create_user(
+            username='fleetop',
+            password='TestPass123!',
+            role_code='fleet_operator',
+            email_verified=True,
+            is_active=True,
+        )
+        Profile.objects.create(
+            user=fleet_user,
+            first_name='Fleet',
+            email='fleetop@example.com',
+            phone='9123456796',
+            email_verified=True,
+            phone_verified=True,
+        )
+
+        response = self.client.post(reverse('signin'), {
+            'username': 'fleetop',
+            'password': 'TestPass123!'
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.request.get('PATH_INFO'), reverse('signin'))
+        self.assertNotIn('_auth_user_id', self.client.session)
+
 
 class MultiStepSignupTests(AuthenticationTestCase):
     """Test multi-step signup flow with OTP dual delivery"""

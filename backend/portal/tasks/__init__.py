@@ -11,6 +11,7 @@ from . import logging_tasks  # Keep for backward compatibility
 from . import notification_tasks  # Keep for backward compatibility
 from . import connect_tasks
 from . import parkpe_tasks
+from . import parking_reconcile
 
 __all__ = [
     'sms_task',
@@ -23,4 +24,5 @@ __all__ = [
     'notification_tasks',
     'connect_tasks',
     'parkpe_tasks',
+    'parking_reconcile',
 ]

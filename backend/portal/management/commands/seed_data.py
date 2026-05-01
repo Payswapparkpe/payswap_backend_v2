@@ -6,6 +6,8 @@ from django.core.management.base import BaseCommand
 from django.core.management import call_command
 from django.db import transaction
 from decimal import Decimal
+import os
+import secrets
 from portal.models import User, Profile, Role, Wallet, KYC, UserPermission, WalletTransaction
 from portal.utils.user_utils import generate_username, get_role_prefix
 
@@ -22,6 +24,7 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         skip_delete = options.get('skip_delete', False)
+        self.seed_passwords = {}
         
         # Ensure migrations are applied (skip if skip_delete is True to avoid migration issues)
         if not skip_delete:
@@ -115,7 +118,7 @@ class Command(BaseCommand):
             # Create Admin User and Profile
             admin_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Admin@123',
+                password=self._seed_password('admin'),
                 role_code='admin',
                 is_staff=True,
                 is_superuser=True,
@@ -139,7 +142,7 @@ class Command(BaseCommand):
             # Create Super Admin User
             super_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Super@123',
+                password=self._seed_password('super_admin'),
                 role_code='super_admin',
                 is_active=True,
                 email_verified=True,
@@ -161,7 +164,7 @@ class Command(BaseCommand):
             # Create Employee User
             employee_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Employee@123',
+                password=self._seed_password('employee'),
                 role_code='employee',
                 is_active=True,
                 email_verified=True,
@@ -185,7 +188,7 @@ class Command(BaseCommand):
             # Create Distributor User
             distributor_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Distributor@123',
+                password=self._seed_password('distributor'),
                 role_code='distributor',
                 is_active=True,
                 email_verified=True,
@@ -211,7 +214,7 @@ class Command(BaseCommand):
             # Create Retailer User
             retailer_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Retailer@123',
+                password=self._seed_password('retailer'),
                 role_code='retailer',
                 is_active=True,
                 email_verified=True,
@@ -237,7 +240,7 @@ class Command(BaseCommand):
             for i in range(1, 4):
                 customer_user = User.objects.create_user(
                     username=None,  # Will be auto-generated
-                    password='Customer@123',
+                    password=self._seed_password(f'customer_{i}'),
                     role_code='customer',
                     is_active=True,
                     email_verified=True,
@@ -258,7 +261,7 @@ class Command(BaseCommand):
             # Create Vendor User
             vendor_user = User.objects.create_user(
                 username=None,  # Will be auto-generated
-                password='Vendor@123',
+                password=self._seed_password('vendor'),
                 role_code='vendor',
                 is_active=True,
                 email_verified=True,
@@ -323,6 +326,14 @@ class Command(BaseCommand):
                 customer_user.kyc_status = 'approved'
                 customer_user.save()
                 self.stdout.write('  ✓ Created sample KYC records')
+
+    def _seed_password(self, role_key: str) -> str:
+        """Use env override or secure random seed password."""
+        base = os.getenv("SEED_DEFAULT_PASSWORD")
+        role_specific = os.getenv(f"SEED_PASSWORD_{role_key.upper()}")
+        password = (role_specific or base or secrets.token_urlsafe(12))
+        self.seed_passwords[role_key] = password
+        return password
     
     def _print_summary(self):
         """Print summary of created data"""
@@ -342,6 +353,9 @@ class Command(BaseCommand):
         self.stdout.write(f'Wallets: {wallets_count}')
         self.stdout.write(f'Wallet Transactions: {transactions_count}')
         self.stdout.write(f'KYC Records: {kyc_count}')
+        self.stdout.write('\nSeed user passwords (rotate immediately for shared environments):')
+        for role_key in sorted(self.seed_passwords.keys()):
+            self.stdout.write(f'  - {role_key}: {self.seed_passwords[role_key]}')
         self.stdout.write('=' * 60)
         
         self.stdout.write('\n' + '-' * 60)

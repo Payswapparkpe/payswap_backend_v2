@@ -1,6 +1,7 @@
 import { ApplicationConfig, APP_INITIALIZER, inject } from '@angular/core';
 import { provideRouter, withPreloading } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 import { routes } from './app.routes';
@@ -44,6 +45,7 @@ function initSessionLock(): () => void {
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideAnimationsAsync(),
     provideRouter(routes, withPreloading(PriorityPreloadingStrategy)),
     provideHttpClient(
       withInterceptors([

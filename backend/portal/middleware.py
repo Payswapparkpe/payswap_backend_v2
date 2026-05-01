@@ -14,6 +14,48 @@ from portal.utils.logging_utils import get_request_id, generate_response_id
 from portal.utils.ip_utils import get_client_ip, get_user_agent, get_session_id
 from portal.tasks.write_logs_task import write_logs_task
 
+FLEET_PORTAL_ROLE_CODES = {
+    "fleet_admin", "fleet_manager", "fleet_operator", "fleet_dispatcher",
+    "parking_owner", "parking_manager", "parking_attendant",
+    "super_distributor", "distributor", "retailer", "customer",
+}
+
+
+class FleetPortalBlockMiddleware:
+    """
+    Prevent fleet-only accounts from accessing Django portal session flows.
+    Fleet users must authenticate through ParkPe app (JWT flow), not portal UI.
+    """
+
+    EXCLUDED_PATHS = [
+        '/signin/',
+        '/signout/',
+        '/logout/',
+        '/admin/',
+        '/static/',
+        '/media/',
+        '/api/',
+    ]
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if any(request.path.startswith(path) for path in self.EXCLUDED_PATHS):
+            return self.get_response(request)
+
+        if request.user.is_authenticated:
+            role_code = getattr(request.user, "role_code", "")
+            if role_code in FLEET_PORTAL_ROLE_CODES:
+                logout(request)
+                # Message middleware may not be initialized yet in some test flows.
+                if hasattr(request, "_messages"):
+                    from django.contrib import messages
+                    messages.error(request, "Fleet accounts must use the ParkPe app.")
+                return redirect('/signin/')
+
+        return self.get_response(request)
+
 
 class ProfileCompletionMiddleware:
     """

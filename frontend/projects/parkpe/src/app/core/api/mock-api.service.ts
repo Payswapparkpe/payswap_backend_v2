@@ -45,6 +45,10 @@ import {
   ParkingSlot,
   BookingRequest,
   Booking,
+  ParkingExitPreview,
+  ParkingExitUpiOrder,
+  ParkingExitPaymentStatus,
+  VehicleFastagMapping,
 } from '../models/parking.model';
 import {
   BBPSOperator,
@@ -62,6 +66,7 @@ import {
   Challan,
   ChallanPaymentRequest,
   ChallanPaymentResponse,
+  ChallanHistoryItem,
 } from '../models/challan.model';
 import { generateTransactionId } from '../utils/transaction-id';
 
@@ -102,6 +107,22 @@ export class MockApiService implements ApiBackend {
           };
           (fleetUser as unknown as Record<string, unknown>)['roleCode'] = 'fleet_admin';
           return { ...res, user: fleetUser };
+        }),
+        delay(this.mockDelay)
+      );
+  }
+
+  parkingLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http
+      .get<LoginResponse>('assets/mock/auth/login.json')
+      .pipe(
+        map((res) => {
+          const parkingUser: User = {
+            ...res.user,
+            role: 'parking',
+          };
+          (parkingUser as unknown as Record<string, unknown>)['roleCode'] = 'parking_owner';
+          return { ...res, user: parkingUser };
         }),
         delay(this.mockDelay)
       );
@@ -434,6 +455,69 @@ export class MockApiService implements ApiBackend {
       .pipe(delay(this.mockDelay));
   }
 
+  getParkingExitPreview(bookingRef: string): Observable<ParkingExitPreview> {
+    return of({
+      bookingReference: bookingRef,
+      durationMinutes: 10,
+      finalAmount: 50,
+      alreadyPaid: 0,
+      due: 50,
+      overstayAmount: 0,
+      voucherBalance: 200,
+      voucherSufficient: true,
+      hasParkingTxPin: true,
+      paymentOptions: [{ method: 'voucher', label: 'Voucher', primary: true }],
+      currency: 'INR',
+    }).pipe(delay(this.mockDelay));
+  }
+
+  payParkingExitVoucher(_bookingRef: string, _pin: string): Observable<Record<string, unknown>> {
+    return of({ success: true, status: 'completed' }).pipe(delay(this.mockDelay));
+  }
+
+  payParkingExitUpi(_bookingRef: string): Observable<ParkingExitUpiOrder> {
+    return of({
+      success: true,
+      exit_payment_id: 1,
+      amount: 50,
+      upi_qr_data: 'upi://pay?pa=test@upi&pn=Test&am=50&cu=INR',
+      currency: 'INR',
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getParkingExitPaymentStatus(_exitPaymentId: number): Observable<ParkingExitPaymentStatus> {
+    return of({
+      status: 'pending',
+      paid: false,
+      amount: 50,
+      booking_reference: 'MOCK',
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getParkingFastagMappings(): Observable<{ mappings: VehicleFastagMapping[] }> {
+    return of({ mappings: [] }).pipe(delay(this.mockDelay));
+  }
+
+  linkParkingFastag(body: {
+    vehicleNumber: string;
+    fastagId: string;
+    issuer?: string;
+    fastagWalletId?: string;
+  }): Observable<{ success: boolean; mapping: VehicleFastagMapping }> {
+    const mapping: VehicleFastagMapping = {
+      id: 'mock-1',
+      vehicleNumber: body.vehicleNumber,
+      fastagId: body.fastagId,
+      issuer: body.issuer ?? 'npci',
+      isVerified: true,
+      isActive: true,
+      linkedVehicleId: null,
+      lastBalanceInr: 0,
+      balanceFetchedAt: null,
+    };
+    return of({ success: true, mapping }).pipe(delay(this.mockDelay));
+  }
+
   // BBPS API – short delay so operator/biller screens open quickly
   private bbpsDelay = 120;
 
@@ -597,6 +681,74 @@ export class MockApiService implements ApiBackend {
       paidAt: new Date().toISOString(),
       message: 'Challan paid successfully',
     }).pipe(delay(this.mockDelay));
+  }
+
+  getChallanHistory(_params?: { limit?: number; status?: string }): Observable<{ items: ChallanHistoryItem[]; total: number }> {
+    const items: ChallanHistoryItem[] = [
+        {
+          id: 1,
+          challanId: 'mock-challan-id',
+          challanNumber: 'CHLN001',
+          vehicleNumber: 'KA01AB1234',
+          amount: 500,
+          status: 'success',
+          transactionId: generateTransactionId(),
+          receiptNumber: 'RCPT_CHALLAN_001',
+          paymentMode: 'upi',
+          paidAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+    return of({
+      items,
+      total: 1,
+    }).pipe(delay(this.mockDelay));
+  }
+
+  getChallanReceipt(id: string): Observable<import('../models/challan.model').ChallanReceipt> {
+    return of({
+      success: true,
+      challanId: id,
+      challanNumber: 'CHLN001',
+      vehicleNumber: 'KA01AB1234',
+      receiptNumber: 'RCPT_CHALLAN_001',
+      transactionId: generateTransactionId(),
+      amount: 500,
+      status: 'success',
+      paidAt: new Date().toISOString(),
+    }).pipe(delay(this.mockDelay));
+  }
+
+  downloadChallanReceipt(_id: string): Observable<Blob> {
+    return of(new Blob(['Mock challan receipt PDF'], { type: 'application/pdf' })).pipe(delay(this.mockDelay));
+  }
+
+  getSavedVehicles(): Observable<import('../models/challan.model').SavedVehicle[]> {
+    return of([
+      {
+        id: 1,
+        registrationNumber: 'KA01AB1234',
+        nickname: 'Personal Car',
+        isPrimary: true,
+        lastKnownPendingCount: 1,
+        lastCheckedAt: new Date().toISOString(),
+      },
+    ]).pipe(delay(this.mockDelay));
+  }
+
+  addSavedVehicle(payload: { registrationNumber: string; nickname?: string; isPrimary?: boolean }): Observable<import('../models/challan.model').SavedVehicle> {
+    return of({
+      id: Math.floor(Math.random() * 10000),
+      registrationNumber: payload.registrationNumber.toUpperCase(),
+      nickname: payload.nickname ?? '',
+      isPrimary: !!payload.isPrimary,
+      lastKnownPendingCount: 0,
+      lastCheckedAt: new Date().toISOString(),
+    }).pipe(delay(this.mockDelay));
+  }
+
+  removeSavedVehicle(_id: number): Observable<void> {
+    return of(undefined).pipe(delay(this.mockDelay));
   }
 
   // Dashboard API

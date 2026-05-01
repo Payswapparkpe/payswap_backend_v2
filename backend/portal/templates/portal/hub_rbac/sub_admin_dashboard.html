@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}My Hub Access{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="page-header-enterprise">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+        <i class="ti ti-user-check text-xl text-green-600"></i>
+      </div>
+      <div>
+        <h1 class="page-title-enterprise">My Hub Access</h1>
+        <p class="page-description-enterprise">Your active department/project assignments and effective permissions</p>
+      </div>
+    </div>
+  </div>
+
+  {% if is_super_admin %}
+  <div class="card-enterprise bg-indigo-50 border border-indigo-200 p-4">
+    <div class="flex items-center gap-2 text-indigo-700">
+      <i class="ti ti-crown text-lg"></i>
+      <span class="font-semibold">Super Admin</span>
+    </div>
+    <p class="text-sm text-indigo-600 mt-1">You have full access to all departments, projects, and permissions.</p>
+  </div>
+  {% else %}
+
+  {% if not assignments %}
+  <div class="card-enterprise p-8 text-center">
+    <i class="ti ti-lock-open text-4xl text-gray-300 mb-3 block"></i>
+    <p class="text-gray-600 font-medium">No active Hub assignments</p>
+    <p class="text-gray-400 text-sm mt-1">Contact a Super Admin to get assigned to a Department and Project.</p>
+  </div>
+  {% else %}
+
+  <div class="section-title">Active Assignments ({{ assignments|length }})</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for a in assignments %}
+    <div class="card-enterprise p-4">
+      <div class="flex justify-between items-start mb-2">
+        <div>
+          <div class="font-semibold text-gray-900 text-sm">{{ a.department.name }}</div>
+          <div class="text-xs text-gray-500">{{ a.project.name }}</div>
+        </div>
+        {% if a.expires_at %}
+        <span class="badge-enterprise badge-enterprise-warning text-xs">Expires {{ a.expires_at|date:"d M Y" }}</span>
+        {% else %}
+        <span class="badge-enterprise badge-enterprise-success text-xs">Permanent</span>
+        {% endif %}
+      </div>
+      {% if a.designation %}
+      <div class="text-xs text-gray-500 mb-2">{{ a.designation }}</div>
+      {% endif %}
+      <div class="flex flex-wrap gap-1">
+        {% for role in a.roles.all %}
+        <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{{ role.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="section-title">Effective Permissions ({{ permission_count }})</div>
+  <div class="card-enterprise p-4 space-y-4">
+    {% for group in permissions_grouped %}
+    <div>
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">{{ group.app_label }}</div>
+      <div class="flex flex-wrap gap-1">
+        {% for perm in group.permissions %}
+        <code class="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-mono">{{ perm }}</code>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

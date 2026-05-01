@@ -7,6 +7,11 @@ export const environment = {
   useMockApi: false, // false = real backend (Mobikwik BBPS at /api/bbps/*)
   logLevel: 'debug' as 'debug' | 'info' | 'warn' | 'error',
   sendLogsToBackend: false,
+  sentry: {
+    dsn: '',
+    environment: 'development',
+    tracesSampleRate: 0.1
+  },
 
   paymentGateways: {
     cashfree: {

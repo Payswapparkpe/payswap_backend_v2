@@ -1,0 +1,138 @@
+<div class="park-owner-page mx-auto max-w-6xl font-sans">
+
+  <!-- Header + period chips -->
+  <div class="park-section-row mb-6">
+    <div>
+      <h1 class="page-title">Revenue</h1>
+      <p class="page-subtitle">Track earnings for the selected location and period.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      @for (p of periodChips; track p.days) {
+        <button
+          type="button"
+          class="park-chip"
+          [class.park-chip--active]="days() === p.days"
+          [class.park-chip--inactive]="days() !== p.days"
+          (click)="setDays(p.days)"
+        >{{ p.label }}</button>
+      }
+    </div>
+  </div>
+
+  <!-- Filters panel -->
+  <div class="park-panel mb-6 flex flex-wrap items-end gap-4">
+    <div class="flex flex-col gap-1 min-w-[220px]">
+      <label class="park-label">Location</label>
+      <select class="park-input" [value]="locationId()" (change)="onLocationChange(($any($event.target).value))">
+        @for (loc of locations(); track loc.id) {
+          <option [value]="loc.id">{{ loc.name }}</option>
+        }
+      </select>
+    </div>
+    <button type="button" class="park-btn park-btn-primary text-sm" [disabled]="loading()" (click)="load()">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+      </svg>
+      Refresh
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="park-alert park-alert--error mb-4">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="park-loader-shell" style="min-height:40vh">
+      <div class="park-spinner"></div>
+    </div>
+  } @else {
+
+    <!-- KPI tiles with accent top bars -->
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="park-surface overflow-hidden">
+        <div class="h-1.5 w-full" style="background:linear-gradient(90deg,#5f95ff,#004aad)"></div>
+        <div class="p-5">
+          <div class="park-stat-tile__label">Total (period)</div>
+          <div data-kpi-val class="park-stat-tile__value mt-2 text-2xl text-[var(--kendo-color-primary,#004aad)]">₹0</div>
+        </div>
+      </div>
+      <div class="park-surface overflow-hidden">
+        <div class="h-1.5 w-full" style="background:linear-gradient(90deg,#34d399,#059669)"></div>
+        <div class="p-5">
+          <div class="park-stat-tile__label">Today</div>
+          <div data-kpi-val class="park-stat-tile__value mt-2 text-2xl text-emerald-700">₹0</div>
+        </div>
+      </div>
+      <div class="park-surface overflow-hidden">
+        <div class="h-1.5 w-full" style="background:linear-gradient(90deg,#a78bfa,#7c3aed)"></div>
+        <div class="p-5">
+          <div class="park-stat-tile__label">Avg / Day</div>
+          <div data-kpi-val class="park-stat-tile__value mt-2 text-2xl text-violet-700">₹0</div>
+        </div>
+      </div>
+      <div class="park-surface overflow-hidden">
+        <div class="h-1.5 w-full" style="background:linear-gradient(90deg,#fbbf24,#d97706)"></div>
+        <div class="p-5">
+          <div class="park-stat-tile__label">Peak Day</div>
+          <div data-kpi-val class="park-stat-tile__value mt-2 text-2xl text-amber-700">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily trend chart -->
+    <div class="park-surface mb-8 p-6">
+      <h2 class="mb-5 text-xs font-bold uppercase tracking-wider text-slate-400">Daily Trend</h2>
+      <div class="flex h-44 items-end gap-1 border-b border-slate-100 pb-2">
+        @for (d of daily(); track $index) {
+          <div class="flex min-w-0 flex-1 flex-col items-center justify-end">
+            <div
+              data-rev-bar
+              class="w-full max-w-[28px] rounded-t"
+              style="background:linear-gradient(to top,var(--kendo-color-primary,#004aad),#5f95ff);transform-origin:bottom center"
+              [style.height.%]="maxDaily() ? (100 * d.value) / maxDaily() : 0"
+            ></div>
+            <span class="mt-1.5 truncate text-[9px] font-medium text-slate-400">{{ d.label }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Location breakdown -->
+    <div class="park-surface p-6">
+      <h2 class="mb-5 text-xs font-bold uppercase tracking-wider text-slate-400">Breakdown</h2>
+      @if (!locBreakdown().length) {
+        <div class="park-empty" style="border:none;box-shadow:none;padding:2rem 0">
+          <p class="park-empty__title">No per-location data in this response.</p>
+        </div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-400">
+                <th class="py-2.5 pr-4">Location</th>
+                <th class="py-2.5 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of locBreakdown(); track row.name) {
+                <tr class="border-b border-slate-50">
+                  <td class="py-3 font-medium text-slate-800">{{ row.name }}</td>
+                  <td class="py-3 text-right font-bold tabular-nums text-[var(--kendo-color-primary,#004aad)]">
+                    ₹{{ row.amount | number: '1.0-0' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    @if (rawSummary()) {
+      <details class="mt-5 rounded-xl bg-slate-100/80 p-4 text-xs ring-1 ring-slate-200/80">
+        <summary class="cursor-pointer font-semibold text-slate-700">Raw API response</summary>
+        <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap">{{ rawSummary() | json }}</pre>
+      </details>
+    }
+  }
+</div>
