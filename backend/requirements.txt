@@ -1,4 +1,4 @@
-Django==5.2.10
+Django==5.2.14
 gunicorn>=23.0.0
 whitenoise==6.11.0
 django-simple-history>=3.7.0,<4  # Audit history; Django 4.x/5.x/6.x, Python 3.10+
