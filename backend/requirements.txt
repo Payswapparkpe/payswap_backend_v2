@@ -5,7 +5,7 @@ django-simple-history>=3.7.0,<4  # Audit history; Django 4.x/5.x/6.x, Python 3.1
 djangorestframework==3.16.1
 djangorestframework-simplejwt>=5.4.0
 dj-rest-auth==7.0.2
-django-allauth==65.14.0
+django-allauth==65.14.1
 PyJWT==2.10.1
 psycopg2-binary==2.9.11
 dj-database-url==3.1.0
